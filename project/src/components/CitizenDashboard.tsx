@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Bell, Building2, ChevronLeft, Clock, Heart, Home, LogOut, MapPin,
-  Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp,
-  User, Users, Volume2, Flag, AlertOctagon, Zap, ExternalLink, LayoutGrid,
-} from 'lucide-react';
+import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, OctagonAlert as AlertOctagon, Zap, ExternalLink, LayoutGrid } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -41,7 +37,7 @@ const pinColors: Record<string, string> = {
 function facilityOccupancy(depts: Department[]): number {
   if (depts.length === 0) return 0;
   const totalWaiting = depts.reduce((s, d) => s + (d.waiting_count || 0), 0);
-  const totalCapacity = depts.reduce((s, d) => s + Math.max(d.capacity || 10, d.waiting_count || 0, 1), 0);
+  const totalCapacity = depts.reduce((s, d) => s + Math.max(d.waiting_count || 0, 1), 0);
   if (totalCapacity === 0) return 0;
   return Math.min(100, Math.round((totalWaiting / totalCapacity) * 100));
 }

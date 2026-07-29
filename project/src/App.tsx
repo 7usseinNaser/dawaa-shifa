@@ -24,6 +24,7 @@ import LiveMap from '@/components/LiveMap';
 import Navbar from '@/components/Navbar';
 import Onboarding from '@/components/Onboarding';
 import PharmacistDashboard from '@/components/PharmacistDashboard';
+import ResetPasswordForm from '@/components/ResetPasswordForm';
 import PrivacySecurity from '@/components/PrivacySecurity';
 import Problem from '@/components/Problem';
 import Roadmap from '@/components/Roadmap';
@@ -60,7 +61,7 @@ function useHashRoute() {
 
 function AppContent() {
   const { theme, toggle } = useTheme();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isRecovery, clearRecovery } = useAuth();
   const hash = useHashRoute();
 
   const isAuthRoute = hash === '#/auth' || hash === '#/login' || hash === '#/register';
@@ -75,6 +76,21 @@ function AppContent() {
           className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full"
         />
       </div>
+    );
+  }
+
+  if (isRecovery) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key="reset" variants={pageVariants} initial="initial" animate="enter" exit="exit">
+          <ResetPasswordForm
+            onSuccess={() => {
+              clearRecovery();
+              window.location.hash = '#/auth';
+            }}
+          />
+        </motion.div>
+      </AnimatePresence>
     );
   }
 
