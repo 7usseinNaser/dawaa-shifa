@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pill, Plus, Trash2, Clock, Loader2, MapPin, AlertCircle, Edit3, X } from 'lucide-react';
+import { Pill, Plus, Trash2, Clock, Loader2, MapPin, AlertCircle, CreditCard as Edit3, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type Pharmacy, type Medicine } from '@/lib/supabase';
