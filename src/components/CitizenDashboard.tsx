@@ -9,7 +9,7 @@ import {
   type Notification, type Favorite, type AdminAlert,
 } from '@/lib/supabase';
 import { searchMedicines, searchFacilities, autocompleteSuggestions, normalizeAr } from '@/lib/search';
-import { OccupancyBar, StatusBadge, StatCard } from '@/components/ui/DashboardParts';
+import { OccupancyBar, StatusBadge, StatCard, FreshnessBadge } from '@/components/ui/DashboardParts';
 import { ToastContainer, showToast, useToast } from '@/components/ui/Toast';
 import RatingCard from '@/components/ui/RatingCard';
 import ChronicMedicines from '@/components/ChronicMedicines';
@@ -18,9 +18,11 @@ import { FamilyCabinet, RadiusSelector } from '@/components/FamilyCabinet';
 import { GenericFinder } from '@/components/AIFeatures';
 import { AIChatbot } from '@/components/AIChatbot';
 import { OCRScanner } from '@/components/OCRScanner';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { EmergencyMedicalID } from '@/components/EmergencyMedicalID';
 import { DonationHub } from '@/components/DonationHub';
 import type { EmergencyBroadcast } from '@/lib/supabase';
-import { Camera, Gift, Radio } from 'lucide-react';
+import { Camera, Gift, Radio, ScanLine, MoonStar } from 'lucide-react';
 
 type Tab = 'home' | 'search' | 'map' | 'meds' | 'profile' | 'discover' | 'donate';
 type SearchMode = 'medicine' | 'facility';
@@ -77,6 +79,8 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   const [seniorMode, setSeniorMode] = useState(false);
   const [radius, setRadius] = useState(0); // 0 = all
   const [showOCR, setShowOCR] = useState(false);
+  const [showBarcode, setShowBarcode] = useState(false);
+  const [nightOnly, setNightOnly] = useState(false);
   const [listening, setListening] = useState(false);
   const [broadcast, setBroadcast] = useState<EmergencyBroadcast | null>(null);
 
@@ -371,8 +375,11 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
                   onToggleFavFac={(f) => toggleFav(f.id, 'facility', f.name)}
                   t={t}
                   onOCR={() => setShowOCR(true)}
+                  onBarcode={() => setShowBarcode(true)}
                   onVoice={startVoiceSearch}
                   listening={listening}
+                  nightOnly={nightOnly}
+                  setNightOnly={setNightOnly}
                   isRTL={lang === 'ar'}
                 />
               </motion.div>
@@ -414,6 +421,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
                   theme={theme} onToggleTheme={onToggleTheme}
                   onToggleFav={(id, type, name) => toggleFav(id, type, name)}
                   onSignOut={signOut} t={t}
+                  isRTL={lang === 'ar'}
                 />
               </motion.div>
             )}
@@ -456,6 +464,13 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
       <AnimatePresence>
         {showOCR && (
           <OCRScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowOCR(false)} isRTL={lang === 'ar'} />
+        )}
+      </AnimatePresence>
+
+      {/* Barcode Scanner Modal */}
+      <AnimatePresence>
+        {showBarcode && (
+          <BarcodeScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowBarcode(false)} isRTL={lang === 'ar'} />
         )}
       </AnimatePresence>
 
@@ -654,7 +669,59 @@ function HomeTab({ pharmacies, facilities, departments, openPharmacies, activeFa
 }
 
 /* ===================== SEARCH TAB ===================== */
-function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departments, favIds, radius, setRadius, onPharmacyClick, onFacilityClick, onToggleFavPharm, onToggleFavFac, t, onOCR, onVoice, listening, isRTL }: {
+/* 30-minute hold reservation */
+const HOLD_DURATION = 30 * 60 * 1000;
+function HoldButton({ medicineId, pharmacyName, isRTL }: { medicineId: string; pharmacyName: string; isRTL: boolean }) {
+  const [holdEnd, setHoldEnd] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`hold_${medicineId}`);
+      if (stored) { const end = parseInt(stored, 10); if (end > Date.now()) setHoldEnd(end); else localStorage.removeItem(`hold_${medicineId}`); }
+    } catch { /* ignore */ }
+  }, [medicineId]);
+
+  useEffect(() => {
+    if (!holdEnd) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [holdEnd]);
+
+  const startHold = () => {
+    const end = Date.now() + HOLD_DURATION;
+    setHoldEnd(end);
+    setNow(Date.now());
+    try { localStorage.setItem(`hold_${medicineId}`, String(end)); } catch { /* ignore */ }
+  };
+
+  if (holdEnd && holdEnd > now) {
+    const remaining = Math.max(0, holdEnd - now);
+    const mm = String(Math.floor(remaining / 60000)).padStart(2, '0');
+    const ss = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+    return (
+      <div className="mt-2 p-2 rounded-lg bg-status-busy/15 border border-status-busy/30 flex items-center justify-between">
+        <span className="text-xs font-tajawal text-status-busy flex items-center gap-1">
+          <Clock className="w-3 h-3" /> {isRTL ? `محجوز في ${pharmacyName}` : `Held at ${pharmacyName}`}
+        </span>
+        <span className="font-mono font-bold text-sm text-status-busy tabular-nums">{mm}:{ss}</span>
+      </div>
+    );
+  }
+
+  if (holdEnd && holdEnd <= now) {
+    try { localStorage.removeItem(`hold_${medicineId}`); } catch { /* ignore */ }
+    setHoldEnd(null);
+  }
+
+  return (
+    <button onClick={startHold} className="mt-2 w-full py-1.5 rounded-lg text-xs font-tajawal font-bold bg-brand-blue/15 text-brand-blue-light hover:bg-brand-blue/25 transition-colors flex items-center justify-center gap-1">
+      <Clock className="w-3 h-3" /> {isRTL ? 'احجز لمدة 30 دقيقة' : 'Hold for 30 minutes'}
+    </button>
+  );
+}
+
+function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departments, favIds, radius, setRadius, onPharmacyClick, onFacilityClick, onToggleFavPharm, onToggleFavFac, t, onOCR, onBarcode, onVoice, listening, nightOnly, setNightOnly, isRTL }: {
   query: string; setQuery: (q: string) => void;
   pharmacies: Pharmacy[]; medicines: Record<string, Medicine[]>; facilities: Facility[]; departments: Record<string, Department[]>;
   favIds: Set<string>;
@@ -662,7 +729,8 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
   onPharmacyClick: (p: Pharmacy) => void; onFacilityClick: (f: Facility) => void;
   onToggleFavPharm: (p: Pharmacy) => void; onToggleFavFac: (f: Facility) => void;
   t: (k: string) => string;
-  onOCR: () => void; onVoice: () => void; listening: boolean; isRTL: boolean;
+  onOCR: () => void; onBarcode: () => void; onVoice: () => void; listening: boolean;
+  nightOnly: boolean; setNightOnly: (v: boolean) => void; isRTL: boolean;
 }) {
   const [mode, setMode] = useState<SearchMode>('medicine');
   const [sort, setSort] = useState<'nearest' | 'cheapest' | 'rating'>('nearest');
@@ -671,13 +739,15 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
 
   /* Medicine results — bilingual fuzzy search */
   const allMedicines = useMemo(() => Object.values(medicines).flat(), [medicines]);
+  const nightPharmacyIds = useMemo(() => new Set(pharmacies.filter((p) => p.open_hours?.includes('24') || p.is_open).map((p) => p.id)), [pharmacies]);
   const medResults = useMemo(() => {
     const found = searchMedicines(query, allMedicines, pharmacies);
     let results = found.map((r) => ({ pharmacy: r.pharmacy, medicine: r.medicine }));
+    if (nightOnly) results = results.filter((r) => nightPharmacyIds.has(r.pharmacy.id));
     if (sort === 'cheapest') results.sort((a, b) => a.medicine.price - b.medicine.price);
     else if (sort === 'rating') results.sort((a, b) => b.pharmacy.rating - a.pharmacy.rating);
     return results;
-  }, [query, allMedicines, pharmacies, sort]);
+  }, [query, allMedicines, pharmacies, sort, nightOnly, nightPharmacyIds]);
 
   /* Autocomplete suggestions */
   const suggestions = useMemo(() => autocompleteSuggestions(query, allMedicines), [query, allMedicines]);
@@ -688,8 +758,9 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
     let r = found;
     if (facType !== 'all') r = r.filter((f) => f.type === facType);
     if (cost !== 'all') r = r.filter((f) => (cost === 'free' ? f.is_free : !f.is_free));
+    if (nightOnly) r = r.filter((f) => f.overall_status !== 'closed');
     return r;
-  }, [facilities, facType, cost, query]);
+  }, [facilities, facType, cost, query, nightOnly]);
 
   return (
     <div className="space-y-4">
@@ -726,6 +797,9 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
           <button onClick={onOCR} title={isRTL ? 'ماسح الروشتة' : 'Prescription scanner'} className="p-1.5 rounded-lg text-brand-green-light hover:bg-brand-green/10 transition-colors">
             <Camera className="w-4 h-4" />
           </button>
+          <button onClick={onBarcode} title={isRTL ? 'ماسح الباركود' : 'Barcode scanner'} className="p-1.5 rounded-lg text-brand-blue-light hover:bg-brand-blue/10 transition-colors">
+            <ScanLine className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -741,7 +815,11 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
         </div>
       )}
 
-      {/* Mode toggle */}
+      {/* Night duty filter toggle */}
+      <button onClick={() => setNightOnly(!nightOnly)} className={`w-full py-2.5 rounded-xl text-sm font-tajawal font-bold transition-all flex items-center justify-center gap-2 ${nightOnly ? 'bg-brand-blue text-white' : 'glass text-[var(--text-soft)]'}`}>
+        <MoonStar className="w-4 h-4" />
+        {isRTL ? (nightOnly ? '✓ مفعّل: صيدليات 24 ساعة' : 'فلتر صيدليات 24 ساعة') : (nightOnly ? '✓ On: 24h pharmacies only' : 'Filter 24h pharmacies')}
+      </button>
       <div className="flex gap-2">
         {([
           { k: 'medicine', l: t('dash.medicines') },
@@ -799,10 +877,47 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <StatusBadge status={pharmacy.status} />
-                    <span className="text-xs text-status-open font-bold">{t('dash.available')}: {medicine.quantity}</span>
+                    {medicine.quantity > 0 ? (
+                      <span className="text-xs text-status-open font-bold">{t('dash.available')}: {medicine.quantity}</span>
+                    ) : (
+                      <span className="text-xs text-status-emergency font-bold">{isRTL ? 'نفد المخزون' : 'Out of stock'}</span>
+                    )}
+                    {medicine.last_updated && <FreshnessBadge timestamp={medicine.last_updated} isRTL={isRTL} />}
                   </div>
                   <div className="font-inter font-bold text-lg text-brand-green-light">{medicine.price} ₪</div>
                 </div>
+
+                {/* Substitutes when out of stock */}
+                {medicine.quantity === 0 && (() => {
+                  const substitutes = allMedicines
+                    .filter((m) => m.id !== medicine.id && m.quantity > 0 && (m.generic_name === medicine.generic_name || m.category === medicine.category))
+                    .slice(0, 3);
+                  if (substitutes.length === 0) return null;
+                  return (
+                    <div className="mt-2 p-2 rounded-lg bg-brand-blue/10 border border-brand-blue/20">
+                      <div className="text-[10px] font-bold text-brand-blue-light mb-1 flex items-center gap-1">
+                        <Pill className="w-3 h-3" /> {isRTL ? 'بدائل متاحة (نفس المادة الفعالة)' : 'Available substitutes (same active ingredient)'}
+                      </div>
+                      <div className="space-y-1">
+                        {substitutes.map((sub) => {
+                          const subPharm = pharmacies.find((p) => p.id === sub.pharmacy_id);
+                          return (
+                            <button key={sub.id} onClick={() => subPharm && onPharmacyClick(subPharm)} className="w-full flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-brand-blue/10 transition-colors">
+                              <span className="font-tajawal text-[var(--text-soft)] truncate">{sub.medicine_name} · {subPharm?.name}</span>
+                              <span className="font-bold text-brand-green-light shrink-0">{sub.price} ₪</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 30-min hold button when in stock */}
+                {medicine.quantity > 0 && (
+                  <HoldButton medicineId={medicine.id} pharmacyName={pharmacy.name} isRTL={isRTL} />
+                )}
+
                 <button onClick={() => onPharmacyClick(pharmacy)} className="btn-primary w-full text-xs py-2 mt-3 flex items-center justify-center gap-1">
                   <Pill className="w-3 h-3" /> {t('dash.visitPharmacy')}
                 </button>
@@ -1189,14 +1304,14 @@ function MapTab({ pharmacies, facilities, onPharmacyClick, onFacilityClick, t }:
 }
 
 /* ===================== PROFILE TAB ===================== */
-function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, t }: {
+function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, t, isRTL }: {
   profile: { display_name: string; role: string; phone: string } | null;
   favorites: Favorite[]; pharmacies: Pharmacy[]; facilities: Facility[];
   darkMode: boolean; setDarkMode: (v: boolean) => void;
   seniorMode: boolean; setSeniorMode: (v: boolean) => void;
   theme: 'dark' | 'light'; onToggleTheme: () => void;
   onToggleFav: (id: string, type: 'pharmacy' | 'facility', name: string) => void;
-  onSignOut: () => void; t: (k: string) => string;
+  onSignOut: () => void; t: (k: string) => string; isRTL: boolean;
 }) {
   const favPharmacies = pharmacies.filter((p) => favorites.some((f) => f.target_id === p.id && f.target_type === 'pharmacy'));
   const favFacilities = facilities.filter((f) => favorites.some((fa) => fa.target_id === f.id && fa.target_type === 'facility'));
@@ -1239,6 +1354,9 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
           </span>
         </button>
       </div>
+
+      {/* Emergency Medical ID */}
+      <EmergencyMedicalID isRTL={isRTL} />
 
       {/* Favorites */}
       <div>

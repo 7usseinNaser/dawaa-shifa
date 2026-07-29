@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Activity, type LucideIcon } from 'lucide-react';
+import { Activity, Clock, AlertTriangle, CheckCircle, type LucideIcon } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 
 const statusConfig: Record<string, { ar: string; en: string; cls: string; dot: string }> = {
@@ -61,5 +61,18 @@ export function StatCard({ icon: Icon, value, label, color = 'brand-green', dela
       <div className="counter text-2xl text-gradient-green">{value}</div>
       <div className="text-xs font-tajawal text-[var(--text-muted)] mt-1">{label}</div>
     </motion.div>
+  );
+}
+
+export function FreshnessBadge({ timestamp, isRTL }: { timestamp: string; isRTL: boolean }) {
+  const ageMin = Math.round((Date.now() - new Date(timestamp).getTime()) / 60000);
+  let color = 'text-status-open';
+  let label = isRTL ? 'الآن' : 'just now';
+  if (ageMin >= 60) { const h = Math.floor(ageMin / 60); label = isRTL ? `قبل ${h} ساعة` : `${h}h ago`; color = ageMin >= 720 ? 'text-status-emergency' : 'text-status-busy'; }
+  else if (ageMin >= 10) { label = isRTL ? `قبل ${ageMin} دقيقة` : `${ageMin}m ago`; color = ageMin >= 60 ? 'text-status-busy' : 'text-status-open'; }
+  return (
+    <span className={`text-[9px] font-bold ${color} flex items-center gap-0.5`}>
+      <Clock className="w-2.5 h-2.5" /> {label}
+    </span>
   );
 }

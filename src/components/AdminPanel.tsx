@@ -53,7 +53,7 @@ function sqlVal(v: unknown): string {
   return `'${String(v).replace(/'/g, "''")}'`;
 }
 
-function downloadSQLDump(data: Record<string, unknown[]>, filename: string) {
+function downloadSQLDump(data: Record<string, Record<string, unknown>[]>, filename: string) {
   let sql = `-- دواء وشفاء (Dawaa & Shifa) SQL Dump\n-- Generated: ${new Date().toISOString()}\n\n`;
   for (const [table, rows] of Object.entries(data)) {
     sql += `-- Table: ${table} (${rows.length} rows)\n`;
@@ -604,7 +604,7 @@ export default function AdminPanel() {
                 </button>
               </>
             )}
-            <button onClick={() => downloadSQLDump({ pharmacies: pharmacies as unknown[], facilities: facilities as unknown[], medicines: medicines as unknown[], departments: Object.values(departments).flat() as unknown[], reviews: reviews as unknown[] }, `dawaa-shifaa-dump-${Date.now()}.sql`)} className="px-3 py-2 rounded-xl bg-brand-green/15 text-brand-green-light text-xs font-bold flex items-center gap-1 hover:bg-brand-green/25 transition-colors">
+            <button onClick={() => downloadSQLDump({ pharmacies: pharmacies as unknown as Record<string, unknown>[], facilities: facilities as unknown as Record<string, unknown>[], medicines: medicines as unknown as Record<string, unknown>[], reviews: reviews as unknown as Record<string, unknown>[] }, `dawaa-shifaa-dump-${Date.now()}.sql`)} className="px-3 py-2 rounded-xl bg-brand-green/15 text-brand-green-light text-xs font-bold flex items-center gap-1 hover:bg-brand-green/25 transition-colors">
               <Database className="w-3.5 h-3.5" /> {isRTL ? 'تصدير SQL' : 'SQL Dump'}
             </button>
             <button onClick={handleLogout} className="px-4 py-2 rounded-xl bg-status-emergency/15 text-status-emergency text-xs font-bold flex items-center gap-1.5 hover:bg-status-emergency/25 transition-colors">

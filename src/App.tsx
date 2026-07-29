@@ -1,18 +1,15 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import About from '@/components/About';
 import AccessibilityPanel from '@/components/AccessibilityPanel';
-import AdminPanel from '@/components/AdminPanel';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import AppPreview from '@/components/AppPreview';
 import AuthPage from '@/components/AuthPage';
 import BackToTop from '@/components/BackToTop';
-import CitizenDashboard from '@/components/CitizenDashboard';
 import CommunityStories from '@/components/CommunityStories';
 import Comparison from '@/components/Comparison';
 import CustomCursor from '@/components/CustomCursor';
 import ExitIntent from '@/components/ExitIntent';
-import FacilityDashboard from '@/components/FacilityDashboard';
 import FAQ from '@/components/FAQ';
 import Footer from '@/components/Footer';
 import Hero from '@/components/Hero';
@@ -23,7 +20,6 @@ import LiveFeed from '@/components/LiveFeed';
 import LiveMap from '@/components/LiveMap';
 import Navbar from '@/components/Navbar';
 import Onboarding from '@/components/Onboarding';
-import PharmacistDashboard from '@/components/PharmacistDashboard';
 import ResetPasswordForm from '@/components/ResetPasswordForm';
 import PrivacySecurity from '@/components/PrivacySecurity';
 import Problem from '@/components/Problem';
@@ -40,6 +36,23 @@ import WaitTimeCalculator from '@/components/WaitTimeCalculator';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LanguageProvider } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
+
+const CitizenDashboard = lazy(() => import('@/components/CitizenDashboard'));
+const PharmacistDashboard = lazy(() => import('@/components/PharmacistDashboard'));
+const FacilityDashboard = lazy(() => import('@/components/FacilityDashboard'));
+const AdminPanel = lazy(() => import('@/components/AdminPanel'));
+
+function LazyFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-dark)]">
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+        className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full"
+      />
+    </div>
+  );
+}
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -116,10 +129,12 @@ function AppContent() {
     return (
       <AnimatePresence mode="wait">
         <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="enter" exit="exit">
-          {profile.role === 'citizen' && <CitizenDashboard theme={theme} onToggleTheme={toggle} />}
-          {profile.role === 'pharmacist' && <PharmacistDashboard theme={theme} onToggleTheme={toggle} />}
-          {profile.role === 'facility_admin' && <FacilityDashboard theme={theme} onToggleTheme={toggle} />}
-          {profile.role === 'admin' && <AdminPanel />}
+          <Suspense fallback={<LazyFallback />}>
+            {profile.role === 'citizen' && <CitizenDashboard theme={theme} onToggleTheme={toggle} />}
+            {profile.role === 'pharmacist' && <PharmacistDashboard theme={theme} onToggleTheme={toggle} />}
+            {profile.role === 'facility_admin' && <FacilityDashboard theme={theme} onToggleTheme={toggle} />}
+            {profile.role === 'admin' && <AdminPanel />}
+          </Suspense>
         </motion.div>
       </AnimatePresence>
     );
