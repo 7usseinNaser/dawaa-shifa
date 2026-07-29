@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, X, Loader2, ScanLine, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -19,9 +19,6 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
   const [recognizedLines, setRecognizedLines] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
-  const workerRef = useRef<{ terminate: () => Promise<void> } | null>(null);
-
-  useEffect(() => () => { workerRef.current?.terminate().catch(() => {}); }, []);
 
   const scanImage = useCallback(async (imgUrl: string) => {
     setStatus('scanning');
@@ -36,10 +33,8 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
           if (m.status === 'recognizing text') setProgress(Math.round(m.progress * 100));
         },
       });
-      workerRef.current = worker;
       const { data } = await worker.recognize(imgUrl);
       await worker.terminate();
-      workerRef.current = null;
 
       const rawText = (data.text || '').trim();
       if (!rawText) {
