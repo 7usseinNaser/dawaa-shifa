@@ -706,8 +706,22 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
           autoFocus
         />
         <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-          <button onClick={onVoice} title={isRTL ? 'بحث صوتي' : 'Voice search'} className={`p-1.5 rounded-lg transition-colors ${listening ? 'bg-status-emergency/20 text-status-emergency animate-pulse' : 'text-brand-green-light hover:bg-brand-green/10'}`}>
-            <Mic className="w-4 h-4" />
+          <button onClick={onVoice} title={isRTL ? 'بحث صوتي' : 'Voice search'} className={`p-1.5 rounded-lg transition-colors ${listening ? 'bg-status-emergency/20 text-status-emergency' : 'text-brand-green-light hover:bg-brand-green/10'}`}>
+            {listening ? (
+              <div className="flex items-end gap-0.5 h-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <motion.span
+                    key={i}
+                    animate={{ height: [4, 14, 4] }}
+                    transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1, ease: 'easeInOut' }}
+                    className="w-0.5 bg-status-emergency rounded-full"
+                    style={{ height: 4 }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
           </button>
           <button onClick={onOCR} title={isRTL ? 'ماسح الروشتة' : 'Prescription scanner'} className="p-1.5 rounded-lg text-brand-green-light hover:bg-brand-green/10 transition-colors">
             <Camera className="w-4 h-4" />

@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, X, Loader2, ScanLine, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Camera, X, Loader2, ScanLine, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface OCRScannerProps {
   onResult: (text: string) => void;
@@ -8,32 +8,82 @@ interface OCRScannerProps {
   isRTL: boolean;
 }
 
+type ScanStatus = 'idle' | 'scanning' | 'done' | 'error';
+
 export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
   const [image, setImage] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [detected, setDetected] = useState<string | null>(null);
+  const [status, setStatus] = useState<ScanStatus>('idle');
+  const [progress, setProgress] = useState(0);
+  const [detected, setDetected] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [recognizedLines, setRecognizedLines] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  const scanImage = useCallback(async (imgUrl: string) => {
+    setStatus('scanning');
+    setProgress(0);
+    setDetected('');
+    setRecognizedLines([]);
+    setErrorMsg('');
+    try {
+      const { default: TesseractWorker } = await import('tesseract.js/dist/worker.min.js');
+      const worker = await TesseractWorker.createWorker('eng', 1, {
+        logger: (m: { status: string; progress: number }) => {
+          if (m.status === 'recognizing text') setProgress(Math.round(m.progress * 100));
+        },
+      });
+      const { data } = await worker.recognize(imgUrl);
+      await worker.terminate();
+
+      const rawText = (data.text || '').trim();
+      if (!rawText) {
+        setStatus('error');
+        setErrorMsg(isRTL ? 'لم يتم العثور على نص. حاول صورة أوضح.' : 'No text found. Try a clearer photo.');
+        return;
+      }
+      const lines = rawText.split('\n').map((l) => l.trim()).filter(Boolean);
+      setRecognizedLines(lines);
+
+      const medKeywords = [
+        'paracetamol', 'amoxicillin', 'ibuprofen', 'omeprazole', 'metformin',
+        'loratadine', 'aspirin', 'cetirizine', 'azithromycin', 'ciprofloxacin',
+        'ranitidine', 'esomeprazole', 'diclofenac', 'naproxen', 'clarithromycin',
+        'vitamin', 'panadol', 'augmentin', 'glucose', 'insulin',
+      ];
+      const lowerText = rawText.toLowerCase();
+      let found = '';
+      for (const kw of medKeywords) {
+        if (lowerText.includes(kw)) { found = kw.charAt(0).toUpperCase() + kw.slice(1); break; }
+      }
+      if (!found && lines.length > 0) {
+        found = lines[0].replace(/[^a-zA-Z\u0600-\u06FF\s]/g, '').trim().split(/\s+/).slice(0, 3).join(' ');
+      }
+      setDetected(found || lines[0] || '');
+      setStatus('done');
+    } catch {
+      setStatus('error');
+      setErrorMsg(isRTL ? 'فشل قراءة الصورة. حاول مرة أخرى.' : 'Failed to read image. Please try again.');
+    }
+  }, [isRTL]);
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
-      setImage(reader.result as string);
-      scanImage(reader.result as string);
+      const url = reader.result as string;
+      setImage(url);
+      scanImage(url);
     };
     reader.readAsDataURL(file);
   };
 
-  // Simulated OCR: in a real app this would call Tesseract.js or a cloud OCR API.
-  // For now we use a mock that detects common medicine keywords from the filename
-  // and lets the user manually type/confirm the detected name.
-  const scanImage = (_img: string) => {
-    setScanning(true);
-    setDetected(null);
-    setTimeout(() => {
-      setScanning(false);
-      setDetected('');
-    }, 2000);
+  const reset = () => {
+    setImage(null);
+    setStatus('idle');
+    setDetected('');
+    setProgress(0);
+    setRecognizedLines([]);
+    setErrorMsg('');
   };
 
   return (
@@ -79,7 +129,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
             <div className="glass-card p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <p className="text-xs font-tajawal text-[var(--text-muted)]">
-                {isRTL ? 'للحصول على أفضل نتيجة: أضئ جيداً، اجعل النص واضحاً، وركز على اسم الدواء.' : 'For best results: ensure good lighting, keep text clear, and focus on the medicine name.'}
+                {isRTL ? 'لأفضل نتيجة: إضاءة جيدة، نص واضح، وتركيز على اسم الدواء. المعالجة تتم على جهازك.' : 'For best results: good lighting, clear text, focus on the medicine name. Processing happens on your device.'}
               </p>
             </div>
           </div>
@@ -87,10 +137,15 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
           <div className="space-y-3">
             <div className="relative rounded-xl overflow-hidden glass-card">
               <img src={image} alt="scan" className="w-full max-h-48 object-contain" />
-              {scanning && (
-                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-brand-green-light mb-2" />
-                  <p className="text-xs text-white font-tajawal">{isRTL ? 'جاري المسح...' : 'Scanning...'}</p>
+              {status === 'scanning' && (
+                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-brand-green-light" />
+                  <p className="text-xs text-white font-tajawal">
+                    {isRTL ? `جاري القراءة... ${progress}%` : `Reading... ${progress}%`}
+                  </p>
+                  <div className="w-32 h-1 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full bg-brand-green-light transition-all" style={{ width: `${progress}%` }} />
+                  </div>
                   <motion.div
                     animate={{ y: [-60, 60, -60] }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
@@ -100,8 +155,25 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
               )}
             </div>
 
-            {!scanning && (
+            {status === 'error' && (
+              <div className="glass-card p-3 flex items-start gap-2 bg-status-emergency/10">
+                <AlertTriangle className="w-4 h-4 text-status-emergency shrink-0 mt-0.5" />
+                <p className="text-xs font-tajawal text-status-emergency">{errorMsg}</p>
+              </div>
+            )}
+
+            {status === 'done' && (
               <>
+                {recognizedLines.length > 1 && (
+                  <div className="glass-card p-2 max-h-20 overflow-y-auto">
+                    <p className="text-[10px] font-tajawal text-[var(--text-muted)] mb-1">
+                      {isRTL ? 'كل النص المكتشف:' : 'All detected text:'}
+                    </p>
+                    {recognizedLines.slice(0, 5).map((line, i) => (
+                      <p key={i} className="text-xs font-mono text-[var(--text-soft)] truncate">{line}</p>
+                    ))}
+                  </div>
+                )}
                 <div className="glass-card p-3">
                   <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1.5">
                     {isRTL ? 'اسم الدواء المكتشف (عدّل إذا لزم)' : 'Detected medicine name (edit if needed)'}
@@ -109,7 +181,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-status-open shrink-0" />
                     <input
-                      value={detected || ''}
+                      value={detected}
                       onChange={(e) => setDetected(e.target.value)}
                       placeholder={isRTL ? 'اكتب أو صحح اسم الدواء...' : 'Type or correct the medicine name...'}
                       className="flex-1 glass-card px-3 py-2 text-sm font-tajawal focus:outline-none focus:border-brand-green"
@@ -119,13 +191,14 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { if (detected && detected.trim()) { onResult(detected.trim()); onClose(); } }}
-                    disabled={!detected?.trim()}
+                    onClick={() => { if (detected.trim()) { onResult(detected.trim()); onClose(); } }}
+                    disabled={!detected.trim()}
                     className="btn-primary flex-1 text-sm disabled:opacity-50"
                   >
                     {isRTL ? 'بحث عن الدواء' : 'Search Medicine'}
                   </button>
-                  <button onClick={() => { setImage(null); setDetected(null); }} className="btn-secondary text-sm px-4">
+                  <button onClick={reset} className="btn-secondary text-sm px-4 flex items-center gap-1.5">
+                    <RefreshCw className="w-3.5 h-3.5" />
                     {isRTL ? 'إعادة' : 'Retry'}
                   </button>
                 </div>

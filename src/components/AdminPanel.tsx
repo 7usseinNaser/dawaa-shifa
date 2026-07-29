@@ -5,7 +5,7 @@ import {
   Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity,
   RotateCcw, Ban, AlertTriangle, Radio, FileText, History, Filter,
   Search, Flag, Package, AlertOctagon, ExternalLink, Upload,
-  ScrollText, Snowflake, Send, Flame, Megaphone,
+  ScrollText, Snowflake, Send, Flame, Megaphone, Database,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -45,6 +45,26 @@ function downloadCSV(rows: Record<string, unknown>[], filename: string) {
   const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = [headers.map(escape).join(','), ...rows.map((r) => headers.map((h) => escape(r[h])).join(','))].join('\n');
   downloadFile('\uFEFF' + csv, filename, 'text/csv;charset=utf-8');
+}
+
+function sqlVal(v: unknown): string {
+  if (v === null || v === undefined) return 'NULL';
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
+
+function downloadSQLDump(data: Record<string, unknown[]>, filename: string) {
+  let sql = `-- دواء وشفاء (Dawaa & Shifa) SQL Dump\n-- Generated: ${new Date().toISOString()}\n\n`;
+  for (const [table, rows] of Object.entries(data)) {
+    sql += `-- Table: ${table} (${rows.length} rows)\n`;
+    for (const row of rows) {
+      const cols = Object.keys(row);
+      const vals = cols.map((c) => sqlVal(row[c]));
+      sql += `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${vals.join(', ')});\n`;
+    }
+    sql += '\n';
+  }
+  downloadFile(sql, filename, 'application/sql');
 }
 
 function downloadHTML(title: string, rows: Record<string, unknown>[], filename: string) {
@@ -584,6 +604,9 @@ export default function AdminPanel() {
                 </button>
               </>
             )}
+            <button onClick={() => downloadSQLDump({ pharmacies: pharmacies as unknown[], facilities: facilities as unknown[], medicines: medicines as unknown[], departments: Object.values(departments).flat() as unknown[], reviews: reviews as unknown[] }, `dawaa-shifaa-dump-${Date.now()}.sql`)} className="px-3 py-2 rounded-xl bg-brand-green/15 text-brand-green-light text-xs font-bold flex items-center gap-1 hover:bg-brand-green/25 transition-colors">
+              <Database className="w-3.5 h-3.5" /> {isRTL ? 'تصدير SQL' : 'SQL Dump'}
+            </button>
             <button onClick={handleLogout} className="px-4 py-2 rounded-xl bg-status-emergency/15 text-status-emergency text-xs font-bold flex items-center gap-1.5 hover:bg-status-emergency/25 transition-colors">
               <LogOut className="w-4 h-4" />{isRTL ? 'تسجيل الخروج' : 'Logout'}
             </button>
