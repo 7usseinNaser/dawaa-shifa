@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
-import { supabase, type ActivityLogEntry, type Department, type Facility } from '@/lib/supabase';
+import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { OccupancyBar, StatusBadge } from '@/components/ui/DashboardParts';
 
@@ -738,6 +738,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                     </ul>
                   </div>
 
+                  {/* Warnings section */}
+                  <FacilityWarnings facilityId={facility.id} isRTL={isRTL} />
+
                   {/* Recent activity */}
                   <div className="glass-card p-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -1173,6 +1176,57 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+function FacilityWarnings({ facilityId, isRTL }: { facilityId: string; isRTL: boolean }) {
+  const [warnings, setWarnings] = useState<FacilityWarning[]>([]);
+  useEffect(() => {
+    supabase.from('facility_warnings')
+      .select('*')
+      .eq('target_type', 'facility')
+      .eq('target_id', facilityId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setWarnings((data || []) as FacilityWarning[]));
+  }, [facilityId]);
+
+  const active = warnings.filter((w) => !w.acknowledged_at && (!w.expires_at || new Date(w.expires_at) > new Date()));
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="glass-card p-4">
+      <h3 className="font-cairo font-bold text-sm mb-3 flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4 text-amber-400" />
+        {isRTL ? 'الإنذارات' : 'Warnings'} ({active.length} {isRTL ? 'نشط' : 'active'})
+      </h3>
+      <div className="space-y-2 max-h-40 overflow-y-auto">
+        {warnings.map((w) => {
+          const isActive = !w.acknowledged_at && (!w.expires_at || new Date(w.expires_at) > new Date());
+          return (
+            <div key={w.id} className={`glass rounded-xl p-3 ${isActive ? 'border-l-2 border-amber-400' : 'opacity-50'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${w.severity === 'emergency' ? 'bg-status-emergency/20 text-status-emergency' : w.severity === 'warning' ? 'bg-amber-400/20 text-amber-400' : 'bg-brand-blue/20 text-brand-blue-light'}`}>
+                  {w.severity === 'emergency' ? (isRTL ? 'طوارئ' : 'Emergency') : w.severity === 'warning' ? (isRTL ? 'تحذير' : 'Warning') : (isRTL ? 'معلومة' : 'Info')}
+                </span>
+                {w.duration_type && w.duration_type !== 'permanent' && (
+                  <span className="text-[10px] text-amber-400 font-tajawal flex items-center gap-0.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    {w.duration_type === 'custom' && w.expires_at
+                      ? `${isRTL ? 'حتى' : 'Until'} ${new Date(w.expires_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}`
+                      : w.duration_type === '12h' ? (isRTL ? '12 ساعة' : '12 hours')
+                      : w.duration_type === '24h' ? (isRTL ? '24 ساعة' : '24 hours')
+                      : w.duration_type}
+                  </span>
+                )}
+                {w.acknowledged_at && <span className="text-[10px] text-status-open font-bold">{isRTL ? 'تم الإقرار' : 'Acknowledged'}</span>}
+              </div>
+              <p className="text-xs font-tajawal text-[var(--text-soft)]">{w.message}</p>
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">{new Date(w.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

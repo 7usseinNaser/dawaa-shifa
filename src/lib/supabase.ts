@@ -57,7 +57,7 @@ export interface DataReport {
   target_name: string;
   issue_type: 'wrong_status' | 'wrong_availability' | 'wrong_info' | 'other';
   message: string;
-  status: 'open' | 'resolved' | 'dismissed';
+  status: 'open' | 'reviewing' | 'resolved' | 'dismissed';
   created_at: string;
   resolved_at: string | null;
 }
@@ -219,6 +219,8 @@ export interface AuditLog {
   entity_type: string;
   entity_id: string;
   details: Record<string, unknown>;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -228,6 +230,9 @@ export interface FacilityWarning {
   target_id: string;
   message: string;
   severity: 'info' | 'warning' | 'emergency';
+  duration_type: '12h' | '24h' | 'custom' | 'permanent';
+  duration_hours: number | null;
+  expires_at: string | null;
   created_by: string | null;
   created_at: string;
   acknowledged_at: string | null;
@@ -306,4 +311,16 @@ export interface AvailabilityAlert {
   notified: boolean;
   created_at: string;
   notified_at: string | null;
+}
+
+export interface BugReport {
+  id: string;
+  reporter_id: string | null;
+  reporter_name: string;
+  category: string;
+  description: string;
+  status: 'open' | 'reviewing' | 'resolved';
+  created_at: string;
+  resolved_at: string | null;
+  admin_notes: string | null;
 }
