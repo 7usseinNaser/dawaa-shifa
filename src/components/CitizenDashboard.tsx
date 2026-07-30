@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, AlertOctagon, Zap, ExternalLink, LayoutGrid } from 'lucide-react';
+import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader2, Send } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -1532,10 +1532,70 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
         )}
       </div>
 
+      {/* Report a Bug */}
+      <ReportBugButton isRTL={isRTL} />
+
       {/* Logout */}
       <button onClick={onSignOut} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-status-emergency">
         <LogOut className="w-4 h-4" /> {t('profile.logout')}
       </button>
+    </div>
+  );
+}
+
+/* ===================== REPORT BUG BUTTON ===================== */
+function ReportBugButton({ isRTL }: { isRTL: boolean }) {
+  const [showForm, setShowForm] = useState(false);
+  const [category, setCategory] = useState('ui');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
+
+  const submit = async () => {
+    if (!description.trim() || !user) return;
+    setSubmitting(true);
+    try {
+      const { data: profile } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+      const { error } = await supabase.from('bug_reports').insert({
+        reporter_id: user.id,
+        reporter_name: (profile as { display_name?: string } | null)?.display_name || user.email || '',
+        category,
+        description: description.trim(),
+      });
+      if (error) throw error;
+      showToast(isRTL ? 'تم إرسال البلاغ. شكراً!' : 'Bug report sent. Thank you!');
+      setDescription('');
+      setCategory('ui');
+      setShowForm(false);
+    } catch {
+      showToast(isRTL ? 'فشل الإرسال' : 'Failed to submit', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={() => setShowForm(!showForm)} className="w-full glass-card p-3 flex items-center gap-2 text-sm font-cairo font-bold text-amber-400 hover:bg-amber-500/10 transition-colors">
+        <Bug className="w-4 h-4" />
+        {isRTL ? 'الإبلاغ عن مشكلة تقنية' : 'Report a Technical Issue'}
+      </button>
+      {showForm && (
+        <div className="mt-2 space-y-2">
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-amber-500">
+            <option value="ui">{isRTL ? 'واجهة المستخدم' : 'UI Issue'}</option>
+            <option value="data">{isRTL ? 'بيانات' : 'Data Issue'}</option>
+            <option value="auth">{isRTL ? 'مصادقة' : 'Authentication'}</option>
+            <option value="performance">{isRTL ? 'أداء' : 'Performance'}</option>
+            <option value="other">{isRTL ? 'أخرى' : 'Other'}</option>
+          </select>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder={isRTL ? 'صف المشكلة...' : 'Describe the issue...'} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-amber-500 resize-none" />
+          <button onClick={submit} disabled={submitting || !description.trim()} className="btn-primary w-full text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isRTL ? 'إرسال' : 'Submit'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

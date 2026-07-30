@@ -6,6 +6,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type FamilyMember, type ChronicMedicine } from '@/lib/supabase';
+import { requestNotificationPermission, rescheduleMedicineReminders, cancelMedicineReminders } from '@/lib/notifications';
 import { showToast } from '@/components/ui/Toast';
 import { DrugInteractionChecker, RefillPredictor } from '@/components/AIFeatures';
 
@@ -44,6 +45,25 @@ export function FamilyCabinet() {
       }
     })();
   }, [user]);
+
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
+  useEffect(() => {
+    if (!meds.length) return;
+    for (const med of meds) {
+      const timesStr = med.times || '';
+      if (timesStr) {
+        rescheduleMedicineReminders(med.id, med.name, med.dosage || '', timesStr, isRTL);
+      }
+    }
+    return () => {
+      for (const med of meds) {
+        cancelMedicineReminders(med.id);
+      }
+    };
+  }, [meds, isRTL]);
 
   const addMember = async () => {
     if (!user || !memberForm.name.trim()) return;
@@ -89,6 +109,7 @@ export function FamilyCabinet() {
       }).select().single();
       if (error) throw error;
       setMeds([...meds, data as ChronicMedicine]);
+      rescheduleMedicineReminders((data as ChronicMedicine).id, sanitize(medForm.name), sanitize(medForm.dosage), doseTimes.filter(Boolean).join(', '), isRTL);
       showToast(isRTL ? 'تم حفظ الدواء' : 'Medicine saved');
       setMedForm({ name: '', dosage: '', times: '', pillsLeft: '', pillsPerDay: '1' });
       setDoseTimes(['09:00']);
@@ -131,6 +152,7 @@ export function FamilyCabinet() {
         pills_left: parseInt(medForm.pillsLeft) || 0,
         pills_per_day: parseFloat(medForm.pillsPerDay) || 1,
       } : m));
+      rescheduleMedicineReminders(editingMedId, sanitize(medForm.name), sanitize(medForm.dosage), timesStr, isRTL);
       showToast(isRTL ? 'تم تحديث الدواء' : 'Medicine updated');
       setEditingMedId(null);
       setMedForm({ name: '', dosage: '', times: '', pillsLeft: '', pillsPerDay: '1' });
@@ -144,6 +166,7 @@ export function FamilyCabinet() {
     try {
       await supabase.from('chronic_medicines').delete().eq('id', id);
       setMeds(meds.filter((m) => m.id !== id));
+      cancelMedicineReminders(id);
       if (editingMedId === id) setEditingMedId(null);
       showToast(isRTL ? 'تم حذف الدواء' : 'Medicine removed');
     } catch {
