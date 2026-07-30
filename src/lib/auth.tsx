@@ -12,6 +12,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, role: UserRole, displayName: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) return { error: translateAuthError(error.message) };
       if (data.user) {
-        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: role === 'admin', deleted_at: null, banned: false, frozen: false });
+        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null });
       }
       return { error: null };
     } catch {
@@ -110,8 +111,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (error) return { error: translateAuthError(error.message) };
+      return { error: null };
+    } catch {
+      return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, signUp, signIn, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

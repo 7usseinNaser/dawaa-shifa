@@ -153,6 +153,9 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
       }
       existingNames.add(normalize(name));
 
+      // Check for missing optional fields — save with incomplete flag
+      const hasMissingOptional = fields.some((f) => !f.required && (String(row[f.key] ?? '').trim() === ''));
+
       // Build insert row
       const record: Record<string, unknown> = { name };
       for (const f of fields) {
@@ -167,6 +170,9 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
       // Defaults
       if (entityType === 'medicines' && pharmacyId) {
         record.pharmacy_id = pharmacyId;
+      }
+      if (entityType === 'medicines') {
+        record.is_incomplete = hasMissingOptional;
       }
       if (entityType === 'pharmacies') {
         if (!record.lat) record.lat = 31.5;
@@ -295,18 +301,26 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
                   <table className="w-full text-[10px] font-tajawal">
                     <thead>
                       <tr className="text-[var(--text-muted)]">
+                        <th className="p-1">{isRTL ? 'تحذير' : 'Flag'}</th>
                         {fields.slice(0, 5).map((f) => (<th key={f.key} className="text-start p-1">{isRTL ? f.labelAr : f.label}</th>))}
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.slice(0, 5).map((r, i) => (
-                        <tr key={i} className="border-t border-[var(--border-subtle)]">
-                          {fields.slice(0, 5).map((f) => (<td key={f.key} className="p-1 truncate max-w-24">{String(r[f.key] ?? '—')}</td>))}
-                        </tr>
-                      ))}
+                      {rows.slice(0, 5).map((r, i) => {
+                        const hasMissing = fields.some((f) => !f.required && String(r[f.key] ?? '').trim() === '');
+                        return (
+                          <tr key={i} className="border-t border-[var(--border-subtle)]">
+                            <td className="p-1">{hasMissing && <span className="text-status-emergency">⚠</span>}</td>
+                            {fields.slice(0, 5).map((f) => (<td key={f.key} className="p-1 truncate max-w-24">{String(r[f.key] ?? '—')}</td>))}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
+                {rows.some((r) => fields.some((f) => !f.required && String(r[f.key] ?? '').trim() === '')) && (
+                  <p className="text-[10px] text-status-emergency font-tajawal mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {isRTL ? 'الصفوف ذات التحذير ستُحفظ ولكن لن تظهر للجمهور حتى تكتمل' : 'Flagged rows will be saved but hidden from public until completed'}</p>
+                )}
               </div>
             )}
 

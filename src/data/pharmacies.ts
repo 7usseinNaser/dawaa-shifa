@@ -19,6 +19,8 @@ export const seedPharmacies: Pharmacy[] = [
     power_status: 'generator',
     deleted_at: null,
     last_updated_at: null,
+    approval_status: 'approved',
+    rejection_reason: null,
   },
   {
     id: 'p2',
@@ -38,6 +40,8 @@ export const seedPharmacies: Pharmacy[] = [
     power_status: 'grid',
     deleted_at: null,
     last_updated_at: null,
+    approval_status: 'approved',
+    rejection_reason: null,
   },
   {
     id: 'p3',
@@ -57,6 +61,8 @@ export const seedPharmacies: Pharmacy[] = [
     power_status: 'no_power',
     deleted_at: null,
     last_updated_at: null,
+    approval_status: 'approved',
+    rejection_reason: null,
   },
   {
     id: 'p4',
@@ -76,5 +82,7 @@ export const seedPharmacies: Pharmacy[] = [
     power_status: 'generator',
     deleted_at: null,
     last_updated_at: null,
+    approval_status: 'approved',
+    rejection_reason: null,
   },
 ];

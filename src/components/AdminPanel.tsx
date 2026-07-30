@@ -5,7 +5,7 @@ import {
   Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity,
   RotateCcw, Ban, AlertTriangle, Radio, FileText, History, Filter,
   Search, Flag, Package, AlertOctagon, ExternalLink, Upload,
-  ScrollText, Snowflake, Send, Flame, Megaphone, Database,
+  ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -15,11 +15,12 @@ import {
   type Profile, type EntityVersion, type AdminAlert,
   type MedExchangeRequest, type DataReport, type BatchRecall,
   type AuditLog, type FacilityWarning, type SearchLog, type EmergencyBroadcast,
+  type MedicineDonation,
 } from '@/lib/supabase';
 import { BulkImport } from '@/components/BulkImport';
 import { showToast } from '@/components/ui/Toast';
 
-type Tab = 'pending' | 'pharmacies' | 'facilities' | 'medicines' | 'reviews' | 'users' | 'trash' | 'alerts' | 'exchange' | 'reports' | 'recalls' | 'audit' | 'warnings' | 'heatmap' | 'broadcasts';
+type Tab = 'pending' | 'pharmacies' | 'facilities' | 'medicines' | 'reviews' | 'users' | 'trash' | 'alerts' | 'exchange' | 'reports' | 'recalls' | 'audit' | 'warnings' | 'heatmap' | 'broadcasts' | 'donations';
 
 function sanitize(str: string): string {
   return String(str || '').replace(/[<>]/g, '').trim().slice(0, 500);
@@ -113,6 +114,10 @@ export default function AdminPanel() {
   const [searchLogs, setSearchLogs] = useState<SearchLog[]>([]);
   const [broadcasts, setBroadcasts] = useState<EmergencyBroadcast[]>([]);
   const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+  const [donations, setDonations] = useState<MedicineDonation[]>([]);
+  const [roleConfirm, setRoleConfirm] = useState<{ id: string; name: string; newRole: string } | null>(null);
+  const [freezeModal, setFreezeModal] = useState<{ id: string; name: string; current: boolean } | null>(null);
+  const [freezeReason, setFreezeReason] = useState('');
 
   // Filters
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
@@ -123,7 +128,7 @@ export default function AdminPanel() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast, dept] = await Promise.all([
+      const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast, dept, don] = await Promise.all([
         supabase.from('pharmacies').select('*'),
         supabase.from('facilities').select('*'),
         supabase.from('medicines').select('*'),
@@ -139,6 +144,7 @@ export default function AdminPanel() {
         supabase.from('search_logs').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('emergency_broadcasts').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('departments').select('*'),
+        supabase.from('medicine_donations').select('*').order('created_at', { ascending: false }),
       ]);
       const phData = (ph.data || []) as Pharmacy[];
       const facData = (fac.data || []) as Facility[];
@@ -164,6 +170,7 @@ export default function AdminPanel() {
       setWarnings((wrn.data || []) as FacilityWarning[]);
       setSearchLogs((slog.data || []) as SearchLog[]);
       setBroadcasts((bcast.data || []) as EmergencyBroadcast[]);
+      setDonations((don.data || []) as MedicineDonation[]);
       const deptData = (dept.data || []) as Department[];
       const deptMap: Record<string, Department[]> = {};
       for (const d of deptData) {
@@ -337,12 +344,34 @@ export default function AdminPanel() {
   }
 
   async function toggleFreeze(id: string, current: boolean, name: string) {
+    if (!current) {
+      setFreezeModal({ id, name, current });
+      return;
+    }
     setActionLoading(id);
     try {
-      const { error } = await supabase.from('profiles').update({ frozen: !current }).eq('id', id);
+      const { error } = await supabase.from('profiles').update({ frozen: false, freeze_reason: null }).eq('id', id);
       if (error) throw error;
-      await logAction(!current ? `freeze_account` : `unfreeze_account`, name);
-      showToast(isRTL ? (!current ? `تم تجميد حساب: ${name}` : `تم إلغاء تجميد: ${name}`) : (!current ? `Frozen: ${name}` : `Unfrozen: ${name}`));
+      await logAction('unfreeze_account', name);
+      showToast(isRTL ? `تم إلغاء تجميد: ${name}` : `Unfrozen: ${name}`);
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function confirmFreeze() {
+    if (!freezeModal) return;
+    setActionLoading(freezeModal.id);
+    try {
+      const { error } = await supabase.from('profiles').update({ frozen: true, freeze_reason: sanitize(freezeReason) || null }).eq('id', freezeModal.id);
+      if (error) throw error;
+      await logAction('freeze_account', freezeModal.name);
+      showToast(isRTL ? `تم تجميد حساب: ${freezeModal.name}` : `Frozen: ${freezeModal.name}`);
+      setFreezeModal(null);
+      setFreezeReason('');
       loadAll();
     } catch {
       showToast(isRTL ? 'فشل' : 'Failed', 'error');
@@ -511,6 +540,92 @@ export default function AdminPanel() {
     }
   }
 
+  async function approveEntity(table: 'pharmacies' | 'facilities', id: string, name: string) {
+    setActionLoading(id);
+    try {
+      const { error } = await supabase.from(table).update({ approval_status: 'approved', verified: true, rejection_reason: null }).eq('id', id);
+      if (error) throw error;
+      await logAction(`approve_${table}`, name);
+      showToast(isRTL ? `تمت الموافقة على: ${name}` : `Approved: ${name}`);
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function rejectEntity(table: 'pharmacies' | 'facilities', id: string, name: string, reason: string) {
+    setActionLoading(id);
+    try {
+      const { error } = await supabase.from(table).update({ approval_status: 'rejected', verified: false, rejection_reason: sanitize(reason) }).eq('id', id);
+      if (error) throw error;
+      await logAction(`reject_${table}`, name);
+      showToast(isRTL ? `تم رفض: ${name}` : `Rejected: ${name}`);
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function reviewDonation(id: string, status: 'approved' | 'rejected', reason?: string) {
+    setActionLoading(id);
+    try {
+      const update: Record<string, unknown> = { status };
+      if (status === 'rejected' && reason) update.rejection_reason = sanitize(reason);
+      const { error } = await supabase.from('medicine_donations').update(update).eq('id', id);
+      if (error) throw error;
+      await logAction(`donation_${status}`, id);
+      showToast(isRTL ? (status === 'approved' ? 'تم قبول التبرع' : 'تم رفض التبرع') : (status === 'approved' ? 'Donation approved' : 'Donation rejected'));
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function distributeDonation(id: string, pharmacyId?: string, facilityId?: string) {
+    setActionLoading(id);
+    try {
+      const update: Record<string, unknown> = { status: 'distributed', distributed_at: new Date().toISOString() };
+      if (pharmacyId) update.recipient_pharmacy_id = pharmacyId;
+      if (facilityId) update.recipient_facility_id = facilityId;
+      const { error } = await supabase.from('medicine_donations').update(update).eq('id', id);
+      if (error) throw error;
+      await logAction('donation_distributed', id);
+      showToast(isRTL ? 'تم تسجيل التوزيع' : 'Distribution recorded');
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  function changeRole(id: string, name: string, newRole: string) {
+    setRoleConfirm({ id, name, newRole });
+  }
+
+  async function confirmRoleChange() {
+    if (!roleConfirm) return;
+    setActionLoading(roleConfirm.id);
+    try {
+      const { error } = await supabase.from('profiles').update({ role: roleConfirm.newRole }).eq('id', roleConfirm.id);
+      if (error) throw error;
+      await logAction('change_role', `${roleConfirm.name} → ${roleConfirm.newRole}`);
+      showToast(isRTL ? `تم تغيير دور: ${roleConfirm.name}` : `Role changed: ${roleConfirm.name}`);
+      setRoleConfirm(null);
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   // ---- Export ----
   function exportData(format: 'json' | 'csv' | 'html') {
     const ts = Date.now();
@@ -562,6 +677,7 @@ export default function AdminPanel() {
     { key: 'audit', label: isRTL ? 'سجل التدقيق' : 'Audit Logs', icon: ScrollText, count: auditLogs.length },
     { key: 'heatmap', label: isRTL ? 'الخريطة الحرارية' : 'Heatmap', icon: Flame },
     { key: 'broadcasts', label: isRTL ? 'بث طارئ' : 'Broadcasts', icon: Megaphone, count: broadcasts.length },
+    { key: 'donations', label: isRTL ? 'طلبات التبرع' : 'Donations', icon: Gift, count: donations.filter((d) => d.status === 'pending').length },
   ];
 
   const showExportButtons = ['pharmacies', 'facilities', 'medicines', 'users', 'reviews'].includes(tab);
@@ -678,7 +794,7 @@ export default function AdminPanel() {
           ) : (
             <>
               {tab === 'pending' && (
-                <PendingList pharmacies={pharmacies} facilities={facilities} medicines={medicines} departments={departments} onApprove={(t, id, name) => toggleVerify(t, id, false, name)} onReject={(t, id, name) => softDelete(t, id, name)} actionLoading={actionLoading} isRTL={isRTL} />
+                <PendingList pharmacies={pharmacies} facilities={facilities} medicines={medicines} departments={departments} onApprove={(t, id, name) => approveEntity(t as 'pharmacies' | 'facilities', id, name)} onReject={(t, id, name) => rejectEntity(t as 'pharmacies' | 'facilities', id, name, isRTL ? 'معلومات غير صحيحة' : 'Inaccurate information')} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'pharmacies' && (
@@ -736,7 +852,7 @@ export default function AdminPanel() {
                   onToggleVerify={(id, cur, name) => toggleVerify('profiles', id, cur, name)}
                   onToggleBan={(id, cur, name) => toggleBan(id, cur, name)}
                   onToggleFreeze={(id, cur, name) => toggleFreeze(id, cur, name)}
-                  onRoleChange={async (id, role, name) => { setActionLoading(id); try { const { error } = await supabase.from('profiles').update({ role }).eq('id', id); if (error) throw error; await logAction('change_role', name); showToast(isRTL ? 'تم تغيير الدور' : 'Role updated'); loadAll(); } catch { showToast(isRTL ? 'فشل' : 'Failed', 'error'); } finally { setActionLoading(null); } }}
+                  onRoleChange={(id, role, name) => changeRole(id, name, role)}
                   onSoftDelete={(id, name) => softDelete('profiles', id, name)}
                   actionLoading={actionLoading} isRTL={isRTL} />
               )}
@@ -776,6 +892,10 @@ export default function AdminPanel() {
 
               {tab === 'broadcasts' && (
                 <BroadcastsTab broadcasts={broadcasts} onNew={() => setShowBroadcastForm(true)} onDelete={async (id) => { setActionLoading(id); try { const { error } = await supabase.from('emergency_broadcasts').delete().eq('id', id); if (error) throw error; await logAction('delete_broadcast', id.slice(0, 8)); showToast(isRTL ? 'تم حذف البث' : 'Broadcast deleted'); loadAll(); } catch { showToast(isRTL ? 'فشل' : 'Failed', 'error'); } finally { setActionLoading(null); } }} actionLoading={actionLoading} isRTL={isRTL} />
+              )}
+
+              {tab === 'donations' && (
+                <DonationsList donations={filterBySearch(donations, ['donor_name', 'medicine_name', 'generic_name', 'area'])} pharmacies={pharmacies} facilities={facilities} onApprove={(id) => reviewDonation(id, 'approved')} onReject={(id, reason) => reviewDonation(id, 'rejected', reason)} onDistribute={distributeDonation} actionLoading={actionLoading} isRTL={isRTL} />
               )}
             </>
           )}
@@ -830,8 +950,85 @@ export default function AdminPanel() {
           <BroadcastForm onClose={() => setShowBroadcastForm(false)} onSend={async (data) => { setActionLoading('new-broadcast'); try { const { error } = await supabase.from('emergency_broadcasts').insert({ ...data, created_by: user?.id }); if (error) throw error; await logAction('create_broadcast', data.title); showToast(isRTL ? 'تم إرسال البث الطارئ' : 'Emergency broadcast sent'); setShowBroadcastForm(false); loadAll(); } catch { showToast(isRTL ? 'فشل' : 'Failed', 'error'); } finally { setActionLoading(null); } }} actionLoading={actionLoading === 'new-broadcast'} isRTL={isRTL} />
         )}
       </AnimatePresence>
+
+      {/* Role Change Confirmation Modal */}
+      {roleConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setRoleConfirm(null)}>
+          <div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-cairo font-bold text-base mb-3">{isRTL ? 'تأكيد تغيير الدور' : 'Confirm Role Change'}</h3>
+            <p className="text-sm font-tajawal text-[var(--text-soft)] mb-4">{isRTL ? `سيتم تغيير دور "${roleConfirm.name}" إلى "${roleConfirm.newRole}". هذا الإجراء مسجّل.` : `Change "${roleConfirm.name}" role to "${roleConfirm.newRole}"? This action is logged.`}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setRoleConfirm(null)} className="btn-secondary flex-1 text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button>
+              <button onClick={confirmRoleChange} disabled={actionLoading === roleConfirm.id} className="btn-primary flex-1 text-sm disabled:opacity-50">{isRTL ? 'تأكيد' : 'Confirm'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Freeze Reason Modal */}
+      {freezeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setFreezeModal(null); setFreezeReason(''); }}>
+          <div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-cairo font-bold text-base mb-3">{isRTL ? 'تجميد الحساب' : 'Freeze Account'}</h3>
+            <p className="text-sm font-tajawal text-[var(--text-soft)] mb-3">{isRTL ? `سيتم تجميد حساب "${freezeModal.name}". أدخل السبب:` : `Freezing "${freezeModal.name}". Enter reason:`}</p>
+            <textarea value={freezeReason} onChange={(e) => setFreezeReason(e.target.value)} rows={3} className="w-full glass rounded-xl p-3 text-sm font-tajawal focus:outline-none focus:border-brand-green resize-none" placeholder={isRTL ? 'سبب التجميد...' : 'Freeze reason...'} />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setFreezeModal(null); setFreezeReason(''); }} className="btn-secondary flex-1 text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button>
+              <button onClick={confirmFreeze} disabled={actionLoading === freezeModal.id} className="btn-primary flex-1 text-sm disabled:opacity-50">{isRTL ? 'تأكيد التجميد' : 'Confirm Freeze'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// ============ Donations List ============
+function DonationsList({ donations, pharmacies, facilities, onApprove, onReject, onDistribute, actionLoading, isRTL }: {
+  donations: MedicineDonation[];
+  pharmacies: Pharmacy[];
+  facilities: Facility[];
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
+  onDistribute: (id: string, pharmacyId?: string, facilityId?: string) => void;
+  actionLoading: string | null;
+  isRTL: boolean;
+}) {
+  const [rejectModal, setRejectModal] = useState<MedicineDonation | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [distributeModal, setDistributeModal] = useState<MedicineDonation | null>(null);
+  const [selectedPharmacy, setSelectedPharmacy] = useState('');
+  const [selectedFacility, setSelectedFacility] = useState('');
+  const statusColors: Record<string, string> = { pending: 'bg-amber-500/20 text-amber-400', approved: 'bg-status-open/20 text-status-open', rejected: 'bg-status-emergency/20 text-status-emergency', distributed: 'bg-brand-blue/20 text-brand-blue-light' };
+  const statusLabels: Record<string, string> = { pending: isRTL ? 'قيد المراجعة' : 'Pending', approved: isRTL ? 'مقبول' : 'Approved', rejected: isRTL ? 'مرفوض' : 'Rejected', distributed: isRTL ? 'تم التوزيع' : 'Distributed' };
+  if (donations.length === 0) return (<div className="text-center py-8"><Gift className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد طلبات تبرع' : 'No donation requests'}</p></div>);
+  return (<div className="space-y-3">
+    {donations.map((d) => (
+      <div key={d.id} className="glass-card p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-green/20 flex items-center justify-center shrink-0"><Gift className="w-5 h-5 text-brand-green-light" /></div>
+            <div>
+              <div className="font-cairo font-bold text-sm">{d.medicine_name}</div>
+              <div className="text-xs text-[var(--text-muted)] font-tajawal">{d.generic_name} · {isRTL ? 'الكمية' : 'Qty'}: {d.quantity}</div>
+              <div className="text-xs text-[var(--text-muted)] font-tajawal mt-0.5">{isRTL ? 'المتبرع' : 'Donor'}: {d.donor_name} · {d.donor_phone || '—'}</div>
+              {d.area && <div className="text-xs text-[var(--text-muted)] font-tajawal">{isRTL ? 'المنطقة' : 'Area'}: {d.area}</div>}
+              {d.notes && <div className="text-xs text-[var(--text-muted)] font-tajawal mt-0.5">{d.notes}</div>}
+              {d.rejection_reason && <div className="text-xs text-status-emergency font-tajawal mt-1">{isRTL ? 'سبب الرفض' : 'Rejection'}: {d.rejection_reason}</div>}
+            </div>
+          </div>
+          <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${statusColors[d.status]}`}>{statusLabels[d.status]}</span>
+        </div>
+        {d.status === 'pending' && (<div className="flex gap-2">
+          <button onClick={() => onApprove(d.id)} disabled={actionLoading === d.id} className="btn-primary flex-1 text-xs py-2 disabled:opacity-50">{isRTL ? 'قبول' : 'Approve'}</button>
+          <button onClick={() => { setRejectModal(d); setRejectReason(''); }} disabled={actionLoading === d.id} className="flex-1 text-xs py-2 rounded-xl bg-status-emergency/15 text-status-emergency font-bold hover:bg-status-emergency/25 transition-colors disabled:opacity-50">{isRTL ? 'رفض' : 'Reject'}</button>
+        </div>)}
+        {d.status === 'approved' && (<button onClick={() => { setDistributeModal(d); setSelectedPharmacy(''); setSelectedFacility(''); }} disabled={actionLoading === d.id} className="btn-secondary w-full text-xs py-2 disabled:opacity-50">{isRTL ? 'تسجيل التوزيع' : 'Record Distribution'}</button>)}
+      </div>
+    ))}
+    {rejectModal && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setRejectModal(null)}><div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}><h3 className="font-cairo font-bold text-base mb-3">{isRTL ? 'سبب الرفض' : 'Rejection Reason'}</h3><textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} className="w-full glass rounded-xl p-3 text-sm font-tajawal focus:outline-none focus:border-brand-green resize-none" placeholder={isRTL ? 'مثال: معلومات غير صحيحة' : 'e.g. Inaccurate information'} /><div className="flex gap-2 mt-4"><button onClick={() => setRejectModal(null)} className="btn-secondary flex-1 text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button><button onClick={() => { onReject(rejectModal.id, rejectReason); setRejectModal(null); }} disabled={!rejectReason.trim()} className="btn-primary flex-1 text-sm disabled:opacity-50">{isRTL ? 'تأكيد الرفض' : 'Confirm Reject'}</button></div></div></div>)}
+    {distributeModal && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setDistributeModal(null)}><div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}><h3 className="font-cairo font-bold text-base mb-3">{isRTL ? 'تسجيل التوزيع' : 'Record Distribution'}</h3><p className="text-xs text-[var(--text-muted)] font-tajawal mb-3">{isRTL ? 'اختر الصيدلية أو المرفق الذي تم التوزيع عليه' : 'Select the pharmacy or facility that received the donation'}</p><select value={selectedPharmacy} onChange={(e) => setSelectedPharmacy(e.target.value)} className="w-full glass rounded-xl p-2.5 text-sm font-tajawal mb-2"><option value="">{isRTL ? '— اختر صيدلية —' : '— Select pharmacy —'}</option>{pharmacies.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}</select><select value={selectedFacility} onChange={(e) => setSelectedFacility(e.target.value)} className="w-full glass rounded-xl p-2.5 text-sm font-tajawal mb-4"><option value="">{isRTL ? '— اختر مرفق —' : '— Select facility —'}</option>{facilities.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}</select><div className="flex gap-2"><button onClick={() => setDistributeModal(null)} className="btn-secondary flex-1 text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button><button onClick={() => { onDistribute(distributeModal.id, selectedPharmacy || undefined, selectedFacility || undefined); setDistributeModal(null); }} disabled={!selectedPharmacy && !selectedFacility} className="btn-primary flex-1 text-sm disabled:opacity-50">{isRTL ? 'تأكيد' : 'Confirm'}</button></div></div></div>)}
+  </div>);
 }
 
 // ============ Pending List ============

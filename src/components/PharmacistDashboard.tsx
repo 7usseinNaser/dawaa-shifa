@@ -38,9 +38,10 @@ interface MedForm {
   generic_name: string;
   price: string;
   quantity: string;
+  expiry_date: string;
 }
 
-const emptyMedForm: MedForm = { medicine_name: '', generic_name: '', price: '', quantity: '' };
+const emptyMedForm: MedForm = { medicine_name: '', generic_name: '', price: '', quantity: '', expiry_date: '' };
 
 export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: 'dark' | 'light'; onToggleTheme: () => void }) {
   const { user, profile, signOut } = useAuth();
@@ -241,6 +242,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       generic_name: med.generic_name,
       price: String(med.price),
       quantity: String(med.quantity),
+      expiry_date: med.expiry_date || '',
     });
     setModalOpen(true);
   }
@@ -263,6 +265,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           generic_name: medForm.generic_name.trim(),
           price,
           quantity,
+          expiry_date: medForm.expiry_date || null,
           last_updated: new Date().toISOString(),
         })
         .eq('id', editingMed.id);
@@ -282,6 +285,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           generic_name: medForm.generic_name.trim(),
           price,
           quantity,
+          expiry_date: medForm.expiry_date || null,
           last_updated: new Date().toISOString(),
         });
       setSaving(false);
@@ -923,6 +927,15 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     onChange={(v) => setMedForm({ ...medForm, quantity: v })}
                     placeholder="0"
                     type="number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--text-soft)] mb-1.5">{isRTL ? 'تاريخ الصلاحية' : 'Expiry Date'}</label>
+                  <input
+                    type="date"
+                    value={medForm.expiry_date}
+                    onChange={(e) => setMedForm({ ...medForm, expiry_date: e.target.value })}
+                    className="w-full glass rounded-2xl px-4 py-3 bg-transparent outline-none focus:border-brand-green transition-colors"
                   />
                 </div>
               </div>

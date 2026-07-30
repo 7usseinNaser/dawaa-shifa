@@ -27,6 +27,7 @@ export function DonationHub() {
   const [condition, setCondition] = useState<'sealed' | 'loose'>('sealed');
   const [area, setArea] = useState('');
   const [notes, setNotes] = useState('');
+  const [phone, setPhone] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +49,7 @@ export function DonationHub() {
       const { error } = await supabase.from('medicine_donations').insert({
         donor_id: user.id,
         donor_name: profile?.display_name || '',
+        donor_phone: phone.trim(),
         medicine_name: medicineName.trim(),
         generic_name: genericName.trim(),
         quantity,
@@ -60,7 +62,7 @@ export function DonationHub() {
       if (error) throw error;
       showToastMsg(isRTL ? 'تم تقديم طلب التبرع بنجاح! شكراً لك' : 'Donation submitted successfully! Thank you');
       setShowForm(false);
-      setMedicineName(''); setGenericName(''); setQuantity(1); setExpiryDate(''); setArea(''); setNotes('');
+      setMedicineName(''); setGenericName(''); setQuantity(1); setExpiryDate(''); setArea(''); setNotes(''); setPhone('');
       load();
     } catch {
       showToastMsg(isRTL ? 'فشل إرسال الطلب' : 'Failed to submit', 'error');
@@ -187,6 +189,10 @@ export function DonationHub() {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div>
+                  <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'رقم الهاتف' : 'Phone Number'}</label>
+                  <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full glass-card px-3 py-2.5 text-sm font-tajawal focus:outline-none focus:border-brand-green" placeholder={isRTL ? 'مثال: 0599123456' : 'e.g. 0599123456'} />
                 </div>
                 <div>
                   <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'المحافظة' : 'Governorate'}</label>

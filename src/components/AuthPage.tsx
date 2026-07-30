@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowLeft, ArrowRight, Building2, CheckCircle, Lock,
-  Mail, Pill, Shield, User,
+  Mail, MessageCircle, Pill, Snowflake, User,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -17,7 +17,7 @@ const slideVariants = {
 };
 
 export default function AuthPage() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, profile, resetPassword } = useAuth();
   const { t, lang } = useLang();
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [step, setStep] = useState(0);
@@ -28,12 +28,16 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
 
   const roles: { key: UserRole; label: string; desc: string; icon: typeof User; color: string }[] = [
     { key: 'citizen', label: t('auth.citizen'), desc: t('auth.citizenDesc'), icon: User, color: 'brand-green' },
     { key: 'pharmacist', label: t('auth.pharmacist'), desc: t('auth.pharmacistDesc'), icon: Pill, color: 'brand-blue' },
     { key: 'facility_owner', label: t('auth.facility_owner'), desc: t('auth.facilityDesc'), icon: Building2, color: 'status-busy' },
-    { key: 'admin', label: t('auth.admin'), desc: t('auth.adminDesc'), icon: Shield, color: 'amber-400' },
   ];
 
   const pickRole = (r: UserRole) => { setRole(r); setDir(1); setStep(1); };
@@ -63,6 +67,40 @@ export default function AuthPage() {
     }
     setLoading(false);
   };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetLoading(true);
+    const { error } = await resetPassword(resetEmail);
+    if (error) setResetError(error);
+    else setResetSent(true);
+    setResetLoading(false);
+  };
+
+  if (profile?.frozen) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-dark)]">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 rounded-full bg-brand-blue/20 flex items-center justify-center mx-auto mb-4">
+            <Snowflake className="w-8 h-8 text-brand-blue-light" />
+          </div>
+          <h2 className="font-cairo font-bold text-xl mb-3">{lang === 'ar' ? 'تم تجميد حسابك' : 'Your account is frozen'}</h2>
+          <p className="text-sm font-tajawal text-[var(--text-muted)] mb-2">{lang === 'ar' ? 'تم تعليق حسابك من قبل إدارة المنصة.' : 'Your account has been suspended by the platform administration.'}</p>
+          {profile.freeze_reason && (
+            <div className="glass rounded-xl p-3 mb-4 text-sm font-tajawal text-status-emergency">
+              {lang === 'ar' ? 'السبب: ' : 'Reason: '}{profile.freeze_reason}
+            </div>
+          )}
+          <p className="text-xs font-tajawal text-[var(--text-muted)] mb-4">{lang === 'ar' ? 'للتواصل مع الدعم:' : 'Contact support:'}</p>
+          <a href="https://api.whatsapp.com/message/S7T6HKGGJCIWK1?autoload=1&app_absent=0" target="_blank" rel="noopener noreferrer" className="btn-primary w-full flex items-center justify-center gap-2">
+            <MessageCircle className="w-5 h-5" />
+            {lang === 'ar' ? 'تواصل عبر واتساب' : 'Contact via WhatsApp'}
+          </a>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
@@ -167,6 +205,36 @@ export default function AuthPage() {
                 {error && (
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass rounded-xl p-3 text-sm text-status-emergency font-tajawal bg-status-emergency/10">
                     {error}
+                  </motion.div>
+                )}
+
+                {mode === 'login' && !showReset && (
+                  <button type="button" onClick={() => { setShowReset(true); setResetEmail(email); setResetSent(false); setResetError(''); }} className="text-xs font-tajawal text-brand-blue-light hover:underline w-full text-left">
+                    {lang === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
+                  </button>
+                )}
+
+                {mode === 'login' && showReset && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 overflow-hidden">
+                    {resetSent ? (
+                      <div className="glass rounded-xl p-3 text-sm text-status-open font-tajawal bg-status-open/10">
+                        {lang === 'ar' ? 'تم إرسال رابط إعادة التعيين إلى بريدك. تحقق من صندوق الوارد.' : 'Reset link sent to your email. Check your inbox.'}
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
+                          <input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl px-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
+                        </div>
+                        {resetError && <p className="text-xs text-status-emergency font-tajawal">{resetError}</p>}
+                        <button type="button" onClick={handleReset} disabled={resetLoading} className="btn-primary w-full text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+                          {resetLoading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : lang === 'ar' ? 'إرسال رابط التعيين' : 'Send reset link'}
+                        </button>
+                        <button type="button" onClick={() => setShowReset(false)} className="text-xs font-tajawal text-[var(--text-muted)] hover:underline w-full text-center">
+                          {lang === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to login'}
+                        </button>
+                      </>
+                    )}
                   </motion.div>
                 )}
 

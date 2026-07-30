@@ -24,6 +24,7 @@ export interface Profile {
   deleted_at: string | null;
   banned: boolean;
   frozen: boolean;
+  freeze_reason: string | null;
 }
 
 export interface MedExchangeRequest {
@@ -90,6 +91,8 @@ export interface Pharmacy {
   power_status: 'generator' | 'no_power' | 'grid' | 'unknown';
   deleted_at: string | null;
   last_updated_at: string | null;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  rejection_reason: string | null;
 }
 
 export interface Medicine {
@@ -106,6 +109,8 @@ export interface Medicine {
   deleted_at: string | null;
   is_restricted: boolean;
   restriction_note: string;
+  expiry_date: string | null;
+  is_incomplete: boolean;
 }
 
 export interface Facility {
@@ -114,6 +119,7 @@ export interface Facility {
   name: string;
   type: 'hospital' | 'clinic' | 'medical_point';
   is_free: boolean;
+  pricing_type: 'free' | 'paid' | 'nominal';
   area: string;
   address: string;
   lat: number;
@@ -123,8 +129,11 @@ export interface Facility {
   verified: boolean;
   power_status: 'generator' | 'no_power' | 'grid' | 'unknown';
   occupancy_rate: number;
+  max_capacity: number;
   deleted_at: string | null;
   last_updated_at: string | null;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  rejection_reason: string | null;
 }
 
 export interface Department {
@@ -252,6 +261,7 @@ export interface MedicineDonation {
   id: string;
   donor_id: string;
   donor_name: string;
+  donor_phone: string;
   medicine_name: string;
   generic_name: string;
   quantity: number;
@@ -260,7 +270,10 @@ export interface MedicineDonation {
   area: string;
   notes: string;
   status: 'pending' | 'approved' | 'rejected' | 'distributed';
+  rejection_reason: string | null;
   recipient_pharmacy_id: string | null;
+  recipient_facility_id: string | null;
+  distributed_at: string | null;
   created_at: string;
   updated_at: string;
 }

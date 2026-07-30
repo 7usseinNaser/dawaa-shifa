@@ -18,6 +18,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm2',
@@ -33,6 +35,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm3',
@@ -48,6 +52,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm4',
@@ -63,6 +69,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm5',
@@ -78,6 +86,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm6',
@@ -93,6 +103,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm7',
@@ -108,6 +120,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm8',
@@ -123,6 +137,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm9',
@@ -138,6 +154,8 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
   {
     id: 'm10',
@@ -153,5 +171,7 @@ export const seedMedicines: Medicine[] = [
     deleted_at: null,
     is_restricted: false,
     restriction_note: '',
+    expiry_date: null,
+    is_incomplete: false,
   },
 ];

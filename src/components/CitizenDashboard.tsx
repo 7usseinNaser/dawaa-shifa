@@ -10,10 +10,11 @@ import {
 } from '@/lib/supabase';
 import { searchMedicines, searchFacilities, autocompleteSuggestions, normalizeAr } from '@/lib/search';
 import { OccupancyBar, StatusBadge, StatCard, FreshnessBadge } from '@/components/ui/DashboardParts';
+import { GAZA_GOVERNORATES, governorateLabel, subDistrictLabel } from '@/data/regions';
 import { ToastContainer, showToast, useToast } from '@/components/ui/Toast';
 import RatingCard from '@/components/ui/RatingCard';
 import ChronicMedicines from '@/components/ChronicMedicines';
-import SOSButton from '@/components/SOSButton';
+
 import { FamilyCabinet, RadiusSelector } from '@/components/FamilyCabinet';
 import { GenericFinder } from '@/components/AIFeatures';
 import { AIChatbot } from '@/components/AIChatbot';
@@ -83,6 +84,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   const [nightOnly, setNightOnly] = useState(false);
   const [listening, setListening] = useState(false);
   const [broadcast, setBroadcast] = useState<EmergencyBroadcast | null>(null);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
 
   const favIds = useMemo(() => new Set(favorites.map((f) => f.target_id)), [favorites]);
   const notifyIds = useMemo(
@@ -95,9 +97,9 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   useEffect(() => {
     (async () => {
       const [ph, meds, facs, depts] = await Promise.all([
-        supabase.from('pharmacies').select('*').eq('verified', true).is('deleted_at', null),
+        supabase.from('pharmacies').select('*').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
         supabase.from('medicines').select('*').is('deleted_at', null),
-        supabase.from('facilities').select('*').eq('verified', true).is('deleted_at', null),
+        supabase.from('facilities').select('*').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
         supabase.from('departments').select('*'),
       ]);
 
@@ -249,6 +251,18 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
     await supabase.from('search_logs').insert({ user_id: user?.id || null, query: q.trim(), search_type: type, area: profile?.phone || null });
   };
 
+  /* ---------- Mark notification read ---------- */
+  const markNotifRead = async (id: string) => {
+    await supabase.from('notifications').update({ unread: false }).eq('id', id);
+    setNotifications((p) => p.map((n) => n.id === id ? { ...n, unread: false } : n));
+  };
+
+  const markAllRead = async () => {
+    if (!user) return;
+    await supabase.from('notifications').update({ unread: false }).eq('user_id', user.id).eq('unread', true);
+    setNotifications((p) => p.map((n) => ({ ...n, unread: false })));
+  };
+
   /* ---------- Derived stats ---------- */
   const openPharmacies = pharmacies.filter((p) => p.is_open).length;
   const activeFacilities = facilities.filter((f) => f.overall_status !== 'closed').length;
@@ -306,7 +320,6 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   return (
     <div className={`min-h-screen pb-20 bg-[var(--bg-dark)] ${seniorCls}`}>
       <ToastContainer toasts={toasts} onRemove={remove} />
-      <SOSButton />
 
       {/* Crisis Ticker Banner */}
       {crisisAlerts.length > 0 && (
@@ -333,7 +346,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
             <div className="font-cairo font-bold text-sm">{profile?.display_name}</div>
           </div>
         </div>
-        <button className="relative p-2 rounded-full glass">
+        <button className="relative p-2 rounded-full glass" onClick={() => setShowNotifPanel(true)}>
           <Bell className="w-5 h-5 text-brand-green-light" />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-1 w-2 h-2 bg-status-emergency rounded-full" />
@@ -420,6 +433,8 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
                   seniorMode={seniorMode} setSeniorMode={setSeniorMode}
                   theme={theme} onToggleTheme={onToggleTheme}
                   onToggleFav={(id, type, name) => toggleFav(id, type, name)}
+                  onPharmacyClick={(p) => setSelectedPharmacy(p)}
+                  onFacilityClick={(f) => setSelectedFacility(f)}
                   onSignOut={signOut} t={t}
                   isRTL={lang === 'ar'}
                 />
@@ -500,6 +515,38 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
 
       {/* AI Chatbot */}
       <AIChatbot />
+
+      {/* Notification Panel */}
+      <AnimatePresence>
+        {showNotifPanel && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50" onClick={() => setShowNotifPanel(false)}>
+            <div className="absolute top-16 right-4 w-80 max-w-[90vw] glass-card p-4 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-cairo font-bold text-sm flex items-center gap-2"><Bell className="w-4 h-4 text-brand-green-light" /> {lang === 'ar' ? 'الإشعارات' : 'Notifications'}</h3>
+                {unreadCount > 0 && <button onClick={markAllRead} className="text-[10px] font-tajawal text-brand-blue-light hover:underline">{lang === 'ar' ? 'تعليم الكل كمقروء' : 'Mark all read'}</button>}
+              </div>
+              {notifications.length === 0 ? (
+                <p className="text-sm font-tajawal text-[var(--text-muted)] text-center py-6">{lang === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}</p>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((n) => (
+                    <div key={n.id} onClick={() => markNotifRead(n.id)} className={`p-3 rounded-xl cursor-pointer transition-colors ${n.unread ? 'bg-brand-green/10 border border-brand-green/20' : 'glass'}`}>
+                      <div className="flex items-start gap-2">
+                        {n.unread && <span className="w-2 h-2 bg-brand-green rounded-full shrink-0 mt-1.5" />}
+                        <div className="min-w-0">
+                          <p className="text-xs font-tajawal font-bold truncate">{n.title}</p>
+                          {n.body && <p className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{n.body}</p>}
+                          <p className="text-[9px] text-[var(--text-muted)] mt-1">{new Date(n.ts).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -613,8 +660,12 @@ function HomeTab({ pharmacies, facilities, departments, openPharmacies, activeFa
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-blue/20 text-brand-blue-light font-bold">
                           {f.type === 'hospital' ? t('dash.hospital') : f.type === 'clinic' ? t('dash.clinic') : t('dash.medicalPoint')}
                         </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${f.is_free ? 'bg-status-open/20 text-status-open' : 'bg-status-busy/20 text-status-busy'}`}>
-                          {f.is_free ? t('dash.free') : t('dash.paid')}
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          (f.pricing_type || (f.is_free ? 'free' : 'paid')) === 'free' ? 'bg-status-open/20 text-status-open' :
+                          (f.pricing_type || 'paid') === 'nominal' ? 'bg-amber-400/20 text-amber-400' : 'bg-status-busy/20 text-status-busy'
+                        }`}>
+                          {(f.pricing_type || (f.is_free ? 'free' : 'paid')) === 'free' ? t('dash.free') :
+                           (f.pricing_type || 'paid') === 'nominal' ? (t('dash.free').includes('مجاني') ? 'أسعار رمزية' : 'Nominal') : t('dash.paid')}
                         </span>
                       </div>
                     </div>
@@ -1038,23 +1089,60 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
   const isRTL = lang === 'ar';
   const [view, setView] = useState<'facilities' | 'pharmacies' | 'medicines'>('facilities');
   const [govFilter, setGovFilter] = useState('all');
+  const [subFilter, setSubFilter] = useState('all');
+  const [deptFilter, setDeptFilter] = useState('all');
   const [selectedMed, setSelectedMed] = useState<string | null>(null);
 
-  const governorates = Array.from(new Set([
-    ...facilities.map((f) => f.area).filter(Boolean),
-    ...pharmacies.map((p) => p.area).filter(Boolean),
-  ])).sort();
+  // Deduplicate facilities and pharmacies by id
+  const dedupFacilities = Array.from(new Map(facilities.map((f) => [f.id, f])).values());
+  const dedupPharmacies = Array.from(new Map(pharmacies.map((p) => [p.id, p])).values());
 
-  const filteredFacilities = govFilter === 'all' ? facilities : facilities.filter((f) => f.area === govFilter);
-  const filteredPharmacies = govFilter === 'all' ? pharmacies : pharmacies.filter((p) => p.area === govFilter);
-
-  // Build medicine availability map
+  // Deduplicate medicines by name + pharmacy_id
   const allMeds = Object.values(medicines).flat();
-  const uniqueMedNames = Array.from(new Set(allMeds.map((m) => m.medicine_name))).sort();
+  const dedupMeds = Array.from(new Map(allMeds.map((m) => [`${m.medicine_name}_${m.pharmacy_id}`, m])).values());
+
+  // Department/specialty options
+  const deptOptions = Array.from(new Set(
+    Object.values(departments).flat().map((d) => d.name).filter(Boolean)
+  )).sort();
+
+  const selectedGov = GAZA_GOVERNORATES.find((g) => governorateLabel(g, isRTL) === govFilter);
+
+  const filteredFacilities = dedupFacilities.filter((f) => {
+    if (govFilter !== 'all') {
+      const gov = GAZA_GOVERNORATES.find((g) => governorateLabel(g, isRTL) === govFilter);
+      if (gov) {
+        const inGov = f.area === governorateLabel(gov, isRTL) ||
+          gov.subDistricts.some((s) => subDistrictLabel(s, isRTL) === f.area);
+        if (!inGov) return false;
+        if (subFilter !== 'all' && f.area !== subFilter) return false;
+      }
+    }
+    if (deptFilter !== 'all') {
+      const depts = departments[f.id] || [];
+      if (!depts.some((d) => d.name === deptFilter)) return false;
+    }
+    return true;
+  });
+
+  const filteredPharmacies = dedupPharmacies.filter((p) => {
+    if (govFilter !== 'all') {
+      const gov = GAZA_GOVERNORATES.find((g) => governorateLabel(g, isRTL) === govFilter);
+      if (gov) {
+        const inGov = p.area === governorateLabel(gov, isRTL) ||
+          gov.subDistricts.some((s) => subDistrictLabel(s, isRTL) === p.area);
+        if (!inGov) return false;
+        if (subFilter !== 'all' && p.area !== subFilter) return false;
+      }
+    }
+    return true;
+  });
+
+  const uniqueMedNames = Array.from(new Set(dedupMeds.map((m) => m.medicine_name))).sort();
   const medPharmacies = selectedMed
-    ? allMeds.filter((m) => m.medicine_name === selectedMed).map((m) => ({
+    ? dedupMeds.filter((m) => m.medicine_name === selectedMed).map((m) => ({
         med: m,
-        pharmacy: pharmacies.find((p) => p.id === m.pharmacy_id),
+        pharmacy: dedupPharmacies.find((p) => p.id === m.pharmacy_id),
       })).filter((x) => x.pharmacy)
     : [];
 
@@ -1078,13 +1166,35 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
         ))}
       </div>
 
-      {/* Governorate filter */}
+      {/* Governorate filter (Gaza hierarchy) */}
       {view !== 'medicines' && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-tajawal text-[var(--text-muted)] shrink-0">{isRTL ? 'المحافظة:' : 'Governorate:'}</span>
+            <button onClick={() => { setGovFilter('all'); setSubFilter('all'); }} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${govFilter === 'all' ? 'bg-brand-blue text-white' : 'glass'}`}>{isRTL ? 'الكل' : 'All'}</button>
+            {GAZA_GOVERNORATES.map((g) => (
+              <button key={g.ar} onClick={() => { setGovFilter(governorateLabel(g, isRTL)); setSubFilter('all'); }} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${govFilter === governorateLabel(g, isRTL) ? 'bg-brand-blue text-white' : 'glass'}`}>{governorateLabel(g, isRTL)}</button>
+            ))}
+          </div>
+          {selectedGov && (
+            <div className="flex items-center gap-2 flex-wrap ps-4">
+              <span className="text-[10px] font-tajawal text-[var(--text-muted)] shrink-0">{isRTL ? 'المنطقة:' : 'District:'}</span>
+              <button onClick={() => setSubFilter('all')} className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${subFilter === 'all' ? 'bg-brand-green text-white' : 'glass'}`}>{isRTL ? 'الكل' : 'All'}</button>
+              {selectedGov.subDistricts.map((s) => (
+                <button key={s.ar} onClick={() => setSubFilter(subDistrictLabel(s, isRTL))} className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${subFilter === subDistrictLabel(s, isRTL) ? 'bg-brand-green text-white' : 'glass'}`}>{subDistrictLabel(s, isRTL)}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Department/specialty filter (facilities only) */}
+      {view === 'facilities' && deptOptions.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-tajawal text-[var(--text-muted)] shrink-0">{isRTL ? 'المحافظة:' : 'Governorate:'}</span>
-          <button onClick={() => setGovFilter('all')} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${govFilter === 'all' ? 'bg-brand-blue text-white' : 'glass'}`}>{isRTL ? 'الكل' : 'All'}</button>
-          {governorates.map((g) => (
-            <button key={g} onClick={() => setGovFilter(g)} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${govFilter === g ? 'bg-brand-blue text-white' : 'glass'}`}>{g}</button>
+          <span className="text-xs font-tajawal text-[var(--text-muted)] shrink-0">{isRTL ? 'القسم:' : 'Department:'}</span>
+          <button onClick={() => setDeptFilter('all')} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${deptFilter === 'all' ? 'bg-brand-green text-white' : 'glass'}`}>{isRTL ? 'الكل' : 'All'}</button>
+          {deptOptions.map((d) => (
+            <button key={d} onClick={() => setDeptFilter(d)} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${deptFilter === d ? 'bg-brand-green text-white' : 'glass'}`}>{d}</button>
           ))}
         </div>
       )}
@@ -1109,6 +1219,15 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
                       <StatusBadge status={f.overall_status} />
                       <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{isRTL ? `إشغال ${occ}%` : `${occ}% full`}</div>
                     </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      (f.pricing_type || (f.is_free ? 'free' : 'paid')) === 'free' ? 'bg-status-open/20 text-status-open' :
+                      (f.pricing_type || 'paid') === 'nominal' ? 'bg-amber-400/20 text-amber-400' : 'bg-status-busy/20 text-status-busy'
+                    }`}>
+                      {(f.pricing_type || (f.is_free ? 'free' : 'paid')) === 'free' ? (isRTL ? 'مجاني' : 'Free') :
+                       (f.pricing_type || 'paid') === 'nominal' ? (isRTL ? 'أسعار رمزية' : 'Nominal') : (isRTL ? 'مدفوع' : 'Paid')}
+                    </span>
                   </div>
                 </motion.div>
               );
@@ -1304,13 +1423,14 @@ function MapTab({ pharmacies, facilities, onPharmacyClick, onFacilityClick, t }:
 }
 
 /* ===================== PROFILE TAB ===================== */
-function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, t, isRTL }: {
+function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, onPharmacyClick, onFacilityClick, t, isRTL }: {
   profile: { display_name: string; role: string; phone: string } | null;
   favorites: Favorite[]; pharmacies: Pharmacy[]; facilities: Facility[];
   darkMode: boolean; setDarkMode: (v: boolean) => void;
   seniorMode: boolean; setSeniorMode: (v: boolean) => void;
   theme: 'dark' | 'light'; onToggleTheme: () => void;
   onToggleFav: (id: string, type: 'pharmacy' | 'facility', name: string) => void;
+  onPharmacyClick: (p: Pharmacy) => void; onFacilityClick: (f: Facility) => void;
   onSignOut: () => void; t: (k: string) => string; isRTL: boolean;
 }) {
   const favPharmacies = pharmacies.filter((p) => favorites.some((f) => f.target_id === p.id && f.target_type === 'pharmacy'));
@@ -1358,6 +1478,29 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
       {/* Emergency Medical ID */}
       <EmergencyMedicalID isRTL={isRTL} />
 
+      {/* Emergency Numbers */}
+      <div className="glass-card p-4">
+        <h3 className="font-cairo font-bold text-sm mb-3 flex items-center gap-2">
+          <Phone className="w-4 h-4 text-status-emergency" />
+          {isRTL ? 'أرقام الطوارئ' : 'Emergency Numbers'}
+        </h3>
+        <div className="space-y-2">
+          {[
+            { label: isRTL ? 'الإسعاف' : 'Ambulance', number: '101', color: 'text-status-emergency' },
+            { label: isRTL ? 'الدفاع المدني' : 'Civil Defense', number: '102', color: 'text-status-busy' },
+            { label: isRTL ? 'الهلال الأحمر' : 'Red Crescent', number: '103', color: 'text-brand-green-light' },
+          ].map((e) => (
+            <a key={e.number} href={`tel:${e.number}`} className="flex items-center justify-between glass rounded-xl p-3 hover:scale-[1.02] transition-transform">
+              <div className="flex items-center gap-2">
+                <Phone className={`w-4 h-4 ${e.color}`} />
+                <span className="font-cairo font-bold text-sm">{e.label}</span>
+              </div>
+              <span className="font-inter font-bold text-base">{e.number}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+
       {/* Favorites */}
       <div>
         <h3 className="font-cairo font-bold text-lg mb-3">{t('profile.favorites')}</h3>
@@ -1368,19 +1511,19 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
         ) : (
           <div className="space-y-2">
             {favPharmacies.map((p) => (
-              <div key={p.id} className="glass-card p-3 flex items-center gap-3">
+              <div key={p.id} className="glass-card p-3 flex items-center gap-3 cursor-pointer hover:border-brand-green/40 transition-colors" onClick={() => onPharmacyClick(p)}>
                 <Pill className="w-5 h-5 text-brand-green-light" />
                 <span className="font-cairo font-bold text-sm flex-1">{p.name}</span>
-                <button onClick={() => onToggleFav(p.id, 'pharmacy', p.name)} className="text-status-emergency">
+                <button onClick={(e) => { e.stopPropagation(); onToggleFav(p.id, 'pharmacy', p.name); }} className="text-status-emergency">
                   <Heart className="w-4 h-4 fill-status-emergency" />
                 </button>
               </div>
             ))}
             {favFacilities.map((f) => (
-              <div key={f.id} className="glass-card p-3 flex items-center gap-3">
+              <div key={f.id} className="glass-card p-3 flex items-center gap-3 cursor-pointer hover:border-brand-blue/40 transition-colors" onClick={() => onFacilityClick(f)}>
                 <Shield className="w-5 h-5 text-brand-blue-light" />
                 <span className="font-cairo font-bold text-sm flex-1">{f.name}</span>
-                <button onClick={() => onToggleFav(f.id, 'facility', f.name)} className="text-status-emergency">
+                <button onClick={(e) => { e.stopPropagation(); onToggleFav(f.id, 'facility', f.name); }} className="text-status-emergency">
                   <Heart className="w-4 h-4 fill-status-emergency" />
                 </button>
               </div>
@@ -1437,7 +1580,7 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
           </div>
           <div className="flex items-center gap-3 mb-4">
             <StatusBadge status={facility.overall_status} size="md" />
-            <span className="text-sm text-[var(--text-muted)] font-tajawal">{facility.is_free ? t('dash.free') : t('dash.paid')}</span>
+            <span className="text-sm text-[var(--text-muted)] font-tajawal">{(facility.pricing_type || (facility.is_free ? 'free' : 'paid')) === 'free' ? t('dash.free') : (facility.pricing_type || 'paid') === 'nominal' ? (lang === 'ar' ? 'أسعار رمزية' : 'Nominal fee') : t('dash.paid')}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-tajawal text-[var(--text-soft)]">{t('dash.occupancy')}</span>

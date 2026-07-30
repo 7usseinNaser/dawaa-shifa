@@ -58,8 +58,9 @@ const TYPE_OPTIONS: { value: FacilityType; ar: string; en: string }[] = [
 ];
 
 const FREE_OPTIONS: { value: string; ar: string; en: string }[] = [
-  { value: 'true', ar: 'مجاني', en: 'Free' },
-  { value: 'false', ar: 'مدفوع', en: 'Paid' },
+  { value: 'free', ar: 'مجاني', en: 'Free' },
+  { value: 'paid', ar: 'مدفوع', en: 'Paid' },
+  { value: 'nominal', ar: 'مدفوع بأسعار رمزية', en: 'Nominal fee' },
 ];
 
 export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'dark' | 'light'; onToggleTheme: () => void }) {
@@ -82,7 +83,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     area: '',
     address: '',
     phone: '',
-    is_free: 'true',
+    pricing_type: 'free' as 'free' | 'paid' | 'nominal',
+    max_capacity: '',
   });
 
   // Info form
@@ -92,7 +94,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     area: '',
     address: '',
     phone: '',
-    is_free: 'true',
+    pricing_type: 'free' as 'free' | 'paid' | 'nominal',
+    max_capacity: '',
   });
 
   // Department modal
@@ -125,7 +128,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
           area: f.area,
           address: f.address,
           phone: f.phone,
-          is_free: f.is_free ? 'true' : 'false',
+          pricing_type: f.pricing_type || 'free',
+          max_capacity: f.max_capacity ? String(f.max_capacity) : '',
         });
         await loadDepartments(f.id);
         await loadActivity(user.id);
@@ -205,7 +209,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         owner_id: user.id,
         name: setupForm.name.trim(),
         type: setupForm.type,
-        is_free: setupForm.is_free === 'true',
+        is_free: setupForm.pricing_type === 'free',
+        pricing_type: setupForm.pricing_type,
+        max_capacity: parseInt(setupForm.max_capacity) || 0,
         area: setupForm.area.trim(),
         address: setupForm.address.trim(),
         phone: setupForm.phone.trim(),
@@ -228,7 +234,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       area: f.area,
       address: f.address,
       phone: f.phone,
-      is_free: f.is_free ? 'true' : 'false',
+      pricing_type: f.pricing_type || 'free',
+      max_capacity: f.max_capacity ? String(f.max_capacity) : '',
     });
     showToast(isRTL ? 'تم إنشاء المرفق بنجاح' : 'Facility created successfully');
     await logActivity('create_facility', f.name);
@@ -284,7 +291,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       .update({
         name: infoForm.name.trim(),
         type: infoForm.type,
-        is_free: infoForm.is_free === 'true',
+        is_free: infoForm.pricing_type === 'free',
+        pricing_type: infoForm.pricing_type,
+        max_capacity: parseInt(infoForm.max_capacity) || 0,
         area: infoForm.area.trim(),
         address: infoForm.address.trim(),
         phone: infoForm.phone.trim(),
@@ -299,7 +308,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       ...facility,
       name: infoForm.name.trim(),
       type: infoForm.type,
-      is_free: infoForm.is_free === 'true',
+      is_free: infoForm.pricing_type === 'free',
+      pricing_type: infoForm.pricing_type,
+      max_capacity: parseInt(infoForm.max_capacity) || 0,
       area: infoForm.area.trim(),
       address: infoForm.address.trim(),
       phone: infoForm.phone.trim(),
@@ -399,13 +410,10 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     const totalDepts = departments.length;
     const emergencyDepts = departments.filter((d) => d.status === 'emergency').length;
     const totalWaiting = departments.reduce((s, d) => s + d.waiting_count, 0);
-    // Rough occupancy: weighted by waiting counts + emergency depts, capped 100
-    const base = totalDepts === 0 ? 0 : Math.min(
-      100,
-      Math.round((totalWaiting / Math.max(totalDepts * 5, 1)) * 100) + emergencyDepts * 10
-    );
-    return { totalDepts, emergencyDepts, totalWaiting, occupancy: Math.min(100, base) };
-  }, [departments]);
+    const maxCap = facility?.max_capacity || 0;
+    const occupancy = maxCap > 0 ? Math.min(100, Math.round((totalWaiting / maxCap) * 100)) : 0;
+    return { totalDepts, emergencyDepts, totalWaiting, occupancy, maxCap };
+  }, [departments, facility]);
 
   // ---- Loading state ----
   if (loading) {
@@ -473,9 +481,16 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
               />
               <SelectField
                 label={isRTL ? 'نوع الخدمة' : 'Service type'}
-                value={setupForm.is_free}
-                onChange={(v) => setSetupForm({ ...setupForm, is_free: v })}
+                value={setupForm.pricing_type}
+                onChange={(v) => setSetupForm({ ...setupForm, pricing_type: v as 'free' | 'paid' | 'nominal' })}
                 options={FREE_OPTIONS.map((o) => ({ value: o.value, label: isRTL ? o.ar : o.en }))}
+              />
+              <SetupField
+                label={isRTL ? 'السعة الاستيعابية القصوى' : 'Max Capacity'}
+                value={setupForm.max_capacity}
+                onChange={(v) => setSetupForm({ ...setupForm, max_capacity: v })}
+                placeholder="0"
+                type="number"
               />
             </div>
 
@@ -880,9 +895,16 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                       />
                       <SelectField
                         label={isRTL ? 'نوع الخدمة' : 'Service type'}
-                        value={infoForm.is_free}
-                        onChange={(v) => setInfoForm({ ...infoForm, is_free: v })}
+                        value={infoForm.pricing_type}
+                        onChange={(v) => setInfoForm({ ...infoForm, pricing_type: v as 'free' | 'paid' | 'nominal' })}
                         options={FREE_OPTIONS.map((o) => ({ value: o.value, label: isRTL ? o.ar : o.en }))}
+                      />
+                      <SetupField
+                        label={isRTL ? 'السعة الاستيعابية القصوى' : 'Max Capacity'}
+                        value={infoForm.max_capacity}
+                        onChange={(v) => setInfoForm({ ...infoForm, max_capacity: v })}
+                        placeholder="0"
+                        type="number"
                       />
                     </div>
                     <button
