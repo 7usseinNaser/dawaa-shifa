@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowLeft, ArrowRight, Building2, CheckCircle, Lock,
-  Mail, Pill, User,
+  Mail, Pill, Shield, User,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -32,7 +32,8 @@ export default function AuthPage() {
   const roles: { key: UserRole; label: string; desc: string; icon: typeof User; color: string }[] = [
     { key: 'citizen', label: t('auth.citizen'), desc: t('auth.citizenDesc'), icon: User, color: 'brand-green' },
     { key: 'pharmacist', label: t('auth.pharmacist'), desc: t('auth.pharmacistDesc'), icon: Pill, color: 'brand-blue' },
-    { key: 'facility_admin', label: t('auth.facility_admin'), desc: t('auth.facilityDesc'), icon: Building2, color: 'status-busy' },
+    { key: 'facility_owner', label: t('auth.facility_owner'), desc: t('auth.facilityDesc'), icon: Building2, color: 'status-busy' },
+    { key: 'admin', label: t('auth.admin'), desc: t('auth.adminDesc'), icon: Shield, color: 'amber-400' },
   ];
 
   const pickRole = (r: UserRole) => { setRole(r); setDir(1); setStep(1); };

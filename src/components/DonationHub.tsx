@@ -10,8 +10,8 @@ export function DonationHub() {
   const { user, profile } = useAuth();
   const { lang } = useLang();
   const isRTL = lang === 'ar';
-  const { toasts, remove, show } = useToast();
-  const showToastMsg = show || showToast;
+  const { toasts, remove } = useToast();
+  const showToastMsg = showToast;
 
   const [donations, setDonations] = useState<MedicineDonation[]>([]);
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);

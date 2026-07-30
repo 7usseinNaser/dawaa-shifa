@@ -132,7 +132,7 @@ function AppContent() {
           <Suspense fallback={<LazyFallback />}>
             {profile.role === 'citizen' && <CitizenDashboard theme={theme} onToggleTheme={toggle} />}
             {profile.role === 'pharmacist' && <PharmacistDashboard theme={theme} onToggleTheme={toggle} />}
-            {profile.role === 'facility_admin' && <FacilityDashboard theme={theme} onToggleTheme={toggle} />}
+            {profile.role === 'facility_owner' && <FacilityDashboard theme={theme} onToggleTheme={toggle} />}
             {profile.role === 'admin' && <AdminPanel />}
           </Suspense>
         </motion.div>

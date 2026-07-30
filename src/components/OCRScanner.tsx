@@ -47,7 +47,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
         setErrorMsg(isRTL ? 'لم يتم العثور على نص. حاول صورة أوضح.' : 'No text found. Try a clearer photo.');
         return;
       }
-      const lines = rawText.split('\n').map((l) => l.trim()).filter(Boolean);
+      const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
       setRecognizedLines(lines);
 
       const medKeywords = [

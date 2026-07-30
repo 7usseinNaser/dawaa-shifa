@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
   supabase,
-  type Pharmacy, type Facility, type Medicine, type Review,
+  type Pharmacy, type Facility, type Medicine, type Review, type Department,
   type Profile, type EntityVersion, type AdminAlert,
   type MedExchangeRequest, type DataReport, type BatchRecall,
   type AuditLog, type FacilityWarning, type SearchLog, type EmergencyBroadcast,
@@ -92,6 +92,7 @@ export default function AdminPanel() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [departments, setDepartments] = useState<Record<string, Department[]>>({});
   const [users, setUsers] = useState<Profile[]>([]);
   const [versions, setVersions] = useState<EntityVersion[]>([]);
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
@@ -122,7 +123,7 @@ export default function AdminPanel() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast] = await Promise.all([
+      const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast, dept] = await Promise.all([
         supabase.from('pharmacies').select('*'),
         supabase.from('facilities').select('*'),
         supabase.from('medicines').select('*'),
@@ -137,6 +138,7 @@ export default function AdminPanel() {
         supabase.from('facility_warnings').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('search_logs').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('emergency_broadcasts').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('departments').select('*'),
       ]);
       const phData = (ph.data || []) as Pharmacy[];
       const facData = (fac.data || []) as Facility[];
@@ -162,6 +164,13 @@ export default function AdminPanel() {
       setWarnings((wrn.data || []) as FacilityWarning[]);
       setSearchLogs((slog.data || []) as SearchLog[]);
       setBroadcasts((bcast.data || []) as EmergencyBroadcast[]);
+      const deptData = (dept.data || []) as Department[];
+      const deptMap: Record<string, Department[]> = {};
+      for (const d of deptData) {
+        if (!deptMap[d.facility_id]) deptMap[d.facility_id] = [];
+        deptMap[d.facility_id].push(d);
+      }
+      setDepartments(deptMap);
       const trashedCount =
         phData.filter((p) => p.deleted_at).length +
         facData.filter((f) => f.deleted_at).length +
@@ -558,10 +567,13 @@ export default function AdminPanel() {
   const showExportButtons = ['pharmacies', 'facilities', 'medicines', 'users', 'reviews'].includes(tab);
 
   // ---- Search filter helper ----
-  function filterBySearch<T extends Record<string, unknown>>(items: T[], fields: string[]): T[] {
+  function filterBySearch<T>(items: T[], fields: string[]): T[] {
     if (!searchQuery.trim()) return items;
     const q = searchQuery.toLowerCase();
-    return items.filter((item) => fields.some((f) => String(item[f] || '').toLowerCase().includes(q)));
+    return items.filter((item) => {
+      const obj = item as unknown as Record<string, unknown>;
+      return fields.some((f) => String(obj[f] || '').toLowerCase().includes(q));
+    });
   }
 
   if (!isAdmin) {
@@ -743,7 +755,7 @@ export default function AdminPanel() {
               )}
 
               {tab === 'reports' && (
-                <ReportsList reports={filterBySearch(dataReports, ['target_name', 'reporter_name', 'message'])} onResolve={resolveReport} onDismiss={(id) => resolveReport(id, 'dismissed')} onDelete={(id) => permanentDelete('data_reports', id, id.slice(0, 8))} actionLoading={actionLoading} isRTL={isRTL} />
+                <ReportsList reports={filterBySearch(dataReports, ['target_name', 'reporter_name', 'message'])} onResolve={(id) => resolveReport(id, 'resolved')} onDismiss={(id) => resolveReport(id, 'dismissed')} onDelete={(id) => permanentDelete('data_reports', id, id.slice(0, 8))} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'recalls' && (
@@ -1041,7 +1053,7 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
   actionLoading: string | null; isRTL: boolean;
 }) {
   const filtered = users.filter((u) => !u.deleted_at && (roleFilter === 'all' || u.role === roleFilter));
-  const roleLabels: Record<string, string> = { all: isRTL ? 'الكل' : 'All', citizen: isRTL ? 'مواطن' : 'Citizen', pharmacist: isRTL ? 'صيدلي' : 'Pharmacist', facility_manager: isRTL ? 'مدير مرفق' : 'Facility Manager', admin: isRTL ? 'أدمن' : 'Admin' };
+  const roleLabels: Record<string, string> = { all: isRTL ? 'الكل' : 'All', citizen: isRTL ? 'مواطن' : 'Citizen', pharmacist: isRTL ? 'صيدلي' : 'Pharmacist', facility_owner: isRTL ? 'صاحب مرفق' : 'Facility Owner', admin: isRTL ? 'أدمن' : 'Admin' };
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1069,7 +1081,7 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
                 <select value={u.role} onChange={(e) => onRoleChange(u.id, e.target.value, u.display_name)} disabled={actionLoading === u.id} className="text-xs glass-card px-2 py-1 rounded-lg font-tajawal">
                   <option value="citizen">{isRTL ? 'مواطن' : 'Citizen'}</option>
                   <option value="pharmacist">{isRTL ? 'صيدلي' : 'Pharmacist'}</option>
-                  <option value="facility_manager">{isRTL ? 'مدير مرفق' : 'Facility Manager'}</option>
+                  <option value="facility_owner">{isRTL ? 'صاحب مرفق' : 'Facility Owner'}</option>
                   <option value="admin">{isRTL ? 'أدمن' : 'Admin'}</option>
                 </select>
                 <button onClick={() => onToggleBan(u.id, u.banned, u.display_name)} disabled={actionLoading === u.id} title={u.banned ? (isRTL ? 'إلغاء الحظر' : 'Unban') : (isRTL ? 'حظر' : 'Ban')} className="p-2 rounded-lg glass hover:bg-status-emergency/15 transition-colors disabled:opacity-50"><Ban className={`w-3.5 h-3.5 ${u.banned ? 'text-status-emergency' : 'text-[var(--text-muted)]'}`} /></button>
@@ -1699,7 +1711,7 @@ function PendingPreviewModal({ data, type, medicines, departments, onClose, onAp
               {isPharmacy ? (
                 <>
                   <div>📍 {p.address || p.area}</div>
-                  <div>⏰ {p.hours || '—'}</div>
+                  <div>⏰ {p.open_hours || '—'}</div>
                   <div>📞 {p.phone || '—'}</div>
                   <div>⭐ {p.rating} · {p.status}</div>
                 </>

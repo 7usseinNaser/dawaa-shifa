@@ -16,6 +16,23 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function translateAuthError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes('failed to fetch') || m.includes('networkrequestfailed') || m.includes('network error'))
+    return 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.';
+  if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
+    return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+  if (m.includes('user already registered'))
+    return 'هذا الحساب مسجّل بالفعل. حاول تسجيل الدخول.';
+  if (m.includes('password should be') || m.includes('weak'))
+    return 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.';
+  if (m.includes('email'))
+    return 'البريد الإلكتروني غير صالح.';
+  if (m.includes('rate limit') || m.includes('too many'))
+    return 'محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.';
+  return 'حدث خطأ غير متوقع. حاول مرة أخرى.';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -62,22 +79,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signUp = async (email: string, password: string, role: UserRole, displayName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { role, display_name: displayName } },
-    });
-    if (error) return { error: error.message };
-    if (data.user) {
-      setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: role === 'admin', deleted_at: null, banned: false });
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { role, display_name: displayName } },
+      });
+      if (error) return { error: translateAuthError(error.message) };
+      if (data.user) {
+        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: role === 'admin', deleted_at: null, banned: false, frozen: false });
+      }
+      return { error: null };
+    } catch {
+      return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
     }
-    return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
-    return { error: null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: translateAuthError(error.message) };
+      return { error: null };
+    } catch {
+      return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
+    }
   };
 
   const signOut = async () => {

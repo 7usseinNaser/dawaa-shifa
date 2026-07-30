@@ -15,6 +15,9 @@ export const seedMedicines: Medicine[] = [
     category: 'مسكنات',
     price_usd: 1.35,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm2',
@@ -27,6 +30,9 @@ export const seedMedicines: Medicine[] = [
     category: 'مضادات حيوية',
     price_usd: 4.05,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm3',
@@ -39,6 +45,9 @@ export const seedMedicines: Medicine[] = [
     category: 'مسكنات ومضادات التهاب',
     price_usd: 2.16,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm4',
@@ -51,6 +60,9 @@ export const seedMedicines: Medicine[] = [
     category: 'جهاز هضمي',
     price_usd: 3.24,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm5',
@@ -63,6 +75,9 @@ export const seedMedicines: Medicine[] = [
     category: 'أمراض مزمنة - سكري',
     price_usd: 2.7,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm6',
@@ -75,6 +90,9 @@ export const seedMedicines: Medicine[] = [
     category: 'حساسية',
     price_usd: 1.89,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm7',
@@ -87,6 +105,9 @@ export const seedMedicines: Medicine[] = [
     category: 'مسكنات',
     price_usd: 2.43,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm8',
@@ -99,6 +120,9 @@ export const seedMedicines: Medicine[] = [
     category: 'فيتامينات ومكملات',
     price_usd: 1.62,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm9',
@@ -111,6 +135,9 @@ export const seedMedicines: Medicine[] = [
     category: 'مضادات حيوية',
     price_usd: 5.41,
     is_available: true,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
   {
     id: 'm10',
@@ -123,5 +150,8 @@ export const seedMedicines: Medicine[] = [
     category: 'أمراض مزمنة - سكري',
     price_usd: 2.97,
     is_available: false,
+    deleted_at: null,
+    is_restricted: false,
+    restriction_note: '',
   },
 ];

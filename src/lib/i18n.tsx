@@ -34,7 +34,9 @@ const dict: Record<string, { ar: string; en: string }> = {
   'auth.role': { ar: 'نوع الحساب', en: 'Account Type' },
   'auth.citizen': { ar: 'مواطن', en: 'Citizen' },
   'auth.pharmacist': { ar: 'صيدلاني', en: 'Pharmacist' },
-  'auth.facility_admin': { ar: 'إدارة مرفق', en: 'Facility Admin' },
+  'auth.facility_owner': { ar: 'صاحب مرفق', en: 'Facility Owner' },
+  'auth.admin': { ar: 'مشرف النظام', en: 'System Admin' },
+  'auth.adminDesc': { ar: 'إدارة النظام والمستخدمين والصيدليات', en: 'Manage system, users, and pharmacies' },
   'auth.citizenDesc': { ar: 'ابحث عن الدواء واعرف حالة المرافق', en: 'Search medicines and check facility status' },
   'auth.pharmacistDesc': { ar: 'حدّث مخزونك وأسعارك لحظياً', en: 'Update your inventory and prices live' },
   'auth.facilityDesc': { ar: 'أعلن حالة الأقسام والانتظار', en: 'Broadcast department status and wait times' },
@@ -198,7 +200,7 @@ const dict: Record<string, { ar: string; en: string }> = {
   'how.title': { ar: 'كيف يعمل', en: 'How it works' },
   'how.subtitle': { ar: 'ثلاث خطوات بسيطة', en: 'Three simple steps' },
   'how.step1': { ar: 'أنشئ حساباً', en: 'Create an account' },
-  'how.step1Desc': { ar: 'سجّل كمواطن أو صيدلاني أو مدير مرفق', en: 'Sign up as citizen, pharmacist, or facility admin' },
+  'how.step1Desc': { ar: 'سجّل كمواطن أو صيدلاني أو صاحب مرفق', en: 'Sign up as citizen, pharmacist, or facility owner' },
   'how.step2': { ar: 'ابحث أو حدّث', en: 'Search or update' },
   'how.step2Desc': { ar: 'ابحث عن دوائك أو حدّث مخزونك', en: 'Search for your medicine or update your inventory' },
   'how.step3': { ar: 'تحرّك بثقة', en: 'Move with confidence' },
@@ -210,7 +212,7 @@ const dict: Record<string, { ar: string; en: string }> = {
   'users.citizenDesc': { ar: 'يبحث عن دوائه ويتفقد حالة المرافق', en: 'Searches for medicine and checks facility status' },
   'users.pharmacist': { ar: 'الصيدلاني', en: 'Pharmacist' },
   'users.pharmacistDesc': { ar: 'يحدّث مخزونه وأسعاره', en: 'Updates inventory and prices' },
-  'users.admin': { ar: 'إدارة المرفق', en: 'Facility Admin' },
+  'users.admin': { ar: 'صاحب مرفق', en: 'Facility Owner' },
   'users.adminDesc': { ar: 'تعلن حالة الأقسام والازدحام', en: 'Broadcasts department status and crowding' },
 
   // Landing page — About

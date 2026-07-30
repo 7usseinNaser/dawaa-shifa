@@ -17,6 +17,8 @@ export const seedPharmacies: Pharmacy[] = [
     status: 'open',
     verified: true,
     power_status: 'generator',
+    deleted_at: null,
+    last_updated_at: null,
   },
   {
     id: 'p2',
@@ -34,6 +36,8 @@ export const seedPharmacies: Pharmacy[] = [
     status: 'open',
     verified: true,
     power_status: 'grid',
+    deleted_at: null,
+    last_updated_at: null,
   },
   {
     id: 'p3',
@@ -51,6 +55,8 @@ export const seedPharmacies: Pharmacy[] = [
     status: 'closed',
     verified: true,
     power_status: 'no_power',
+    deleted_at: null,
+    last_updated_at: null,
   },
   {
     id: 'p4',
@@ -68,5 +74,7 @@ export const seedPharmacies: Pharmacy[] = [
     status: 'open',
     verified: true,
     power_status: 'generator',
+    deleted_at: null,
+    last_updated_at: null,
   },
 ];

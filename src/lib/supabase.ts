@@ -13,7 +13,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   },
 });
 
-export type UserRole = 'citizen' | 'pharmacist' | 'facility_admin' | 'admin';
+export type UserRole = 'citizen' | 'pharmacist' | 'facility_owner' | 'admin';
 
 export interface Profile {
   id: string;

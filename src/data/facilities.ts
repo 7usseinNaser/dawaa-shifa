@@ -16,6 +16,8 @@ export const seedFacilities: Facility[] = [
     verified: true,
     power_status: 'generator',
     occupancy_rate: 95,
+    deleted_at: null,
+    last_updated_at: null,
   },
   {
     id: 'f2',
@@ -32,6 +34,8 @@ export const seedFacilities: Facility[] = [
     verified: true,
     power_status: 'grid',
     occupancy_rate: 40,
+    deleted_at: null,
+    last_updated_at: null,
   },
   {
     id: 'f3',
@@ -48,5 +52,7 @@ export const seedFacilities: Facility[] = [
     verified: true,
     power_status: 'generator',
     occupancy_rate: 75,
+    deleted_at: null,
+    last_updated_at: null,
   },
 ];
