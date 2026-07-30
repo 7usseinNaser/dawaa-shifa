@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) return { error: translateAuthError(error.message) };
       if (data.user) {
-        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null });
+        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null, email: data.user.email || null });
       }
       return { error: null };
     } catch {

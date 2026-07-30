@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, ShieldX, Loader2, Building2, Pill, CheckCircle, XCircle,
@@ -6,7 +6,7 @@ import {
   RotateCcw, Ban, AlertTriangle, Radio, FileText, History, Filter,
   Search, Flag, Package, AlertOctagon, ExternalLink, Upload,
   ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift,
-  Bug, Clock, Eye, ChevronLeft, Calendar,
+  Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -16,7 +16,7 @@ import {
   type Profile, type EntityVersion, type AdminAlert,
   type MedExchangeRequest, type DataReport, type BatchRecall,
   type AuditLog, type FacilityWarning, type SearchLog, type EmergencyBroadcast,
-  type MedicineDonation, type BugReport,
+  type MedicineDonation, type BugReport, type BugReportChat,
 } from '@/lib/supabase';
 import { BulkImport } from '@/components/BulkImport';
 import { showToast } from '@/components/ui/Toast';
@@ -124,6 +124,10 @@ export default function AdminPanel() {
   const [selectedReviewTarget, setSelectedReviewTarget] = useState<{ type: 'facility' | 'pharmacy'; id: string; name: string } | null>(null);
   const [rollbackConfirm, setRollbackConfirm] = useState<AuditLog | null>(null);
   const [freezeReason, setFreezeReason] = useState('');
+  const [chatBugReport, setChatBugReport] = useState<BugReport | null>(null);
+  const [rejectPending, setRejectPending] = useState<{ table: string; id: string; name: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [auditDetail, setAuditDetail] = useState<AuditLog | null>(null);
 
   // Filters
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
@@ -575,7 +579,11 @@ export default function AdminPanel() {
     try {
       const { error } = await supabase.from(table).update({ approval_status: 'rejected', verified: false, rejection_reason: sanitize(reason) }).eq('id', id);
       if (error) throw error;
-      await logAction(`reject_${table}`, name);
+      await logAction(`reject_${table}`, name, null, { reason: sanitize(reason) });
+      const { data: entity } = await supabase.from(table).select('owner_id').eq('id', id).maybeSingle();
+      if (entity?.owner_id) {
+        await supabase.from('notifications').insert({ user_id: entity.owner_id, title: isRTL ? `تم رفض: ${name}` : `Rejected: ${name}`, body: isRTL ? `سبب الرفض: ${reason}` : `Rejection reason: ${reason}`, type: 'rejection' });
+      }
       showToast(isRTL ? `تم رفض: ${name}` : `Rejected: ${name}`);
       loadAll();
     } catch {
@@ -863,7 +871,7 @@ export default function AdminPanel() {
           ) : (
             <>
               {tab === 'pending' && (
-                <PendingList pharmacies={pharmacies} facilities={facilities} medicines={medicines} departments={departments} onApprove={(t, id, name) => approveEntity(t as 'pharmacies' | 'facilities', id, name)} onReject={(t, id, name) => rejectEntity(t as 'pharmacies' | 'facilities', id, name, isRTL ? 'معلومات غير صحيحة' : 'Inaccurate information')} actionLoading={actionLoading} isRTL={isRTL} />
+                <PendingList pharmacies={pharmacies} facilities={facilities} medicines={medicines} departments={departments} onApprove={(t, id, name) => approveEntity(t as 'pharmacies' | 'facilities', id, name)} onReject={(t, id, name) => setRejectPending({ table: t, id, name })} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'pharmacies' && (
@@ -953,7 +961,7 @@ export default function AdminPanel() {
               )}
 
               {tab === 'audit' && (
-                <AuditLogsList logs={filterBySearch(auditLogs, ['actor_name', 'action', 'entity_type', 'entity_id'])} onRollback={(log) => setRollbackConfirm(log)} actionLoading={actionLoading} isRTL={isRTL} />
+                <AuditLogsList logs={filterBySearch(auditLogs, ['actor_name', 'action', 'entity_type', 'entity_id'])} onRollback={(log) => setRollbackConfirm(log)} onLogClick={(log) => setAuditDetail(log)} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'heatmap' && (
@@ -968,7 +976,7 @@ export default function AdminPanel() {
                 <DonationsList donations={filterBySearch(donations, ['donor_name', 'medicine_name', 'generic_name', 'area'])} pharmacies={pharmacies} facilities={facilities} onApprove={(id) => reviewDonation(id, 'approved')} onReject={(id, reason) => reviewDonation(id, 'rejected', reason)} onDistribute={distributeDonation} actionLoading={actionLoading} isRTL={isRTL} />
               )}
               {tab === 'bugs' && (
-                <BugReportsList reports={bugReports} onResolve={(id) => resolveBugReport(id, 'resolved')} onDismiss={(id) => resolveBugReport(id, 'dismissed')} onDelete={(id) => permanentDelete('bug_reports', id, id.slice(0, 8))} actionLoading={actionLoading} isRTL={isRTL} />
+                <BugReportsList reports={bugReports} onResolve={(id) => resolveBugReport(id, 'resolved')} onDismiss={(id) => resolveBugReport(id, 'dismissed')} onDelete={(id) => permanentDelete('bug_reports', id, id.slice(0, 8))} onChat={(r) => setChatBugReport(r)} actionLoading={actionLoading} isRTL={isRTL} />
               )}
             </>
           )}
@@ -1020,7 +1028,7 @@ export default function AdminPanel() {
       {/* Broadcast Form Modal */}
       <AnimatePresence>
         {showBroadcastForm && (
-          <BroadcastForm onClose={() => setShowBroadcastForm(false)} onSend={async (data) => { setActionLoading('new-broadcast'); try { const { error } = await supabase.from('emergency_broadcasts').insert({ ...data, created_by: user?.id }); if (error) throw error; await logAction('create_broadcast', data.title); showToast(isRTL ? 'تم إرسال البث الطارئ' : 'Emergency broadcast sent'); setShowBroadcastForm(false); loadAll(); } catch { showToast(isRTL ? 'فشل' : 'Failed', 'error'); } finally { setActionLoading(null); } }} actionLoading={actionLoading === 'new-broadcast'} isRTL={isRTL} />
+          <BroadcastForm onClose={() => setShowBroadcastForm(false)} onSend={async (data) => { setActionLoading('new-broadcast'); try { const expiresAt = data.duration_type === 'permanent' ? null : data.expires_at ? data.expires_at : data.duration_hours ? new Date(Date.now() + data.duration_hours * 3600000).toISOString() : new Date(Date.now() + 24 * 3600000).toISOString(); const { error } = await supabase.from('emergency_broadcasts').insert({ title: data.title, message: data.message, area: data.area, severity: data.severity, expires_at: expiresAt, created_by: user?.id }); if (error) throw error; await logAction('create_broadcast', data.title); showToast(isRTL ? 'تم إرسال البث الطارئ' : 'Emergency broadcast sent'); setShowBroadcastForm(false); loadAll(); } catch { showToast(isRTL ? 'فشل' : 'Failed', 'error'); } finally { setActionLoading(null); } }} actionLoading={actionLoading === 'new-broadcast'} isRTL={isRTL} />
         )}
       </AnimatePresence>
 
@@ -1087,6 +1095,128 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+
+      {/* Chat Modal for Bug Reports */}
+      {chatBugReport && (
+        <BugReportChatModal report={chatBugReport} adminName={profile?.display_name || 'Admin'} adminId={user?.id || null} isRTL={isRTL} onClose={() => setChatBugReport(null)} />
+      )}
+
+      {/* Rejection Reason Modal */}
+      {rejectPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setRejectPending(null)}>
+          <div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-cairo font-bold text-base mb-3 flex items-center gap-2"><XCircle className="w-5 h-5 text-status-emergency" />{isRTL ? 'سبب الرفض' : 'Rejection Reason'}</h3>
+            <p className="text-sm font-tajawal text-[var(--text-soft)] mb-2">{isRTL ? `سيتم رفض: ${rejectPending.name}` : `Rejecting: ${rejectPending.name}`}</p>
+            <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} className="w-full glass rounded-xl p-3 text-sm font-tajawal focus:outline-none focus:border-status-emergency resize-none" placeholder={isRTL ? 'أدخل سبب الرفض...' : 'Enter rejection reason...'} />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setRejectPending(null); setRejectReason(''); }} className="btn-secondary flex-1 text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button>
+              <button onClick={() => { rejectEntity(rejectPending.table as 'pharmacies' | 'facilities', rejectPending.id, rejectPending.name, rejectReason || (isRTL ? 'معلومات غير صحيحة' : 'Inaccurate information')); setRejectPending(null); setRejectReason(''); }} disabled={!rejectReason.trim()} className="flex-1 text-sm py-2.5 rounded-xl bg-status-emergency/20 text-status-emergency font-bold hover:bg-status-emergency/30 transition-colors disabled:opacity-50">{isRTL ? 'تأكيد الرفض' : 'Confirm Reject'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Log Detail Modal */}
+      {auditDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAuditDetail(null)}>
+          <div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-cairo font-bold text-base flex items-center gap-2"><History className="w-5 h-5 text-brand-blue-light" />{isRTL ? 'تفاصيل سجل التدقيق' : 'Audit Log Details'}</h3>
+              <button onClick={() => setAuditDetail(null)} className="p-1.5 rounded-lg glass"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-24">{isRTL ? 'المنفذ' : 'Performer'}:</span><span className="text-sm font-cairo font-bold">{auditDetail.actor_name}</span></div>
+              <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-24">{isRTL ? 'الإجراء' : 'Action'}:</span><span className="text-sm">{auditDetail.action.replace(/_/g, ' ')}</span></div>
+              <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-24">{isRTL ? 'الجهة' : 'Target'}:</span><span className="text-sm font-cairo">{auditDetail.entity_type} — {auditDetail.entity_id}</span></div>
+              <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-24">{isRTL ? 'الوقت' : 'Timestamp'}:</span><span className="text-sm font-tajawal">{new Date(auditDetail.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</span></div>
+              {auditDetail.before_state && (
+                <div>
+                  <span className="text-xs text-[var(--text-muted)] block mb-1">{isRTL ? 'الحالة قبل' : 'Before State'}:</span>
+                  <pre className="text-xs font-tajawal text-[var(--text-soft)] glass rounded-xl p-2 overflow-x-auto">{JSON.stringify(auditDetail.before_state, null, 2)}</pre>
+                </div>
+              )}
+              {auditDetail.after_state && (
+                <div>
+                  <span className="text-xs text-[var(--text-muted)] block mb-1">{isRTL ? 'الحالة بعد' : 'After State'}:</span>
+                  <pre className="text-xs font-tajawal text-[var(--text-soft)] glass rounded-xl p-2 overflow-x-auto">{JSON.stringify(auditDetail.after_state, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============ Bug Report Chat Modal ============
+function BugReportChatModal({ report, adminName, adminId, isRTL, onClose }: {
+  report: BugReport; adminName: string; adminId: string | null; isRTL: boolean; onClose: () => void;
+}) {
+  const [messages, setMessages] = useState<BugReportChat[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('bug_report_chats').select('*').eq('bug_report_id', report.id).order('created_at', { ascending: true });
+      setMessages((data as BugReportChat[]) || []);
+      setLoading(false);
+    })();
+  }, [report.id]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const send = async () => {
+    if (!input.trim() || !adminId) return;
+    const msg = input.trim();
+    setInput('');
+    const tempMsg: BugReportChat = { id: 'temp', bug_report_id: report.id, sender_id: adminId, sender_name: adminName, sender_role: 'admin', message: msg, created_at: new Date().toISOString() };
+    setMessages((p) => [...p, tempMsg]);
+    const { data } = await supabase.from('bug_report_chats').insert({ bug_report_id: report.id, sender_id: adminId, sender_name: adminName, sender_role: 'admin', message: msg }).select().single();
+    if (data) setMessages((p) => p.map((m) => m.id === 'temp' ? data as BugReportChat : m));
+    if (report.reporter_id) {
+      await supabase.from('notifications').insert({ user_id: report.reporter_id, title: isRTL ? 'رسالة جديدة من الإدارة' : 'New message from Admin', body: msg, type: 'chat' });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="glass-card p-0 w-full max-w-md h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-brand-blue-light" />
+            <div>
+              <h3 className="font-cairo font-bold text-sm">{isRTL ? 'محادثة مع صاحب البلاغ' : 'Chat with Reporter'}</h3>
+              <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{report.reporter_name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg glass"><X className="w-4 h-4" /></button>
+        </div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+          {loading ? (
+            <div className="flex items-center justify-center h-full"><Loader2 className="w-6 h-6 animate-spin text-brand-blue-light" /></div>
+          ) : messages.length === 0 ? (
+            <p className="text-center text-sm font-tajawal text-[var(--text-muted)] mt-8">{isRTL ? 'ابدأ المحادثة...' : 'Start the conversation...'}</p>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className={`flex ${m.sender_role === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[75%] rounded-xl p-2.5 ${m.sender_role === 'admin' ? 'bg-brand-blue/20 text-[var(--text-bright)]' : 'glass text-[var(--text-soft)]'}`}>
+                  <p className="text-xs font-tajawal">{m.message}</p>
+                  <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{new Date(m.created_at).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="p-3 border-t border-[var(--border-subtle)] flex gap-2">
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} className="flex-1 glass rounded-xl px-3 py-2 text-sm font-tajawal focus:outline-none focus:border-brand-blue" placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'} />
+          <button onClick={send} disabled={!input.trim()} className="btn-primary px-4 py-2 disabled:opacity-50"><Send className="w-4 h-4" /></button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1112,7 +1242,11 @@ function UserDetailModal({ user, auditLogs, dataReports, reviews, onClose, isRTL
         <div className="space-y-1.5 mb-4">
           <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الاسم' : 'Name'}:</span><span className="font-cairo font-bold text-sm">{user.display_name}</span></div>
           <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الدور' : 'Role'}:</span><span className="text-sm">{roleLabels[user.role] || user.role}</span></div>
+          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'البريد الإلكتروني' : 'Email'}:</span><span className="text-sm font-tajawal">{user.email || '—'}</span></div>
           <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الهاتف' : 'Phone'}:</span><span className="text-sm font-tajawal">{user.phone || '—'}</span></div>
+          {(!user.phone || !user.email) && (
+            <div className="flex items-center gap-1.5 mt-1"><AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" /><span className="text-[10px] text-amber-400 font-tajawal">{isRTL ? 'بيانات ناقصة - يرجى التحديث' : 'Missing data - please update'}</span></div>
+          )}
           <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الحالة' : 'Status'}:</span>
             <div className="flex gap-1.5">
               {user.verified && <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-open/20 text-status-open font-bold">{isRTL ? 'موثّق' : 'Verified'}</span>}
@@ -1262,14 +1396,14 @@ function ReviewTargetModal({ target, reviews, onClose, isRTL }: {
 }
 
 // ============ Bug Reports List ============
-function BugReportsList({ reports, onResolve, onDismiss, onDelete, actionLoading, isRTL }: {
+function BugReportsList({ reports, onResolve, onDismiss, onDelete, onChat, actionLoading, isRTL }: {
   reports: BugReport[];
-  onResolve: (id: string) => void; onDismiss: (id: string) => void; onDelete: (id: string) => void;
+  onResolve: (id: string) => void; onDismiss: (id: string) => void; onDelete: (id: string) => void; onChat: (r: BugReport) => void;
   actionLoading: string | null; isRTL: boolean;
 }) {
   const categoryLabels: Record<string, string> = { ui: isRTL ? 'واجهة' : 'UI', data: isRTL ? 'بيانات' : 'Data', auth: isRTL ? 'مصادقة' : 'Auth', performance: isRTL ? 'أداء' : 'Performance', other: isRTL ? 'أخرى' : 'Other' };
-  const statusCls: Record<string, string> = { open: 'bg-amber-500/20 text-amber-400', resolved: 'bg-status-open/20 text-status-open', dismissed: 'bg-[var(--border-subtle)] text-[var(--text-muted)]' };
-  const statusLabel: Record<string, string> = { open: isRTL ? 'مفتوح' : 'Open', resolved: isRTL ? 'تم الحل' : 'Resolved', dismissed: isRTL ? 'مرفوض' : 'Dismissed' };
+  const statusCls: Record<string, string> = { open: 'bg-amber-500/20 text-amber-400', reviewing: 'bg-brand-blue/20 text-brand-blue-light', resolved: 'bg-status-open/20 text-status-open', dismissed: 'bg-[var(--border-subtle)] text-[var(--text-muted)]' };
+  const statusLabel: Record<string, string> = { open: isRTL ? 'مفتوح' : 'Open', reviewing: isRTL ? 'قيد المراجعة' : 'Reviewing', resolved: isRTL ? 'تم الحل' : 'Resolved', dismissed: isRTL ? 'مرفوض' : 'Dismissed' };
   if (reports.length === 0) return (<div className="text-center py-8"><Bug className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد بلاغات تقنية' : 'No bug reports'}</p></div>);
   return (
     <div className="space-y-3">
@@ -1289,13 +1423,16 @@ function BugReportsList({ reports, onResolve, onDismiss, onDelete, actionLoading
             </div>
             <p className="text-xs font-tajawal text-[var(--text-soft)] mb-2">{r.description}</p>
             <p className="text-[10px] text-[var(--text-muted)] mb-2">{new Date(r.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</p>
-            {r.status === 'open' && (
-              <div className="flex gap-2">
-                <button onClick={() => onResolve(r.id)} disabled={actionLoading === r.id} className="btn-primary text-xs flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50">{actionLoading === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{isRTL ? 'حل' : 'Resolve'}</button>
-                <button onClick={() => onDismiss(r.id)} disabled={actionLoading === r.id} className="px-3 py-1.5 rounded-lg bg-[var(--border-subtle)] text-[var(--text-soft)] text-xs font-bold disabled:opacity-50">{isRTL ? 'إغلاق' : 'Dismiss'}</button>
-                <button onClick={() => onDelete(r.id)} disabled={actionLoading === r.id} className="p-2 rounded-lg bg-status-emergency/15 text-status-emergency disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            )}
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => onChat(r)} className="px-3 py-1.5 rounded-lg bg-brand-blue/15 text-brand-blue-light text-xs font-bold flex items-center gap-1.5 hover:bg-brand-blue/25 transition-colors"><MessageCircle className="w-3.5 h-3.5" />{isRTL ? 'محادثة' : 'Chat'}</button>
+              {r.status === 'open' && (
+                <>
+                  <button onClick={() => onResolve(r.id)} disabled={actionLoading === r.id} className="btn-primary text-xs flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50">{actionLoading === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{isRTL ? 'حل' : 'Resolve'}</button>
+                  <button onClick={() => onDismiss(r.id)} disabled={actionLoading === r.id} className="px-3 py-1.5 rounded-lg bg-[var(--border-subtle)] text-[var(--text-soft)] text-xs font-bold disabled:opacity-50">{isRTL ? 'إغلاق' : 'Dismiss'}</button>
+                  <button onClick={() => onDelete(r.id)} disabled={actionLoading === r.id} className="p-2 rounded-lg bg-status-emergency/15 text-status-emergency disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -2040,7 +2177,7 @@ function RecallForm({ onClose, onSave, actionLoading, isRTL }: {
 }
 
 // ============ Audit Logs List ============
-function AuditLogsList({ logs, onRollback, actionLoading, isRTL }: { logs: AuditLog[]; onRollback: (log: AuditLog) => void; actionLoading: string | null; isRTL: boolean }) {
+function AuditLogsList({ logs, onRollback, onLogClick, actionLoading, isRTL }: { logs: AuditLog[]; onRollback: (log: AuditLog) => void; onLogClick: (log: AuditLog) => void; actionLoading: string | null; isRTL: boolean }) {
   const actionIcons: Record<string, JSX.Element> = {
     create: <Plus className="w-3.5 h-3.5 text-status-open" />,
     update: <Pencil className="w-3.5 h-3.5 text-brand-blue-light" />,
@@ -2074,7 +2211,7 @@ function AuditLogsList({ logs, onRollback, actionLoading, isRTL }: { logs: Audit
       <h2 className="font-cairo font-bold text-base flex items-center gap-2"><ScrollText className="w-5 h-5 text-brand-blue-light" />{isRTL ? 'سجل التدقيق' : 'Audit Logs'} ({logs.length})</h2>
       <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
         {logs.map((log) => (
-          <div key={log.id} className="glass-card p-2.5 flex items-center gap-2.5">
+          <div key={log.id} className="glass-card p-2.5 flex items-center gap-2.5 cursor-pointer hover:bg-[var(--border-subtle)]/30 transition-colors" onClick={() => onLogClick(log)}>
             <div className="w-8 h-8 rounded-lg glass flex items-center justify-center shrink-0">{actionIcons[log.action] || <Activity className="w-3.5 h-3.5 text-[var(--text-muted)]" />}</div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-cairo font-bold">
@@ -2277,8 +2414,9 @@ function PendingPreviewModal({ data, type, medicines, departments, onClose, onAp
                 <>
                   <div>📍 {f.address || f.area}</div>
                   <div>🏥 {f.type}</div>
-                  <div>💰 {f.is_free ? (isRTL ? 'مجاني' : 'Free') : (isRTL ? 'مدفوع' : 'Paid')}</div>
+                  <div>💰 {f.is_free ? (isRTL ? 'مجاني' : 'Free') : (isRTL ? 'مدفوع' : 'Paid')}{f.pricing_type === 'nominal' ? (isRTL ? ' (أسعار رمزية)' : ' (Nominal)') : ''}</div>
                   <div>📊 {f.overall_status}</div>
+                  {f.max_capacity != null && <div>🏥 {isRTL ? `السعة القصوى: ${f.max_capacity}` : `Max Capacity: ${f.max_capacity}`}</div>}
                 </>
               )}
             </div>
@@ -2466,7 +2604,7 @@ function BroadcastsTab({ broadcasts, onNew, onDelete, actionLoading, isRTL }: {
 // ============ Broadcast Form ============
 function BroadcastForm({ onClose, onSend, actionLoading, isRTL }: {
   onClose: () => void;
-  onSend: (data: { title: string; message: string; area: string; severity: 'info' | 'warning' | 'emergency' }) => void;
+  onSend: (data: { title: string; message: string; area: string; severity: 'info' | 'warning' | 'emergency'; duration_type?: string; duration_hours?: number; expires_at?: string | null }) => void;
   actionLoading: boolean;
   isRTL: boolean;
 }) {
@@ -2474,6 +2612,8 @@ function BroadcastForm({ onClose, onSend, actionLoading, isRTL }: {
   const [message, setMessage] = useState('');
   const [area, setArea] = useState('all');
   const [severity, setSeverity] = useState<'info' | 'warning' | 'emergency'>('warning');
+  const [durationType, setDurationType] = useState<'12h' | '24h' | 'custom' | 'permanent'>('24h');
+  const [customDate, setCustomDate] = useState('');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -2493,7 +2633,42 @@ function BroadcastForm({ onClose, onSend, actionLoading, isRTL }: {
           </div>
           <div>
             <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'المنطقة المستهدفة' : 'Target Area'}</label>
-            <input value={area} onChange={(e) => setArea(e.target.value)} className="w-full glass-card px-3 py-2.5 text-sm font-tajawal focus:outline-none focus:border-brand-green" placeholder={isRTL ? 'اكتب المحافظة أو "all" للكل' : 'Enter governorate or "all"'} />
+            <select value={area} onChange={(e) => setArea(e.target.value)} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-brand-green">
+              <option value="all">{isRTL ? 'كل المناطق' : 'All Areas'}</option>
+              <optgroup label={isRTL ? 'شمال غزة' : 'North Gaza'}>
+                <option value="جباليا">جباليا</option>
+                <option value="بيت لاهيا">بيت لاهيا</option>
+                <option value="بيت حانون">بيت حانون</option>
+              </optgroup>
+              <optgroup label={isRTL ? 'غزة' : 'Gaza City'}>
+                <option value="الرمال">الرمال</option>
+                <option value="الزيتون">الزيتون</option>
+                <option value="الشجاعية">الشجاعية</option>
+                <option value="تل الهوا">تل الهوا</option>
+                <option value="الشيخ رضوان">الشيخ رضوان</option>
+                <option value="النصر">النصر</option>
+                <option value="الدرج">الدرج</option>
+              </optgroup>
+              <optgroup label={isRTL ? 'الوسطى' : 'Middle Area'}>
+                <option value="دير البلح">دير البلح</option>
+                <option value="النصيرات">النصيرات</option>
+                <option value="البريج">البريج</option>
+                <option value="المغازي">المغازي</option>
+                <option value="الزوايدة">الزوايدة</option>
+              </optgroup>
+              <optgroup label={isRTL ? 'خانيونس' : 'Khan Younis'}>
+                <option value="مدينة خانيونس">مدينة خانيونس</option>
+                <option value="القرارة">القرارة</option>
+                <option value="عبسان">عبسان</option>
+                <option value="بني سهيلا">بني سهيلا</option>
+              </optgroup>
+              <optgroup label={isRTL ? 'رفح' : 'Rafah'}>
+                <option value="مدينة رفح">مدينة رفح</option>
+                <option value="الشابورة">الشابورة</option>
+                <option value="تل السلطان">تل السلطان</option>
+                <option value="النصر">النصر (رفح)</option>
+              </optgroup>
+            </select>
           </div>
           <div>
             <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'مستوى الخطورة' : 'Severity'}</label>
@@ -2505,9 +2680,20 @@ function BroadcastForm({ onClose, onSend, actionLoading, isRTL }: {
               ))}
             </div>
           </div>
+          <div>
+            <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'مدة البث' : 'Broadcast Duration'}</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {([{ k: '12h', l: isRTL ? '12 ساعة' : '12 hours' }, { k: '24h', l: isRTL ? '24 ساعة' : '24 hours' }, { k: 'custom', l: isRTL ? 'مخصص' : 'Custom' }, { k: 'permanent', l: isRTL ? 'دائم' : 'Permanent' }] as const).map((d) => (
+                <button key={d.k} type="button" onClick={() => setDurationType(d.k)} className={`px-3 py-1.5 rounded-lg text-xs font-tajawal font-bold transition-colors ${durationType === d.k ? 'bg-status-emergency text-white' : 'glass text-[var(--text-soft)]'}`}>{d.l}</button>
+              ))}
+            </div>
+            {durationType === 'custom' && (
+              <input type="datetime-local" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="w-full mt-2 glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-status-emergency" />
+            )}
+          </div>
         </div>
         <div className="flex gap-2 mt-4">
-          <button onClick={() => onSend({ title, message, area, severity })} disabled={!title.trim() || !message.trim() || actionLoading} className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
+          <button onClick={() => onSend({ title, message, area, severity, duration_type: durationType, duration_hours: durationType === '12h' ? 12 : durationType === '24h' ? 24 : undefined, expires_at: durationType === 'custom' && customDate ? new Date(customDate).toISOString() : null })} disabled={!title.trim() || !message.trim() || actionLoading} className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
             {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {isRTL ? 'إرسال البث' : 'Send Broadcast'}
           </button>

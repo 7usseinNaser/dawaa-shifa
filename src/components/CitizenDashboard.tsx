@@ -551,6 +551,55 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   );
 }
 
+/* ===================== SUBSTITUTE PHARMACIES MODAL ===================== */
+function SubstitutePharmaciesModal({ medicine, pharmacies, medicines, isRTL, onClose, onPharmacyClick }: {
+  medicine: Medicine; pharmacies: Pharmacy[]; medicines: Record<string, Medicine[]>; isRTL: boolean; onClose: () => void; onPharmacyClick: (p: Pharmacy) => void;
+}) {
+  const matchingPharmacies = pharmacies.filter((p) => {
+    const meds = medicines[p.id] || [];
+    return meds.some((m) => m.id === medicine.id || (m.generic_name === medicine.generic_name && m.generic_name));
+  });
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-card p-5 w-full max-w-md max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-cairo font-bold text-base flex items-center gap-2"><Pill className="w-5 h-5 text-brand-green-light" />{isRTL ? 'الصيدليات المتوفر بها' : 'Available at'}</h3>
+            <p className="text-xs font-tajawal text-[var(--text-muted)] mt-1">{medicine.medicine_name} · {medicine.generic_name}</p>
+          </div>
+          <button onClick={onClose} className="text-[var(--text-muted)] text-xl">✕</button>
+        </div>
+        {matchingPharmacies.length === 0 ? (
+          <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-8">{isRTL ? 'لا توجد صيدليات متوفر بها هذا الدواء حالياً' : 'No pharmacies currently stock this medicine'}</p>
+        ) : (
+          <div className="space-y-2">
+            {matchingPharmacies.map((p) => {
+              const med = (medicines[p.id] || []).find((m) => m.id === medicine.id || (m.generic_name === medicine.generic_name && m.generic_name));
+              return (
+                <div key={p.id} onClick={() => onPharmacyClick(p)} className="glass rounded-xl p-3 cursor-pointer hover:scale-[1.02] transition-transform">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-lg bg-brand-green/20 flex items-center justify-center"><Pill className="w-4 h-4 text-brand-green-light" /></div>
+                      <div>
+                        <div className="font-cairo font-bold text-sm">{p.name}</div>
+                        <div className="text-xs text-[var(--text-muted)] font-tajawal flex items-center gap-1"><MapPin className="w-3 h-3" />{p.area}</div>
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      {med && <div className="font-bold text-sm text-brand-green-light">{med.price} ₪</div>}
+                      {med && <div className="text-[10px] font-tajawal text-[var(--text-muted)]">{isRTL ? `الكمية: ${med.quantity}` : `Qty: ${med.quantity}`}</div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ===================== REPORT FORM MODAL ===================== */
 function ReportFormModal({ target, onClose, onSubmit, lang }: {
   target: { targetType: string; targetId: string; targetName: string };
@@ -1092,6 +1141,7 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
   const [subFilter, setSubFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const [selectedMed, setSelectedMed] = useState<string | null>(null);
+  const [substituteMed, setSubstituteMed] = useState<Medicine | null>(null);
 
   // Deduplicate facilities and pharmacies by id
   const dedupFacilities = Array.from(new Map(facilities.map((f) => [f.id, f])).values());
@@ -1307,6 +1357,12 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
           )}
         </div>
       )}
+      {/* Substitute Medicine Modal */}
+      <AnimatePresence>
+        {substituteMed && (
+          <SubstitutePharmaciesModal medicine={substituteMed} pharmacies={pharmacies} medicines={medicines} isRTL={lang === 'ar'} onClose={() => setSubstituteMed(null)} onPharmacyClick={onPharmacyClick} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1423,6 +1479,40 @@ function MapTab({ pharmacies, facilities, onPharmacyClick, onFacilityClick, t }:
 }
 
 /* ===================== PROFILE TAB ===================== */
+// ============ Emergency Numbers Card ============
+function EmergencyNumbersCard({ isRTL }: { isRTL: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const numbers = [
+    { label: isRTL ? 'الإسعاف' : 'Ambulance', number: '101' },
+    { label: isRTL ? 'الدفاع المدني' : 'Civil Defense', number: '102' },
+    { label: isRTL ? 'الهلال الأحمر' : 'Red Crescent', number: '103' },
+  ];
+  return (
+    <div className="glass-card p-4 border border-status-emergency/30">
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between">
+        <span className="font-cairo font-bold text-sm flex items-center gap-2 text-status-emergency">
+          <Phone className="w-5 h-5 text-status-emergency" />
+          {isRTL ? 'أرقام الطوارئ' : 'Emergency Numbers'}
+        </span>
+        <ChevronLeft className={`w-4 h-4 text-status-emergency transition-transform ${expanded ? '-rotate-90' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="space-y-2 mt-3">
+          {numbers.map((e) => (
+            <a key={e.number} href={`tel:${e.number}`} className="flex items-center justify-between glass rounded-xl p-3 hover:scale-[1.02] transition-transform border border-status-emergency/20">
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-status-emergency" />
+                <span className="font-cairo font-bold text-sm">{e.label}</span>
+              </div>
+              <span className="font-inter font-bold text-base text-status-emergency">{e.number}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, onPharmacyClick, onFacilityClick, t, isRTL }: {
   profile: { display_name: string; role: string; phone: string } | null;
   favorites: Favorite[]; pharmacies: Pharmacy[]; facilities: Facility[];
@@ -1461,12 +1551,6 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${theme === 'dark' ? 'left-0.5' : 'right-0.5'}`} />
           </span>
         </button>
-        <button onClick={() => setDarkMode(!darkMode)} className="w-full flex items-center justify-between">
-          <span className="font-tajawal text-sm flex items-center gap-2"><Moon className="w-4 h-4 text-brand-blue-light" /> {t('profile.darkMode')}</span>
-          <span className={`w-10 h-6 rounded-full transition-colors relative ${darkMode ? 'bg-brand-green' : 'bg-[var(--border-subtle)]'}`}>
-            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${darkMode ? 'left-0.5' : 'right-0.5'}`} />
-          </span>
-        </button>
         <button onClick={() => setSeniorMode(!seniorMode)} className="w-full flex items-center justify-between">
           <span className="font-tajawal text-sm flex items-center gap-2"><Volume2 className="w-4 h-4 text-brand-green-light" /> {t('profile.seniorMode')}</span>
           <span className={`w-10 h-6 rounded-full transition-colors relative ${seniorMode ? 'bg-brand-green' : 'bg-[var(--border-subtle)]'}`}>
@@ -1479,27 +1563,7 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
       <EmergencyMedicalID isRTL={isRTL} />
 
       {/* Emergency Numbers */}
-      <div className="glass-card p-4">
-        <h3 className="font-cairo font-bold text-sm mb-3 flex items-center gap-2">
-          <Phone className="w-4 h-4 text-status-emergency" />
-          {isRTL ? 'أرقام الطوارئ' : 'Emergency Numbers'}
-        </h3>
-        <div className="space-y-2">
-          {[
-            { label: isRTL ? 'الإسعاف' : 'Ambulance', number: '101', color: 'text-status-emergency' },
-            { label: isRTL ? 'الدفاع المدني' : 'Civil Defense', number: '102', color: 'text-status-busy' },
-            { label: isRTL ? 'الهلال الأحمر' : 'Red Crescent', number: '103', color: 'text-brand-green-light' },
-          ].map((e) => (
-            <a key={e.number} href={`tel:${e.number}`} className="flex items-center justify-between glass rounded-xl p-3 hover:scale-[1.02] transition-transform">
-              <div className="flex items-center gap-2">
-                <Phone className={`w-4 h-4 ${e.color}`} />
-                <span className="font-cairo font-bold text-sm">{e.label}</span>
-              </div>
-              <span className="font-inter font-bold text-base">{e.number}</span>
-            </a>
-          ))}
-        </div>
-      </div>
+      <EmergencyNumbersCard isRTL={isRTL} />
 
       {/* Favorites */}
       <div>
