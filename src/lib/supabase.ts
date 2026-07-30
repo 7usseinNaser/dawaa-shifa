@@ -25,6 +25,7 @@ export interface Profile {
   banned: boolean;
   frozen: boolean;
   freeze_reason: string | null;
+  email: string | null;
 }
 
 export interface MedExchangeRequest {
@@ -323,4 +324,29 @@ export interface BugReport {
   created_at: string;
   resolved_at: string | null;
   admin_notes: string | null;
+}
+
+export interface BugReportChat {
+  id: string;
+  bug_report_id: string;
+  sender_id: string | null;
+  sender_name: string;
+  sender_role: string;
+  message: string;
+  created_at: string;
+}
+
+export interface MedicineReservation {
+  id: string;
+  medicine_id: string;
+  pharmacy_id: string;
+  user_id: string;
+  user_name: string;
+  user_phone: string;
+  medicine_name: string;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'expired' | 'no_show';
+  expires_at: string;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
 }

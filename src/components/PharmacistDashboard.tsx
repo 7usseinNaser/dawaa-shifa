@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   Box,
+  Check,
   ClipboardCopy,
   Clock,
   Home,
@@ -21,17 +22,20 @@ import {
   Sun,
   Trash2,
   Upload,
+  UserCheck,
+  UserX,
   X,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
-import { supabase, type ActivityLogEntry, type Medicine, type Pharmacy } from '@/lib/supabase';
+import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { BulkImport } from '@/components/BulkImport';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
-type Tab = 'home' | 'medicines' | 'info' | 'settings';
+type Tab = 'home' | 'medicines' | 'reservations' | 'info' | 'settings';
 
 interface MedForm {
   medicine_name: string;
@@ -54,6 +58,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reservations, setReservations] = useState<MedicineReservation[]>([]);
 
   // Setup form (no pharmacy yet)
   const [setupForm, setSetupForm] = useState({ name: '', area: '', address: '', phone: '' });
@@ -100,6 +105,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           open_hours: p.open_hours,
         });
         await loadMedicines(p.id);
+        await loadReservations(p.id);
         await loadActivity(user.id);
       }
       setLoading(false);
@@ -125,6 +131,34 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       .order('ts', { ascending: false })
       .limit(10);
     if (data) setActivity(data as ActivityLogEntry[]);
+  }
+
+  async function loadReservations(pharmacyId: string) {
+    const { data } = await supabase
+      .from('medicine_reservations')
+      .select('*')
+      .eq('pharmacy_id', pharmacyId)
+      .in('status', ['pending', 'confirmed'])
+      .order('created_at', { ascending: false });
+    if (data) setReservations(data as MedicineReservation[]);
+  }
+
+  async function updateReservation(id: string, status: MedicineReservation['status'], restoreStock: boolean, medId?: string, medName?: string) {
+    const updates: Record<string, unknown> = { status };
+    if (status === 'confirmed') updates.confirmed_at = new Date().toISOString();
+    if (status === 'cancelled' || status === 'expired' || status === 'no_show') updates.cancelled_at = new Date().toISOString();
+    const { error } = await supabase.from('medicine_reservations').update(updates).eq('id', id);
+    if (error) {
+      showToast(isRTL ? 'فشل تحديث الحجز' : 'Failed to update reservation', 'error');
+      return;
+    }
+    if (restoreStock && medId) {
+      await supabase.from('medicines').update({ quantity: (medicines.find((m) => m.id === medId)?.quantity ?? 0) + 1, last_updated: new Date().toISOString() }).eq('id', medId);
+      await loadMedicines(pharmacy!.id);
+    }
+    if (pharmacy) await loadReservations(pharmacy.id);
+    showToast(isRTL ? 'تم تحديث الحجز' : 'Reservation updated');
+    await logActivity(`reservation_${status}`, medName || id.slice(0, 8));
   }
 
   async function logActivity(action: string, item: string) {
@@ -433,6 +467,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'medicines', label: t('pharm.medicines'), icon: Pill },
+    { id: 'reservations', label: isRTL ? 'الحجوزات' : 'Reservations', icon: Clock },
     { id: 'info', label: t('pharm.info'), icon: Info },
     { id: 'settings', label: isRTL ? 'الإعدادات' : 'Settings', icon: Settings },
   ];
@@ -761,6 +796,82 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                                 <Trash2 className="w-4 h-4" />
                                 {t('pharm.delete')}
                               </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {tab === 'reservations' && (
+                <motion.div
+                  key="reservations"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                  className="space-y-5"
+                >
+                  <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'الحجوزات' : 'Reservations'}</h1>
+                  {reservations.length === 0 ? (
+                    <div className="glass-card p-8 text-center">
+                      <Clock className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
+                      <p className="text-sm text-[var(--text-muted)] font-tajawal">{isRTL ? 'لا توجد حجوزات نشطة حالياً' : 'No active reservations'}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {reservations.map((r) => {
+                        const remaining = Math.max(0, new Date(r.expires_at).getTime() - Date.now());
+                        const mm = String(Math.floor(remaining / 60000)).padStart(2, '0');
+                        const ss = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+                        const isPending = r.status === 'pending';
+                        const isConfirmed = r.status === 'confirmed';
+                        return (
+                          <motion.div key={r.id} layout className="glass-card p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Pill className="w-4 h-4 text-brand-green shrink-0" />
+                                  <span className="font-cairo font-bold text-sm">{r.medicine_name}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-tajawal">
+                                  <UserCheck className="w-3 h-3" />
+                                  {r.user_name} · {r.user_phone}
+                                </div>
+                                {isPending && (
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-status-busy">
+                                    <Clock className="w-3 h-3" />
+                                    <span className="font-mono tabular-nums">{mm}:{ss}</span>
+                                  </div>
+                                )}
+                                {isConfirmed && (
+                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-open/20 text-status-open">{isRTL ? 'مؤكد' : 'Confirmed'}</span>
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1.5 shrink-0">
+                                {isPending && (
+                                  <>
+                                    <button onClick={() => updateReservation(r.id, 'confirmed', false, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-open/20 text-status-open text-xs font-bold flex items-center gap-1.5 hover:bg-status-open/30 transition-colors">
+                                      <Check className="w-3.5 h-3.5" /> {isRTL ? 'قبول الطلب' : 'Accept'}
+                                    </button>
+                                    <button onClick={() => updateReservation(r.id, 'cancelled', true, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-emergency/20 text-status-emergency text-xs font-bold flex items-center gap-1.5 hover:bg-status-emergency/30 transition-colors">
+                                      <XCircle className="w-3.5 h-3.5" /> {isRTL ? 'رفض الطلب' : 'Reject'}
+                                    </button>
+                                  </>
+                                )}
+                                {isConfirmed && (
+                                  <>
+                                    <button onClick={() => updateReservation(r.id, 'confirmed', false, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-open/20 text-status-open text-xs font-bold flex items-center gap-1.5 hover:bg-status-open/30 transition-colors">
+                                      <UserCheck className="w-3.5 h-3.5" /> {isRTL ? 'تم الاستلام' : 'Picked up'}
+                                    </button>
+                                    <button onClick={() => updateReservation(r.id, 'no_show', true, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-500/30 transition-colors">
+                                      <UserX className="w-3.5 h-3.5" /> {isRTL ? 'لم يحضر' : 'No-show'}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </motion.div>
                         );
