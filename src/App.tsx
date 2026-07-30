@@ -36,6 +36,7 @@ import WaitTimeCalculator from '@/components/WaitTimeCalculator';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LanguageProvider } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const CitizenDashboard = lazy(() => import('@/components/CitizenDashboard'));
 const PharmacistDashboard = lazy(() => import('@/components/PharmacistDashboard'));
@@ -126,6 +127,14 @@ function AppContent() {
       window.location.hash = '#/auth';
       return null;
     }
+    // Client-side guard: only the authorized admin email may see the AdminPanel.
+    // The DB trigger enforces this server-side; this prevents stale-cache access.
+    const AUTHORIZED_ADMIN = 'hussein7.7naser@gmail.com';
+    if (profile.role === 'admin' && user.email !== AUTHORIZED_ADMIN) {
+      // Demote locally and redirect away
+      window.location.hash = '#/auth';
+      return null;
+    }
     return (
       <AnimatePresence mode="wait">
         <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="enter" exit="exit">
@@ -183,10 +192,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }

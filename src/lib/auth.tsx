@@ -17,21 +17,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function translateAuthError(msg: string): string {
+const AUTHORIZED_ADMIN_EMAIL = 'hussein7.7naser@gmail.com';
+
+function translateAuthError(msg: string, lang: 'ar' | 'en' = 'ar'): string {
   const m = msg.toLowerCase();
+  const isRTL = lang === 'ar';
   if (m.includes('failed to fetch') || m.includes('networkrequestfailed') || m.includes('network error'))
-    return 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.';
+    return isRTL ? 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' : 'Failed to connect to the server. Check your internet connection.';
   if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
-    return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+    return isRTL ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Invalid email or password.';
   if (m.includes('user already registered'))
-    return 'هذا الحساب مسجّل بالفعل. حاول تسجيل الدخول.';
+    return isRTL ? 'هذا الحساب مسجّل بالفعل. حاول تسجيل الدخول.' : 'This account is already registered. Try logging in.';
   if (m.includes('password should be') || m.includes('weak'))
-    return 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.';
+    return isRTL ? 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.' : 'Password is too weak. Use at least 6 characters.';
   if (m.includes('email'))
-    return 'البريد الإلكتروني غير صالح.';
+    return isRTL ? 'البريد الإلكتروني غير صالح.' : 'Invalid email address.';
   if (m.includes('rate limit') || m.includes('too many'))
-    return 'محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.';
-  return 'حدث خطأ غير متوقع. حاول مرة أخرى.';
+    return isRTL ? 'محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.' : 'Too many attempts. Please wait and try again.';
+  return isRTL ? 'حدث خطأ غير متوقع. حاول مرة أخرى.' : 'An unexpected error occurred. Please try again.';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -75,20 +78,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
-      if (!error && data) setProfile(data as Profile);
+      if (!error && data) {
+        const profileData = data as Profile;
+        // Enforce admin restriction on the client too: only the authorized email may be admin
+        if (profileData.role === 'admin' && user.email !== AUTHORIZED_ADMIN_EMAIL) {
+          profileData.role = 'citizen';
+        }
+        setProfile(profileData);
+      }
     })();
   }, [user]);
 
   const signUp = async (email: string, password: string, role: UserRole, displayName: string) => {
     try {
+      // Frontend guard: never allow admin role from the UI
+      const safeRole: UserRole = role === 'admin' ? 'citizen' : role;
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { role, display_name: displayName } },
+        options: { data: { role: safeRole, display_name: displayName } },
       });
-      if (error) return { error: translateAuthError(error.message) };
+      if (error) return { error: translateAuthError(error.message, 'ar') };
       if (data.user) {
-        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null, email: data.user.email || null });
+        setProfile({ id: data.user.id, role: safeRole, display_name: displayName, phone: '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null, email: data.user.email || null });
       }
       return { error: null };
     } catch {
@@ -99,7 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { error: translateAuthError(error.message) };
+      if (error) {
+        const msg = error.message.toLowerCase();
+        // Supabase returns "Invalid login credentials" for both unknown email and wrong password.
+        // To give a clearer message, we probe with resetPasswordForEmail which doesn't leak
+        // existence but we can detect the specific case.
+        if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+          // Try to determine if the email exists by sending a reset link (rate-limited, doesn't send if disabled)
+          // Since Supabase doesn't expose this, we provide a combined clear message
+          return { error: 'البريد الإلكتروني غير مسجل أو كلمة المرور غير صحيحة. تحقق من بياناتك.' };
+        }
+        return { error: translateAuthError(error.message, 'ar') };
+      }
       return { error: null };
     } catch {
       return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
@@ -109,6 +132,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    // No-client-storage policy: clear any residual cached data
+    try {
+      Object.keys(localStorage).forEach((k) => { if (k.startsWith('sb-') || k.startsWith('admin')) localStorage.removeItem(k); });
+    } catch { /* ignore */ }
+    try {
+      Object.keys(sessionStorage).forEach((k) => { if (k.startsWith('sb-') || k.startsWith('admin')) sessionStorage.removeItem(k); });
+    } catch { /* ignore */ }
   };
 
   const resetPassword = async (email: string) => {
@@ -116,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin,
       });
-      if (error) return { error: translateAuthError(error.message) };
+      if (error) return { error: translateAuthError(error.message, 'ar') };
       return { error: null };
     } catch {
       return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };

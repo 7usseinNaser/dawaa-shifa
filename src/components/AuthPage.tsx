@@ -19,6 +19,7 @@ const slideVariants = {
 export default function AuthPage() {
   const { signIn, signUp, profile, resetPassword } = useAuth();
   const { t, lang } = useLang();
+  const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
@@ -28,7 +29,9 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showReset, setShowReset] = useState(false);
+
+  // Reset password — fully separate state
+  const [view, setView] = useState<'auth' | 'reset'>('auth');
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -78,6 +81,19 @@ export default function AuthPage() {
     setResetLoading(false);
   };
 
+  const goReset = () => {
+    setView('reset');
+    setResetEmail(email);
+    setResetSent(false);
+    setResetError('');
+  };
+
+  const backToLogin = () => {
+    setView('auth');
+    setResetSent(false);
+    setResetError('');
+  };
+
   if (profile?.frozen) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-dark)]">
@@ -85,17 +101,17 @@ export default function AuthPage() {
           <div className="w-16 h-16 rounded-full bg-brand-blue/20 flex items-center justify-center mx-auto mb-4">
             <Snowflake className="w-8 h-8 text-brand-blue-light" />
           </div>
-          <h2 className="font-cairo font-bold text-xl mb-3">{lang === 'ar' ? 'تم تجميد حسابك' : 'Your account is frozen'}</h2>
-          <p className="text-sm font-tajawal text-[var(--text-muted)] mb-2">{lang === 'ar' ? 'تم تعليق حسابك من قبل إدارة المنصة.' : 'Your account has been suspended by the platform administration.'}</p>
+          <h2 className="font-cairo font-bold text-xl mb-3">{isRTL ? 'تم تجميد حسابك' : 'Your account is frozen'}</h2>
+          <p className="text-sm font-tajawal text-[var(--text-muted)] mb-2">{isRTL ? 'تم تعليق حسابك من قبل إدارة المنصة.' : 'Your account has been suspended by the platform administration.'}</p>
           {profile.freeze_reason && (
             <div className="glass rounded-xl p-3 mb-4 text-sm font-tajawal text-status-emergency">
-              {lang === 'ar' ? 'السبب: ' : 'Reason: '}{profile.freeze_reason}
+              {isRTL ? 'السبب: ' : 'Reason: '}{profile.freeze_reason}
             </div>
           )}
-          <p className="text-xs font-tajawal text-[var(--text-muted)] mb-4">{lang === 'ar' ? 'للتواصل مع الدعم:' : 'Contact support:'}</p>
+          <p className="text-xs font-tajawal text-[var(--text-muted)] mb-4">{isRTL ? 'للتواصل مع الدعم:' : 'Contact support:'}</p>
           <a href="https://api.whatsapp.com/message/S7T6HKGGJCIWK1?autoload=1&app_absent=0" target="_blank" rel="noopener noreferrer" className="btn-primary w-full flex items-center justify-center gap-2">
             <MessageCircle className="w-5 h-5" />
-            {lang === 'ar' ? 'تواصل عبر واتساب' : 'Contact via WhatsApp'}
+            {isRTL ? 'تواصل عبر واتساب' : 'Contact via WhatsApp'}
           </a>
         </motion.div>
       </div>
@@ -118,139 +134,165 @@ export default function AuthPage() {
             <span className="font-cairo font-extrabold text-xl">دواء وشفاء</span>
           </a>
           <p className="text-sm font-tajawal text-[var(--text-muted)]">
-            {mode === 'register' ? t('auth.joinPlatform') : t('auth.welcomeBack')}
+            {view === 'reset'
+              ? (isRTL ? 'إعادة تعيين كلمة المرور' : 'Reset your password')
+              : (mode === 'register' ? t('auth.joinPlatform') : t('auth.welcomeBack'))}
           </p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="glass-card p-6 lg:p-8">
-          <div className="flex gap-2 p-1 glass rounded-full mb-6">
-            {(['register', 'login'] as const).map((m) => (
-              <button key={m} onClick={() => switchMode(m)} className={`relative flex-1 py-2.5 rounded-full text-sm font-tajawal font-bold transition-colors ${mode === m ? 'text-white' : 'text-[var(--text-soft)]'}`}>
-                {mode === m && <motion.div layoutId="authPill" className="absolute inset-0 bg-brand-green rounded-full" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />}
-                <span className="relative z-10">{m === 'register' ? t('auth.register') : t('auth.login')}</span>
-              </button>
-            ))}
-          </div>
 
-          <AnimatePresence mode="wait" custom={dir}>
-            {mode === 'register' && step === 0 ? (
-              <motion.div key="role" custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" className="space-y-3">
-                <h3 className="font-cairo font-bold text-lg text-center mb-4">{t('auth.howUse')}</h3>
-                {roles.map((r, i) => (
-                  <motion.button
-                    key={r.key}
-                    onClick={() => pickRole(r.key)}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0, transition: { delay: i * 0.1 } }}
-                    whileHover={{ scale: 1.02, x: -4 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full glass rounded-2xl p-4 flex items-center gap-4 hover:border-brand-green transition-all cursor-hover group"
-                  >
-                    <div className={`w-12 h-12 rounded-xl bg-${r.color}/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
-                      <r.icon className={`w-6 h-6 text-${r.color === 'brand-green' ? 'brand-green-light' : r.color === 'brand-blue' ? 'brand-blue-light' : r.color}`} />
+          {/* ===== RESET PASSWORD VIEW (fully separate) ===== */}
+          {view === 'reset' ? (
+            <div className="space-y-4">
+              <AnimatePresence mode="wait">
+                {resetSent ? (
+                  <motion.div key="sent" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6">
+                    <div className="w-14 h-14 rounded-full bg-status-open/20 flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle className="w-7 h-7 text-status-open" />
                     </div>
-                    <div className="text-right flex-1">
-                      <div className="font-cairo font-bold text-base">{r.label}</div>
-                      <div className="text-sm text-[var(--text-muted)] font-tajawal">{r.desc}</div>
-                    </div>
-                    <ArrowLeft className="w-5 h-5 text-brand-green-light opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </motion.button>
-                ))}
-              </motion.div>
-            ) : (
-              <motion.form key="details" custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" onSubmit={handleSubmit} className="space-y-4">
-                {mode === 'register' && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <button type="button" onClick={backToRole} className="flex items-center gap-1 text-xs text-brand-blue-light hover:underline">
-                      <ArrowRight className="w-3 h-3" /> {t('auth.back')}
-                    </button>
-                    <span className="text-sm font-tajawal text-[var(--text-muted)]">{t('auth.role')}:</span>
-                    <span className="text-sm font-bold text-brand-green-light">{roles.find((r) => r.key === role)?.label}</span>
-                  </div>
-                )}
-
-                {mode === 'register' && (
-                  <div>
-                    <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.name')}</label>
-                    <div className="relative">
-                      <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('auth.fullName')} required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.email')}</label>
-                  <div className="relative">
-                    <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.password')}</label>
-                  <div className="relative">
-                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
-                  </div>
-                  {mode === 'register' && password && (
-                    <div className="flex gap-1 mt-2">
-                      {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${passwordStrength >= i ? passwordStrength <= 1 ? 'bg-status-emergency' : passwordStrength <= 2 ? 'bg-status-busy' : 'bg-status-open' : 'bg-[var(--border-subtle)]'}`} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {error && (
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass rounded-xl p-3 text-sm text-status-emergency font-tajawal bg-status-emergency/10">
-                    {error}
+                    <p className="text-sm font-tajawal text-status-open">
+                      {isRTL ? 'تم إرسال رابط إعادة التعيين إلى بريدك. تحقق من صندوق الوارد.' : 'Reset link sent to your email. Check your inbox.'}
+                    </p>
                   </motion.div>
-                )}
-
-                {mode === 'login' && !showReset && (
-                  <button type="button" onClick={() => { setShowReset(true); setResetEmail(email); setResetSent(false); setResetError(''); }} className="text-xs font-tajawal text-brand-blue-light hover:underline w-full text-left">
-                    {lang === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
-                  </button>
-                )}
-
-                {mode === 'login' && showReset && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 overflow-hidden">
-                    {resetSent ? (
-                      <div className="glass rounded-xl p-3 text-sm text-status-open font-tajawal bg-status-open/10">
-                        {lang === 'ar' ? 'تم إرسال رابط إعادة التعيين إلى بريدك. تحقق من صندوق الوارد.' : 'Reset link sent to your email. Check your inbox.'}
+                ) : (
+                  <motion.form key="reset-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onSubmit={handleReset} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{isRTL ? 'البريد الإلكتروني' : 'Email'}</label>
+                      <div className="relative">
+                        <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+                        <input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
                       </div>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}</label>
-                          <input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl px-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
-                        </div>
-                        {resetError && <p className="text-xs text-status-emergency font-tajawal">{resetError}</p>}
-                        <button type="button" onClick={handleReset} disabled={resetLoading} className="btn-primary w-full text-sm flex items-center justify-center gap-2 disabled:opacity-50">
-                          {resetLoading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : lang === 'ar' ? 'إرسال رابط التعيين' : 'Send reset link'}
-                        </button>
-                        <button type="button" onClick={() => setShowReset(false)} className="text-xs font-tajawal text-[var(--text-muted)] hover:underline w-full text-center">
-                          {lang === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to login'}
-                        </button>
-                      </>
+                    </div>
+
+                    {resetError && (
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass rounded-xl p-3 text-sm text-status-emergency font-tajawal bg-status-emergency/10">
+                        {resetError}
+                      </motion.div>
                     )}
+
+                    <motion.button type="submit" disabled={resetLoading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full btn-primary flex items-center justify-center gap-2 group disabled:opacity-50">
+                      {resetLoading
+                        ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <><span>{isRTL ? 'إرسال رابط التعيين' : 'Send reset link'}</span><ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /></>}
+                    </motion.button>
+
+                    <button type="button" onClick={backToLogin} className="text-xs font-tajawal text-[var(--text-muted)] hover:text-brand-green-light hover:underline w-full text-center">
+                      {isRTL ? 'العودة لتسجيل الدخول' : 'Back to login'}
+                    </button>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <>
+              {/* ===== AUTH VIEW (login / register) ===== */}
+              <div className="flex gap-2 p-1 glass rounded-full mb-6">
+                {(['register', 'login'] as const).map((m) => (
+                  <button key={m} onClick={() => switchMode(m)} className={`relative flex-1 py-2.5 rounded-full text-sm font-tajawal font-bold transition-colors ${mode === m ? 'text-white' : 'text-[var(--text-soft)]'}`}>
+                    {mode === m && <motion.div layoutId="authPill" className="absolute inset-0 bg-brand-green rounded-full" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />}
+                    <span className="relative z-10">{m === 'register' ? t('auth.register') : t('auth.login')}</span>
+                  </button>
+                ))}
+              </div>
+
+              <AnimatePresence mode="wait" custom={dir}>
+                {mode === 'register' && step === 0 ? (
+                  <motion.div key="role" custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" className="space-y-3">
+                    <h3 className="font-cairo font-bold text-lg text-center mb-4">{t('auth.howUse')}</h3>
+                    {roles.map((r, i) => (
+                      <motion.button
+                        key={r.key}
+                        onClick={() => pickRole(r.key)}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0, transition: { delay: i * 0.1 } }}
+                        whileHover={{ scale: 1.02, x: -4 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full glass rounded-2xl p-4 flex items-center gap-4 hover:border-brand-green transition-all cursor-hover group"
+                      >
+                        <div className={`w-12 h-12 rounded-xl bg-${r.color}/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                          <r.icon className={`w-6 h-6 text-${r.color === 'brand-green' ? 'brand-green-light' : r.color === 'brand-blue' ? 'brand-blue-light' : r.color}`} />
+                        </div>
+                        <div className="text-right flex-1">
+                          <div className="font-cairo font-bold text-base">{r.label}</div>
+                          <div className="text-sm text-[var(--text-muted)] font-tajawal">{r.desc}</div>
+                        </div>
+                        <ArrowLeft className="w-5 h-5 text-brand-green-light opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </motion.button>
+                    ))}
                   </motion.div>
-                )}
+                ) : (
+                  <motion.form key="details" custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" onSubmit={handleSubmit} className="space-y-4">
+                    {mode === 'register' && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <button type="button" onClick={backToRole} className="flex items-center gap-1 text-xs text-brand-blue-light hover:underline">
+                          <ArrowRight className="w-3 h-3" /> {t('auth.back')}
+                        </button>
+                        <span className="text-sm font-tajawal text-[var(--text-muted)]">{t('auth.role')}:</span>
+                        <span className="text-sm font-bold text-brand-green-light">{roles.find((r) => r.key === role)?.label}</span>
+                      </div>
+                    )}
 
-                <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full btn-primary flex items-center justify-center gap-2 group">
-                  {loading ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><span>{mode === 'register' ? t('auth.createAndLogin') : t('auth.login')}</span><ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /></>}
-                </motion.button>
+                    {mode === 'register' && (
+                      <div>
+                        <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.name')}</label>
+                        <div className="relative">
+                          <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+                          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('auth.fullName')} required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
+                        </div>
+                      </div>
+                    )}
 
-                {mode === 'register' && (
-                  <div className="flex items-center gap-2 justify-center text-xs font-tajawal text-[var(--text-muted)]">
-                    <CheckCircle className="w-3.5 h-3.5 text-status-open" />
-                    <span>{t('auth.freeSecure')}</span>
-                  </div>
+                    <div>
+                      <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.email')}</label>
+                      <div className="relative">
+                        <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.password')}</label>
+                      <div className="relative">
+                        <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
+                      </div>
+                      {mode === 'register' && password && (
+                        <div className="flex gap-1 mt-2">
+                          {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${passwordStrength >= i ? passwordStrength <= 1 ? 'bg-status-emergency' : passwordStrength <= 2 ? 'bg-status-busy' : 'bg-status-open' : 'bg-[var(--border-subtle)]'}`} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {error && (
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass rounded-xl p-3 text-sm text-status-emergency font-tajawal bg-status-emergency/10">
+                        {error}
+                      </motion.div>
+                    )}
+
+                    {mode === 'login' && (
+                      <button type="button" onClick={goReset} className="text-xs font-tajawal text-brand-blue-light hover:underline w-full text-left">
+                        {isRTL ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
+                      </button>
+                    )}
+
+                    <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full btn-primary flex items-center justify-center gap-2 group">
+                      {loading ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><span>{mode === 'register' ? t('auth.createAndLogin') : t('auth.login')}</span><ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /></>}
+                    </motion.button>
+
+                    {mode === 'register' && (
+                      <div className="flex items-center gap-2 justify-center text-xs font-tajawal text-[var(--text-muted)]">
+                        <CheckCircle className="w-3.5 h-3.5 text-status-open" />
+                        <span>{t('auth.freeSecure')}</span>
+                      </div>
+                    )}
+                  </motion.form>
                 )}
-              </motion.form>
-            )}
-          </AnimatePresence>
+              </AnimatePresence>
+            </>
+          )}
         </motion.div>
 
         <div className="text-center mt-4">

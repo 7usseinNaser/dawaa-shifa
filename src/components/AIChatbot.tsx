@@ -88,11 +88,18 @@ export function AIChatbot() {
 
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-pharmacist`;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        setMessages((p) => [...p, { role: 'bot', text: isRTL ? 'يرجى تسجيل الدخول لاستخدام المساعد الذكي.' : 'Please sign in to use the AI assistant.' }]);
+        return;
+      }
       const resp = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
           lang: isRTL ? 'ar' : 'en',

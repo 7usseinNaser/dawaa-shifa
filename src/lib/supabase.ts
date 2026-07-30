@@ -7,11 +7,32 @@ export const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
 
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
+    persistSession: false,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storage: {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    },
   },
 });
+
+// Strict no-client-storage policy: wipe any legacy cached data on load
+if (typeof window !== 'undefined') {
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('sb-') || key.startsWith('supabase') || key.includes('auth-token')) {
+        localStorage.removeItem(key);
+      }
+    });
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('sb-') || key.startsWith('supabase') || key.includes('auth-token')) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch { /* ignore */ }
+}
 
 export type UserRole = 'citizen' | 'pharmacist' | 'facility_owner' | 'admin';
 
