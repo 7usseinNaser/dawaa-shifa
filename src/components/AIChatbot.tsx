@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Bot, User, Pill, AlertTriangle, Clock } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
+import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 interface ChatMsg {
   role: 'user' | 'bot';
@@ -15,51 +17,15 @@ const QUICK_TOPICS = [
   { ar: 'كم مرة آخذ الأموكسيسيلين؟', en: 'How often should I take amoxicillin?' },
 ];
 
-function generateResponse(query: string, isRTL: boolean): string {
-  const q = query.toLowerCase();
-  if (q.includes('باراسيتامول') || q.includes('paracetamol') || q.includes('acetaminophen')) {
-    return isRTL
-      ? 'جرعة الباراسيتامول للبالغين: 500-1000 ملغ كل 4-6 ساعات، بحد أقصى 4000 ملغ يومياً. لا تتجاوز الجرعة القصوى لتجنب أضرار الكبد. للأطفال استشر الطبيب.'
-      : 'Adult paracetamol dose: 500-1000mg every 4-6 hours, max 4000mg/day. Do not exceed the maximum dose to avoid liver damage. For children, consult a doctor.';
-  }
-  if (q.includes('أسبرين') || q.includes('aspirin') || q.includes('warfarin') || q.includes('وارفارين')) {
-    return isRTL
-      ? 'نعم، يوجد تعارض خطير بين الأسبرين والوارفارين. الأسبرين يزيد خطر النزيف عند تناوله مع الوارفارين. تجنب الجمع بينهما إلا بوصفة طبية مباشرة ورقابة طبيب.'
-      : 'Yes, there is a serious interaction between aspirin and warfarin. Aspirin increases bleeding risk when taken with warfarin. Avoid combining them unless directly prescribed and monitored by a doctor.';
-  }
-  if (q.includes('أوميبرازول') || q.includes('omeprazole') || q.includes('بديل')) {
-    return isRTL
-      ? 'بدائل الأوميبرازول (مثبطات مضخة البروتون): إسوميبرازول، بانتوبرازول، رابيبرازول. جميعها تقلل حموضة المعدة. استشر طبيبك قبل التبديل.'
-      : 'Alternatives to omeprazole (PPIs): esomeprazole, pantoprazole, rabeprazole. All reduce stomach acid. Consult your doctor before switching.';
-  }
-  if (q.includes('أموكسيسيلين') || q.includes('amoxicillin') || q.includes('كم مرة')) {
-    return isRTL
-      ? 'جرعة الأموكسيسيلون للبالغين: 500 ملغ ثلاث مرات يومياً (كل 8 ساعات). أكمل الموصوف كاملاً حتى لو شعرت بتحسن. لا توقف الدواء مبكراً.'
-      : 'Adult amoxicillin dose: 500mg three times daily (every 8 hours). Complete the full course even if you feel better. Do not stop early.';
-  }
-  if (q.includes('تعارض') || q.includes('interaction')) {
-    return isRTL
-      ? 'للتحقق من التعارضات الدوائية، أدخل قائمة أدويتك في تبويب "أدويتي" وسيقوم النظام بفحص التداخلات تلقائياً. استشر طبيبك أو الصيدلي دائماً قبل الجمع بين أدوية جديدة.'
-      : 'To check drug interactions, enter your medicine list in the "My Meds" tab and the system will check automatically. Always consult your doctor or pharmacist before combining new medicines.';
-  }
-  if (q.includes('جرعة') || q.includes('dose') || q.includes('كم')) {
-    return isRTL
-      ? 'الجرعات تختلف حسب الدواء والعمر والحالة الصحية. يرجى تحديد اسم الدواء وسن المريض لأعطيك إرشاد عام. تذكر: هذه إرشادات عامة وليست بديلاً عن استشارة الطبيب.'
-      : 'Doses vary by medication, age, and health condition. Please specify the medicine name and patient age for general guidance. Remember: this is general guidance, not a substitute for consulting a doctor.';
-  }
-  if (q.includes('بديل') || q.includes('alternative')) {
-    return isRTL
-      ? 'للبحث عن البدائل، انتقل إلى صفحة تفاصيل الصيدلية وستجد قسم "مستكشف البدائل" الذي يبحث عن أدوية بنفس المادة الفعالة. يمكنك أيضاً استخدام البحث.'
-      : 'To find alternatives, go to the pharmacy detail page and use the "Alternative Explorer" section which searches for medicines with the same active ingredient. You can also use search.';
-  }
-  return isRTL
-    ? 'أنا مساعد صيدلاني ذكي. يمكنني مساعدتك في: الجرعات، التعارضات الدوائية، البدائل، والإرشادات العامة. اكتب سؤالك بوضوح. ملاحظة: هذه إرشادات عامة ولا تغني عن استشارة الطبيب أو الصيدلي.'
-    : 'I am a smart AI pharmacist assistant. I can help with: dosages, drug interactions, alternatives, and general guidance. Write your question clearly. Note: this is general guidance and does not replace consulting a doctor or pharmacist.';
-}
+const FALLBACK: Record<'ar' | 'en', string> = {
+  ar: 'عذراً، تعذّر الاتصال بالمساعد الذكي حالياً. هذه إرشادات عامة: استشر طبيبك أو الصيدلي دائماً قبل تناول أي دواء.',
+  en: 'Sorry, the AI assistant is currently unavailable. General guidance: always consult your doctor or pharmacist before taking any medicine.',
+};
 
 export function AIChatbot() {
   const { lang } = useLang();
   const isRTL = lang === 'ar';
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
     { role: 'bot', text: isRTL ? 'مرحباً! أنا مساعدك الصيدلاني الذكي. كيف يمكنني مساعدتك اليوم؟' : 'Hello! I am your AI pharmacist assistant. How can I help you today?' },
@@ -67,21 +33,90 @@ export function AIChatbot() {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, typing]);
 
-  const send = (text: string) => {
-    if (!text.trim()) return;
-    setMessages((p) => [...p, { role: 'user', text }]);
+  // Load chat history from Supabase when the panel opens
+  const loadHistory = useCallback(async () => {
+    if (!user || loadedRef.current) return;
+    loadedRef.current = true;
+    try {
+      const { data, error } = await supabase
+        .from('ai_chat_messages')
+        .select('role, content, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setMessages(
+          data.map((r) => ({
+            role: (r.role === 'assistant' ? 'bot' : 'user') as 'user' | 'bot',
+            text: r.content,
+          })),
+        );
+      }
+    } catch {
+      // keep the welcome message on failure
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (open) loadHistory();
+  }, [open, loadHistory]);
+
+  const persistMessage = async (role: 'user' | 'assistant', content: string) => {
+    if (!user) return;
+    try {
+      await supabase.from('ai_chat_messages').insert({ user_id: user.id, role, content });
+    } catch {
+      // persistence is best-effort
+    }
+  };
+
+  const send = async (text: string) => {
+    if (!text.trim() || typing) return;
+    const userMsg: ChatMsg = { role: 'user', text };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput('');
     setTyping(true);
-    setTimeout(() => {
-      const reply = generateResponse(text, isRTL);
+    persistMessage('user', text);
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-pharmacist`;
+      const resp = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          lang: isRTL ? 'ar' : 'en',
+          messages: newMessages.map((m) => ({
+            role: m.role === 'bot' ? 'assistant' : 'user',
+            content: m.text,
+          })),
+        }),
+      });
+
+      let reply = FALLBACK[isRTL ? 'ar' : 'en'];
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && typeof data.reply === 'string' && data.reply.trim()) {
+          reply = data.reply;
+        }
+      }
       setMessages((p) => [...p, { role: 'bot', text: reply }]);
+      persistMessage('assistant', reply);
+    } catch {
+      setMessages((p) => [...p, { role: 'bot', text: FALLBACK[isRTL ? 'ar' : 'en'] }]);
+    } finally {
       setTyping(false);
-    }, 800);
+    }
   };
 
   return (
@@ -125,7 +160,7 @@ export function AIChatbot() {
                   <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center ${m.role === 'bot' ? 'bg-brand-green/20' : 'bg-brand-blue/20'}`}>
                     {m.role === 'bot' ? <Bot className="w-4 h-4 text-brand-green-light" /> : <User className="w-4 h-4 text-brand-blue-light" />}
                   </div>
-                  <div className={`glass-card p-2.5 max-w-[80%] text-sm font-tajawal ${m.role === 'bot' ? '' : 'bg-brand-blue/15'}`}>
+                  <div className={`glass-card p-2.5 max-w-[80%] text-sm font-tajawal whitespace-pre-wrap ${m.role === 'bot' ? '' : 'bg-brand-blue/15'}`}>
                     {m.text}
                   </div>
                 </div>
@@ -160,8 +195,8 @@ export function AIChatbot() {
                 placeholder={isRTL ? 'اكتب سؤالك...' : 'Type your question...'}
                 className="flex-1 glass-card px-3 py-2 text-sm font-tajawal focus:outline-none focus:border-brand-green"
               />
-              <button onClick={() => send(input)} disabled={!input.trim()} className="btn-primary px-3 disabled:opacity-50">
-                <Send className="w-4 h-4" />
+              <button onClick={() => send(input)} disabled={!input.trim() || typing} className="btn-primary px-3 disabled:opacity-50">
+                {typing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
           </motion.div>

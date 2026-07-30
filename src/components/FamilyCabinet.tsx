@@ -271,8 +271,9 @@ export function FamilyCabinet() {
                           const n = Math.max(1, Math.min(6, parseInt(e.target.value) || 1));
                           setMedForm({ ...medForm, pillsPerDay: String(n) });
                           setDoseTimes(prev => {
+                            const defaults = ['08:00', '20:00', '14:00', '12:00', '10:00', '18:00'];
                             const next = [...prev];
-                            while (next.length < n) next.push('');
+                            while (next.length < n) next.push(defaults[next.length] || '09:00');
                             while (next.length > n) next.pop();
                             return next;
                           });
@@ -325,8 +326,9 @@ export function FamilyCabinet() {
                           const n = Math.max(1, Math.min(6, parseInt(e.target.value) || 1));
                           setMedForm({ ...medForm, pillsPerDay: String(n) });
                           setDoseTimes(prev => {
+                            const defaults = ['08:00', '20:00', '14:00', '12:00', '10:00', '18:00'];
                             const next = [...prev];
-                            while (next.length < n) next.push('');
+                            while (next.length < n) next.push(defaults[next.length] || '09:00');
                             while (next.length > n) next.pop();
                             return next;
                           });

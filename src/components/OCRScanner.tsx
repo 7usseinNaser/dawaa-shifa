@@ -19,7 +19,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
   const [recognizedLines, setRecognizedLines] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
-  const workerRef = useRef<{ terminate: () => Promise<void> } | null>(null);
+  const workerRef = useRef<{ terminate: () => Promise<unknown> } | null>(null);
 
   useEffect(() => () => { workerRef.current?.terminate().catch(() => {}); }, []);
 
@@ -30,8 +30,10 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
     setRecognizedLines([]);
     setErrorMsg('');
     try {
-      const { default: TesseractWorker } = await import('tesseract.js/dist/worker.min.js');
-      const worker = await TesseractWorker.createWorker('eng', 1, {
+      const Tesseract = await import('tesseract.js');
+      const createWorker = Tesseract.createWorker ?? Tesseract.default?.createWorker;
+      if (!createWorker) throw new Error('Tesseract createWorker not found');
+      const worker = await createWorker(['eng', 'ara'], 1, {
         logger: (m: { status: string; progress: number }) => {
           if (m.status === 'recognizing text') setProgress(Math.round(m.progress * 100));
         },
@@ -55,11 +57,17 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
         'loratadine', 'aspirin', 'cetirizine', 'azithromycin', 'ciprofloxacin',
         'ranitidine', 'esomeprazole', 'diclofenac', 'naproxen', 'clarithromycin',
         'vitamin', 'panadol', 'augmentin', 'glucose', 'insulin',
+        'باراسيتامول', 'بانادول', 'أموكسيسيلين', 'أسبيرين', 'أوميبرازول',
+        'ميتفورمين', 'لوراتادين', 'أزيثروميسين', 'سيبروفلوكساسين', 'ديكلوفيناك',
+        'فيتامين', 'إنسولين', 'أوجمنتين', 'سيتريزين', 'نابروكسين',
       ];
       const lowerText = rawText.toLowerCase();
       let found = '';
       for (const kw of medKeywords) {
-        if (lowerText.includes(kw)) { found = kw.charAt(0).toUpperCase() + kw.slice(1); break; }
+        if (lowerText.includes(kw.toLowerCase())) {
+          found = kw.charAt(0).toUpperCase() + kw.slice(1);
+          break;
+        }
       }
       if (!found && lines.length > 0) {
         found = lines[0].replace(/[^a-zA-Z\u0600-\u06FF\s]/g, '').trim().split(/\s+/).slice(0, 3).join(' ');
