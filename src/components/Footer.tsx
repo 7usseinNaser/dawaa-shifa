@@ -1,4 +1,5 @@
 import { Instagram, MessageCircle, Mail } from 'lucide-react';
+import { getDonationWhatsappUrl } from '@/lib/config';
 
 /**
  * Footer — brand, social links, and closing line.
@@ -22,7 +23,7 @@ export default function Footer() {
             <a href="https://www.instagram.com/7ussein.naser" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="Instagram">
               <Instagram className="w-4 h-4" />
             </a>
-            <a href="https://api.whatsapp.com/message/S7T6HKGGJCIWK1?autoload=1&app_absent=0" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="WhatsApp">
+            <a href={getDonationWhatsappUrl()} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="WhatsApp">
               <MessageCircle className="w-4 h-4" />
             </a>
             <a href="mailto:hussein7.7naser@gmail.com" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="Email">

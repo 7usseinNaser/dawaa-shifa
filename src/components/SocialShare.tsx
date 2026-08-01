@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Link2, Share2, Twitter, X } from 'lucide-react';
+import { getDonationWhatsappUrl } from '@/lib/config';
 
 /**
  * SocialShare — floating share button with link copy + social links.
@@ -33,7 +34,7 @@ export default function SocialShare() {
           <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--glass)] transition-colors text-sm font-tajawal">
             <Twitter className="w-4 h-4 text-brand-blue-light" /> تويتر
           </a>
-          <a href="https://wa.me" target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--glass)] transition-colors text-sm font-tajawal">
+          <a href={getDonationWhatsappUrl()} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--glass)] transition-colors text-sm font-tajawal">
             <Share2 className="w-4 h-4 text-status-open" /> واتساب
           </a>
         </div>

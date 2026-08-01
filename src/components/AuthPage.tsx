@@ -4,6 +4,7 @@ import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle,
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import type { UserRole } from '@/lib/supabase';
+import { getDonationWhatsappUrl } from '@/lib/config';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -128,7 +129,7 @@ export default function AuthPage() {
             </div>
           )}
           <p className="text-xs font-tajawal text-[var(--text-muted)] mb-4">{isRTL ? 'للتواصل مع الدعم:' : 'Contact support:'}</p>
-          <a href="https://api.whatsapp.com/message/S7T6HKGGJCIWK1?autoload=1&app_absent=0" target="_blank" rel="noopener noreferrer" className="btn-primary w-full flex items-center justify-center gap-2">
+          <a href={getDonationWhatsappUrl()} target="_blank" rel="noopener noreferrer" className="btn-primary w-full flex items-center justify-center gap-2">
             <MessageCircle className="w-5 h-5" />
             {isRTL ? 'تواصل عبر واتساب' : 'Contact via WhatsApp'}
           </a>
