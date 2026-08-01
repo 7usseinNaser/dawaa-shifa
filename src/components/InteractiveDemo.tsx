@@ -1,97 +1,58 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Clock, MapPin, Navigation, Phone, Pill,
-  Search, Shield, SlidersHorizontal, Star, X,
+  MapPin, Navigation, Phone, Pill, Search, SlidersHorizontal, Star, X,
 } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
+import { useMedicineSearch, useMedicineSuggestions, type MedicineSearchResult } from '@/hooks/useLiveStats';
 
 type Status = 'open' | 'busy' | 'emergency' | 'closed';
 
-interface Pharmacy {
-  id: number;
-  name: string;
-  area: string;
-  distance: number;
-  walkingMin: number;
-  rating: number;
-  reviews: number;
-  isOpen: boolean;
-  status: Status;
-  medicines: { name: string; price: number; quantity: number }[];
-}
-
-const statusMap: Record<Status, { label: string; cls: string; dot: string }> = {
-  open: { label: 'مفتوحة', cls: 'bg-status-open/20 text-status-open', dot: 'bg-status-open' },
-  busy: { label: 'مزدحمة', cls: 'bg-status-busy/20 text-status-busy', dot: 'bg-status-busy' },
-  emergency: { label: 'طوارئ', cls: 'bg-status-emergency/20 text-status-emergency', dot: 'bg-status-emergency' },
-  closed: { label: 'مغلقة', cls: 'bg-status-closed/20 text-status-closed', dot: 'bg-status-closed' },
+const statusMap: Record<Status, { label: string; cls: string }> = {
+  open: { label: 'مفتوحة', cls: 'bg-status-open/20 text-status-open' },
+  busy: { label: 'مزدحمة', cls: 'bg-status-busy/20 text-status-busy' },
+  emergency: { label: 'طوارئ', cls: 'bg-status-emergency/20 text-status-emergency' },
+  closed: { label: 'مغلقة', cls: 'bg-status-closed/20 text-status-closed' },
 };
 
-const pharmacies: Pharmacy[] = [
-  { id: 1, name: 'صيدلية الرحمة', area: 'غزة - الرمال', distance: 0.85, walkingMin: 11, rating: 4.8, reviews: 212, isOpen: true, status: 'open',
-    medicines: [{ name: 'Augmentin 1g', price: 14, quantity: 23 }, { name: 'Panadol Extra', price: 8, quantity: 50 }, { name: 'Brufen 400', price: 6, quantity: 12 }] },
-  { id: 2, name: 'صيدلية النور', area: 'غزة - تل الهوا', distance: 1.2, walkingMin: 15, rating: 4.6, reviews: 184, isOpen: true, status: 'open',
-    medicines: [{ name: 'Augmentin 1g', price: 12, quantity: 8 }, { name: 'Panadol Extra', price: 7, quantity: 0 }] },
-  { id: 3, name: 'صيدلية الشفاء', area: 'غزة - الزيتون', distance: 2.1, walkingMin: 26, rating: 4.3, reviews: 97, isOpen: true, status: 'busy',
-    medicines: [{ name: 'Augmentin 1g', price: 15, quantity: 5 }, { name: 'Brufen 400', price: 7, quantity: 30 }] },
-  { id: 4, name: 'صيدلية الحياة', area: 'غزة - الشيخ رضوان', distance: 3.4, walkingMin: 42, rating: 4.7, reviews: 156, isOpen: true, status: 'busy',
-    medicines: [{ name: 'Augmentin 1g', price: 13, quantity: 18 }, { name: 'Panadol Extra', price: 9, quantity: 22 }] },
-  { id: 5, name: 'صيدلية الأمل', area: 'غزة - الدرج', distance: 4.8, walkingMin: 58, rating: 4.1, reviews: 63, isOpen: false, status: 'closed',
-    medicines: [{ name: 'Augmentin 1g', price: 16, quantity: 0 }] },
-  { id: 6, name: 'صيدلية السلام', area: 'غزة - الشجاعية', distance: 5.2, walkingMin: 64, rating: 4.9, reviews: 241, isOpen: true, status: 'open',
-    medicines: [{ name: 'Augmentin 1g', price: 11, quantity: 40 }, { name: 'Brufen 400', price: 5, quantity: 60 }] },
-];
-
-const allMeds = ['Augmentin 1g', 'Panadol Extra', 'Brufen 400'];
-
-type SortKey = 'nearest' | 'cheapest' | 'rating';
+type SortKey = 'cheapest' | 'rating' | 'area';
 
 /**
- * InteractiveDemo — fully interactive medicine search experience.
- * Features: live search, autocomplete, filters, sort, detail drawer,
- * distance/price/rating display, status badges, call/directions actions.
+ * InteractiveDemo — live medicine search wired to the Supabase medicines table.
+ * Results show real pharmacies, real prices, real availability, and real status.
  */
 export default function InteractiveDemo() {
   const { ref, visible } = useReveal();
   const [query, setQuery] = useState('');
-  const [selectedMed, setSelectedMed] = useState('Augmentin 1g');
-  const [sort, setSort] = useState<SortKey>('nearest');
+  const [sort, setSort] = useState<SortKey>('cheapest');
   const [filterOpen, setFilterOpen] = useState(false);
   const [onlyOpen, setOnlyOpen] = useState(false);
-  const [maxDist, setMaxDist] = useState(10);
-  const [selected, setSelected] = useState<Pharmacy | null>(null);
+  const [selected, setSelected] = useState<MedicineSearchResult | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
+  const [activeMed, setActiveMed] = useState<string>('');
 
-  const suggestions = useMemo(
-    () => allMeds.filter((m) => m.toLowerCase().includes(query.toLowerCase()) && m !== query),
-    [query]
+  const { results, loading } = useMedicineSearch(query);
+  const suggestions = useMedicineSuggestions(query);
+
+  const medNames = useMemo(
+    () => [...new Set(results.map((r) => r.medicine_name))].slice(0, 6),
+    [results],
   );
 
-  const results = useMemo(() => {
-    let list = pharmacies.filter((p) => {
-      const has = p.medicines.some((m) => m.name === selectedMed && m.quantity > 0);
-      return has;
-    });
-    if (onlyOpen) list = list.filter((p) => p.isOpen);
-    list = list.filter((p) => p.distance <= maxDist);
-
+  const filteredResults = useMemo(() => {
+    let list = activeMed ? results.filter((r) => r.medicine_name === activeMed) : results;
+    if (onlyOpen) list = list.filter((r) => r.pharmacy_status === 'open' || r.pharmacy_status === 'busy');
     list = [...list].sort((a, b) => {
-      if (sort === 'nearest') return a.distance - b.distance;
-      if (sort === 'cheapest') {
-        const pa = a.medicines.find((m) => m.name === selectedMed)?.price ?? 999;
-        const pb = b.medicines.find((m) => m.name === selectedMed)?.price ?? 999;
-        return pa - pb;
-      }
-      return b.rating - a.rating;
+      if (sort === 'cheapest') return a.price - b.price;
+      if (sort === 'rating') return b.pharmacy_rating - a.pharmacy_rating;
+      return a.pharmacy_area.localeCompare(b.pharmacy_area);
     });
     return list;
-  }, [selectedMed, sort, onlyOpen, maxDist]);
+  }, [results, activeMed, onlyOpen, sort]);
 
   const onSearch = (val: string) => {
     setQuery(val);
     setShowSuggest(true);
-    const match = allMeds.find((m) => m.toLowerCase() === val.toLowerCase().trim());
-    if (match) setSelectedMed(match);
+    setActiveMed('');
   };
 
   return (
@@ -109,7 +70,7 @@ export default function InteractiveDemo() {
             جرّب البحث <span className="text-gradient">بنفسك</span>
           </h2>
           <p className="text-[var(--text-soft)] font-tajawal max-w-2xl mx-auto">
-            ابحث عن دواء، صفّ النتائج، افتح تفاصيل الصيدلية — هذه تجربة حقيقية قريبة مما سيكون عليه التطبيق.
+            ابحث عن دواء، صفّ النتائج، افتح تفاصيل الصيدلية — هذه بيانات حقيقية من قاعدة بيانات المنصة.
           </p>
         </div>
 
@@ -127,13 +88,12 @@ export default function InteractiveDemo() {
                 className="w-full bg-transparent pr-11 pl-4 py-3 text-right font-tajawal text-[var(--text-main)] placeholder:text-[var(--text-muted)] focus:outline-none"
                 aria-label="بحث الدواء"
               />
-              {/* Autocomplete */}
               {showSuggest && suggestions.length > 0 && (
                 <div className="absolute top-full mt-2 right-0 left-0 glass-card p-2 z-30 animate-fade-in">
                   {suggestions.map((s) => (
                     <button
                       key={s}
-                      onClick={() => { setQuery(s); setSelectedMed(s); setShowSuggest(false); }}
+                      onClick={() => { setQuery(s); setActiveMed(s); setShowSuggest(false); }}
                       className="w-full text-right px-3 py-2.5 rounded-lg hover:bg-brand-green/10 transition-colors flex items-center gap-2 font-tajawal text-sm"
                     >
                       <Pill className="w-4 h-4 text-brand-green-light" />
@@ -152,16 +112,15 @@ export default function InteractiveDemo() {
             </button>
           </div>
 
-          {/* Filter panel */}
           {filterOpen && (
             <div className="mt-3 glass-card p-4 animate-fade-in space-y-4">
               <div className="flex items-center justify-between">
                 <span className="font-cairo font-bold text-sm">الترتيب</span>
                 <div className="flex gap-2">
                   {([
-                    { k: 'nearest', l: 'الأقرب' },
                     { k: 'cheapest', l: 'الأرخص' },
                     { k: 'rating', l: 'التقييم' },
+                    { k: 'area', l: 'المنطقة' },
                   ] as const).map((s) => (
                     <button
                       key={s.k}
@@ -185,49 +144,62 @@ export default function InteractiveDemo() {
                   <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${onlyOpen ? 'right-0.5' : 'right-6'}`} />
                 </button>
               </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-cairo font-bold text-sm">أقصى مسافة</span>
-                  <span className="text-sm font-inter text-brand-green-light font-bold">{maxDist} كم</span>
-                </div>
-                <input
-                  type="range" min={1} max={10} value={maxDist}
-                  onChange={(e) => setMaxDist(Number(e.target.value))}
-                  className="w-full accent-brand-green"
-                  aria-label="أقصى مسافة"
-                />
-              </div>
             </div>
           )}
         </div>
 
-        {/* Active med chip */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <span className="text-sm font-tajawal text-[var(--text-muted)]">تبحث عن:</span>
-          <span className="px-3 py-1 rounded-full bg-brand-green/20 text-brand-green-light text-sm font-bold flex items-center gap-1">
-            <Pill className="w-3.5 h-3.5" /> {selectedMed}
-          </span>
-        </div>
+        {medNames.length > 0 && (
+          <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+            <span className="text-sm font-tajawal text-[var(--text-muted)]">النتائج:</span>
+            {medNames.map((name) => (
+              <button
+                key={name}
+                onClick={() => setActiveMed(activeMed === name ? '' : name)}
+                className={`px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1 transition-colors ${
+                  activeMed === name ? 'bg-brand-green text-white' : 'bg-brand-green/20 text-brand-green-light'
+                }`}
+              >
+                <Pill className="w-3.5 h-3.5" /> {name}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Results */}
         <div className="space-y-3">
-          {results.length === 0 ? (
+          {loading && (
+            <div className="glass-card p-12 text-center">
+              <div className="w-10 h-10 mx-auto mb-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+              <p className="font-tajawal text-[var(--text-soft)]">جاري البحث...</p>
+            </div>
+          )}
+
+          {!loading && query.trim() && filteredResults.length === 0 && (
             <div className="glass-card p-12 text-center">
               <Pill className="w-12 h-12 mx-auto mb-4 text-[var(--text-muted)]" />
               <p className="font-tajawal text-[var(--text-soft)]">
-                لا توجد صيدلية تملك هذا الدواء ضمن نطاقك الحالي. جرّب توسيع المسافة أو تغيير الدواء.
+                لا توجد صيدلية تملك هذا الدواء حالياً. جرّب البحث باسم آخر.
               </p>
             </div>
-          ) : (
-            results.map((p, i) => {
-              const med = p.medicines.find((m) => m.name === selectedMed)!;
-              const st = statusMap[p.status];
+          )}
+
+          {!loading && !query.trim() && (
+            <div className="glass-card p-12 text-center">
+              <Search className="w-12 h-12 mx-auto mb-4 text-[var(--text-muted)]" />
+              <p className="font-tajawal text-[var(--text-soft)]">
+                ابحث عن دواء بالاسم لعرض الصيدليات المتوفر فيها.
+              </p>
+            </div>
+          )}
+
+          {!loading && filteredResults.length > 0 && (
+            filteredResults.map((r, i) => {
+              const st = statusMap[r.pharmacy_status];
               return (
                 <div
-                  key={p.id}
+                  key={`${r.pharmacy_id}-${r.medicine_id}`}
                   className="glass-card p-4 light-sweep hover:scale-[1.01] transition-transform cursor-pointer animate-slide-up"
                   style={{ animationDelay: `${i * 60}ms`, opacity: 0, animationFillMode: 'forwards' }}
-                  onClick={() => setSelected(p)}
+                  onClick={() => setSelected(r)}
                 >
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
@@ -235,25 +207,29 @@ export default function InteractiveDemo() {
                         <Pill className="w-5 h-5 text-brand-green-light" />
                       </div>
                       <div>
-                        <div className="font-cairo font-bold text-base">{p.name}</div>
+                        <div className="font-cairo font-bold text-base">{r.pharmacy_name}</div>
                         <div className="text-xs text-[var(--text-muted)] font-tajawal flex items-center gap-1.5">
-                          <MapPin className="w-3 h-3" /> {p.area} · {p.distance} كم · {p.walkingMin} د سيراً
+                          <MapPin className="w-3 h-3" /> {r.pharmacy_area}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-left">
-                        <div className="font-inter font-bold text-lg text-brand-green-light">{med.price} ₪</div>
-                        <div className="text-xs text-[var(--text-muted)]">متوفر: {med.quantity}</div>
+                        <div className="font-inter font-bold text-lg text-brand-green-light">{r.price} ₪</div>
+                        <div className={`text-xs ${r.is_available ? 'text-status-open' : 'text-status-closed'}`}>
+                          {r.is_available ? `متوفر: ${r.quantity}` : 'نفد المخزون'}
+                        </div>
                       </div>
                       <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${st.cls}`}>{st.label}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-3 text-xs">
-                    <Star className="w-3.5 h-3.5 text-status-busy fill-status-busy" />
-                    <span className="font-inter font-bold">{p.rating}</span>
-                    <span className="text-[var(--text-muted)]">({p.reviews} تقييم)</span>
-                  </div>
+                  {r.pharmacy_rating > 0 && (
+                    <div className="flex items-center gap-2 mt-3 text-xs">
+                      <Star className="w-3.5 h-3.5 text-status-busy fill-status-busy" />
+                      <span className="font-inter font-bold">{r.pharmacy_rating}</span>
+                      <span className="text-[var(--text-muted)]">({r.pharmacy_reviews} تقييم)</span>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -261,7 +237,6 @@ export default function InteractiveDemo() {
         </div>
       </div>
 
-      {/* Detail drawer */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 animate-fade-in" onClick={() => setSelected(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -278,46 +253,62 @@ export default function InteractiveDemo() {
                 <Pill className="w-7 h-7 text-brand-green-light" />
               </div>
               <div>
-                <h3 className="font-cairo font-bold text-xl">{selected.name}</h3>
-                <p className="text-sm text-[var(--text-muted)] font-tajawal">{selected.area}</p>
+                <h3 className="font-cairo font-bold text-xl">{selected.pharmacy_name}</h3>
+                <p className="text-sm text-[var(--text-muted)] font-tajawal flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" /> {selected.pharmacy_area}
+                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 mb-6">
-              <span className={`text-xs px-3 py-1 rounded-full font-bold ${statusMap[selected.status].cls}`}>
-                {statusMap[selected.status].label}
+            <div className="flex items-center gap-3 mb-6 flex-wrap">
+              <span className={`text-xs px-3 py-1 rounded-full font-bold ${statusMap[selected.pharmacy_status].cls}`}>
+                {statusMap[selected.pharmacy_status].label}
               </span>
-              <span className="text-sm flex items-center gap-1">
-                <Star className="w-4 h-4 text-status-busy fill-status-busy" />
-                <span className="font-inter font-bold">{selected.rating}</span>
-                <span className="text-[var(--text-muted)] text-xs">({selected.reviews})</span>
-              </span>
+              {selected.pharmacy_rating > 0 && (
+                <span className="text-sm flex items-center gap-1">
+                  <Star className="w-4 h-4 text-status-busy fill-status-busy" />
+                  <span className="font-inter font-bold">{selected.pharmacy_rating}</span>
+                  <span className="text-[var(--text-muted)] text-xs">({selected.pharmacy_reviews})</span>
+                </span>
+              )}
             </div>
 
-            {/* Medicines */}
-            <h4 className="font-cairo font-bold text-sm mb-3">الأدوية المتوفرة</h4>
-            <div className="space-y-2 mb-6">
-              {selected.medicines.map((m) => (
-                <div key={m.name} className="glass rounded-xl p-3 flex items-center justify-between">
-                  <div>
-                    <div className="font-tajawal font-bold text-sm">{m.name}</div>
-                    <div className={`text-xs ${m.quantity > 0 ? 'text-status-open' : 'text-status-closed'}`}>
-                      {m.quantity > 0 ? `متوفر: ${m.quantity} علبة` : 'نفد المخزون'}
-                    </div>
-                  </div>
-                  <div className="font-inter font-bold text-brand-green-light">{m.price} ₪</div>
+            <h4 className="font-cairo font-bold text-sm mb-3">الدواء</h4>
+            <div className="glass rounded-xl p-3 flex items-center justify-between mb-6">
+              <div>
+                <div className="font-tajawal font-bold text-sm">{selected.medicine_name}</div>
+                <div className={`text-xs ${selected.is_available ? 'text-status-open' : 'text-status-closed'}`}>
+                  {selected.is_available ? `متوفر: ${selected.quantity} علبة` : 'نفد المخزون'}
                 </div>
-              ))}
+              </div>
+              <div className="font-inter font-bold text-brand-green-light">{selected.price} ₪</div>
             </div>
 
-            {/* Actions */}
+            {selected.pharmacy_address && (
+              <div className="glass rounded-xl p-3 mb-6">
+                <div className="text-xs text-[var(--text-muted)] font-tajawal mb-1">العنوان</div>
+                <div className="text-sm font-tajawal">{selected.pharmacy_address}</div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
-              <button className="btn-secondary flex items-center justify-center gap-2 text-sm">
-                <Phone className="w-4 h-4" /> اتصل
-              </button>
-              <button className="btn-primary flex items-center justify-center gap-2 text-sm">
+              {selected.pharmacy_phone ? (
+                <a href={`tel:${selected.pharmacy_phone}`} className="btn-secondary flex items-center justify-center gap-2 text-sm">
+                  <Phone className="w-4 h-4" /> اتصل
+                </a>
+              ) : (
+                <button disabled className="btn-secondary flex items-center justify-center gap-2 text-sm opacity-50 cursor-not-allowed">
+                  <Phone className="w-4 h-4" /> لا يوجد رقم
+                </button>
+              )}
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.pharmacy_name + ' ' + selected.pharmacy_area)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary flex items-center justify-center gap-2 text-sm"
+              >
                 <Navigation className="w-4 h-4" /> اتجاهات
-              </button>
+              </a>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Activity, Github, Globe, Linkedin } from 'lucide-react';
+import { Instagram, MessageCircle, Mail } from 'lucide-react';
 
 /**
  * Footer — brand, social links, and closing line.
@@ -10,7 +10,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Brand */}
           <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-brand-green-light" />
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-green to-brand-blue" />
             <div>
               <div className="font-cairo font-bold text-sm">دواء وشفاء</div>
               <div className="font-inter text-[10px] text-[var(--text-muted)] tracking-wider">DAWAA & SHIFA</div>
@@ -19,24 +19,24 @@ export default function Footer() {
 
           {/* Social */}
           <div className="flex items-center gap-3">
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="GitHub">
-              <Github className="w-4 h-4" />
+            <a href="https://www.instagram.com/7ussein.naser" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="Instagram">
+              <Instagram className="w-4 h-4" />
             </a>
-            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="LinkedIn">
-              <Linkedin className="w-4 h-4" />
+            <a href="https://api.whatsapp.com/message/S7T6HKGGJCIWK1?autoload=1&app_absent=0" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="WhatsApp">
+              <MessageCircle className="w-4 h-4" />
             </a>
-            <a href="https://7ussein.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="7ussein.com">
-              <Globe className="w-4 h-4" />
+            <a href="mailto:hussein7.7naser@gmail.com" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="Email">
+              <Mail className="w-4 h-4" />
             </a>
           </div>
 
           {/* Copyright */}
           <div className="text-center md:text-left">
             <p className="font-tajawal text-sm text-[var(--text-soft)]">
-              صُنع في غزة بتقنية تهدف لصناعة فرق حقيقي.
+              صُنع في غزة، رغم كل شيء.
             </p>
             <p className="font-inter text-xs text-[var(--text-muted)] mt-1">
-              © 2024 Dawaa & Shifa — Hussein Nasr
+              Dawaa & Shifa — Hussein Nasr 2026 ©
             </p>
           </div>
         </div>

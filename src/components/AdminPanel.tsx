@@ -462,7 +462,7 @@ export default function AdminPanel() {
     }
   }
 
-  async function sendAlert(data: { target_type: string; target_id: string; area: string; message: string; severity: string }) {
+  async function sendAlert(data: { target_type: string; target_id: string; area: string; message: string; severity: string; expires_at?: string | null; max_views_per_user?: number | null }) {
     setActionLoading('alert');
     try {
       const { error } = await supabase.from('admin_alerts').insert({
@@ -474,6 +474,17 @@ export default function AdminPanel() {
         created_by: user?.id,
       });
       if (error) throw error;
+      // Also create a public notification visible to all authenticated users
+      const notifType = data.severity === 'emergency' ? 'emergency' : data.severity === 'warning' ? 'warning' : 'info';
+      await supabase.from('notifications').insert({
+        title: isRTL ? 'تنبيه من الإدارة' : 'Admin Alert',
+        content: sanitize(data.message),
+        type: notifType,
+        expires_at: data.expires_at ?? null,
+        max_views_per_user: data.max_views_per_user ?? null,
+        is_active: true,
+        created_by: user?.id,
+      });
       await logAction('send_alert', data.message.slice(0, 50));
       showToast(isRTL ? 'تم إرسال التنبيه' : 'Alert sent');
       setShowAlertForm(false);
@@ -1233,10 +1244,22 @@ function UserDetailModal({ user, auditLogs, dataReports, reviews, onClose, isRTL
   user: Profile; auditLogs: AuditLog[]; dataReports: DataReport[]; reviews: Review[];
   onClose: () => void; isRTL: boolean;
 }) {
-  const userAuditLogs = auditLogs.filter((l) => l.actor_id === user.id || l.entity_id === user.id || l.entity_id === user.display_name);
-  const reportsByUser = dataReports.filter((r) => r.reporter_id === user.id);
-  const reportsAgainstUser = dataReports.filter((r) => r.target_id === user.id);
-  const reviewsByUser = reviews.filter((r) => r.user_id === user.id);
+  const [freshUser, setFreshUser] = useState<Profile>(user);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (!cancelled && data) setFreshUser(data as Profile);
+    })();
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  const u = freshUser;
+  const userAuditLogs = auditLogs.filter((l) => l.actor_id === u.id || l.entity_id === u.id || l.entity_id === u.display_name);
+  const reportsByUser = dataReports.filter((r) => r.reporter_id === u.id);
+  const reportsAgainstUser = dataReports.filter((r) => r.target_id === u.id);
+  const reviewsByUser = reviews.filter((r) => r.user_id === u.id);
   const roleLabels: Record<string, string> = { citizen: isRTL ? 'مواطن' : 'Citizen', pharmacist: isRTL ? 'صيدلي' : 'Pharmacist', facility_owner: isRTL ? 'صاحب مرفق' : 'Facility Owner', admin: isRTL ? 'أدمن' : 'Admin' };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -1247,23 +1270,24 @@ function UserDetailModal({ user, auditLogs, dataReports, reviews, onClose, isRTL
         </div>
         {/* Account info */}
         <div className="space-y-1.5 mb-4">
-          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الاسم' : 'Name'}:</span><span className="font-cairo font-bold text-sm">{user.display_name}</span></div>
-          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الدور' : 'Role'}:</span><span className="text-sm">{roleLabels[user.role] || user.role}</span></div>
-          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'البريد الإلكتروني' : 'Email'}:</span><span className="text-sm font-tajawal">{user.email || '—'}</span></div>
-          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الهاتف' : 'Phone'}:</span><span className="text-sm font-tajawal">{user.phone || '—'}</span></div>
-          {(!user.phone || !user.email) && (
+          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الاسم' : 'Name'}:</span><span className="font-cairo font-bold text-sm">{u.display_name}</span></div>
+          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الدور' : 'Role'}:</span><span className="text-sm">{roleLabels[u.role] || u.role}</span></div>
+          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'البريد الإلكتروني' : 'Email'}:</span><span className="text-sm font-tajawal">{u.email || '—'}</span></div>
+          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الهاتف' : 'Phone'}:</span><span className="text-sm font-tajawal">{u.phone || '—'}</span></div>
+          <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'التسجيل' : 'Joined'}:</span><span className="text-sm font-tajawal">{u.created_at ? new Date(u.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US') : '—'}</span></div>
+          {(!u.phone || !u.email) && (
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="text-[10px] text-amber-400 font-tajawal">{isRTL ? 'بيانات ناقصة - يرجى التحديث' : 'Missing data - please update'}</span>
-              <button onClick={() => supabase.from('notifications').insert({ user_id: user.id, title: isRTL ? 'استكمال البيانات' : 'Complete your profile', body: isRTL ? 'يرجى استكمال بيانات الهاتف والبريد الإلكتروني' : 'Please complete your phone and email information', type: 'profile' }).then(() => showToast(isRTL ? 'تم إرسال إشعار للمستخدم' : 'Notification sent'))} className="text-[10px] text-brand-blue-light hover:underline font-tajawal">{isRTL ? 'إرسال إشعار' : 'Notify user'}</button>
+              <button onClick={() => supabase.from('notifications').insert({ user_id: u.id, title: isRTL ? 'استكمال البيانات' : 'Complete your profile', body: isRTL ? 'يرجى استكمال بيانات الهاتف والبريد الإلكتروني' : 'Please complete your phone and email information', type: 'profile' }).then(() => showToast(isRTL ? 'تم إرسال إشعار للمستخدم' : 'Notification sent'))} className="text-[10px] text-brand-blue-light hover:underline font-tajawal">{isRTL ? 'إرسال إشعار' : 'Notify user'}</button>
             </div>
           )}
           <div className="flex items-center gap-2"><span className="text-xs text-[var(--text-muted)] w-20">{isRTL ? 'الحالة' : 'Status'}:</span>
             <div className="flex gap-1.5">
-              {user.verified && <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-open/20 text-status-open font-bold">{isRTL ? 'موثّق' : 'Verified'}</span>}
-              {user.banned && <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-emergency/20 text-status-emergency font-bold">{isRTL ? 'محظور' : 'Banned'}</span>}
-              {user.frozen && <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-blue/20 text-brand-blue-light font-bold">{isRTL ? 'مجمّد' : 'Frozen'}</span>}
-              {!user.verified && !user.banned && !user.frozen && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--border-subtle)] text-[var(--text-muted)] font-bold">{isRTL ? 'نشط' : 'Active'}</span>}
+              {u.verified && <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-open/20 text-status-open font-bold">{isRTL ? 'موثّق' : 'Verified'}</span>}
+              {u.banned && <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-emergency/20 text-status-emergency font-bold">{isRTL ? 'محظور' : 'Banned'}</span>}
+              {u.frozen && <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-blue/20 text-brand-blue-light font-bold">{isRTL ? 'مجمّد' : 'Frozen'}</span>}
+              {!u.verified && !u.banned && !u.frozen && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--border-subtle)] text-[var(--text-muted)] font-bold">{isRTL ? 'نشط' : 'Active'}</span>}
             </div>
           </div>
         </div>
@@ -1905,7 +1929,7 @@ function EditForm({ editing, pharmacies, onClose, onSave, actionLoading, isRTL }
 // ============ Alert Form Modal ============
 function AlertForm({ editing, facilities, pharmacies, onClose, onSend, actionLoading, isRTL }: {
   editing: { type: string; data: Record<string, unknown> }; facilities: Facility[]; pharmacies: Pharmacy[];
-  onClose: () => void; onSend: (data: { target_type: string; target_id: string; area: string; message: string; severity: string }) => void; actionLoading: boolean; isRTL: boolean;
+  onClose: () => void; onSend: (data: { target_type: string; target_id: string; area: string; message: string; severity: string; expires_at: string | null; max_views_per_user: number | null }) => void; actionLoading: boolean; isRTL: boolean;
 }) {
   const isTargeted = Boolean(editing.data.target_id);
   const [targetType, setTargetType] = useState<string>(String(editing.data.target_type || 'broadcast'));
@@ -1913,6 +1937,8 @@ function AlertForm({ editing, facilities, pharmacies, onClose, onSend, actionLoa
   const [area, setArea] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [severity, setSeverity] = useState<string>('info');
+  const [expiryDuration, setExpiryDuration] = useState<string>('12h');
+  const [maxViews, setMaxViews] = useState<string>('unlimited');
 
   const areas = Array.from(new Set([...facilities.map((f) => f.area), ...pharmacies.map((p) => p.area)])).filter(Boolean);
 
@@ -1953,9 +1979,35 @@ function AlertForm({ editing, facilities, pharmacies, onClose, onSend, actionLoa
             <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'الرسالة' : 'Message'}</label>
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-brand-green resize-none" placeholder={isRTL ? 'اكتب رسالة التنبيه...' : 'Write alert message...'} />
           </div>
+          <div>
+            <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'مدة الصلاحية' : 'Expiry Duration'}</label>
+            <select value={expiryDuration} onChange={(e) => setExpiryDuration(e.target.value)} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl">
+              <option value="1h">{isRTL ? 'ساعة واحدة' : '1 hour'}</option>
+              <option value="12h">{isRTL ? '12 ساعة' : '12 hours'}</option>
+              <option value="24h">{isRTL ? '24 ساعة' : '24 hours'}</option>
+              <option value="48h">{isRTL ? 'يومين' : '2 days'}</option>
+              <option value="none">{isRTL ? 'بدون تاريخ انتهاء' : 'No expiry'}</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'حد الظهور للمستخدم' : 'Max Views Per User'}</label>
+            <select value={maxViews} onChange={(e) => setMaxViews(e.target.value)} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl">
+              <option value="1">{isRTL ? 'مرة واحدة' : 'Once'}</option>
+              <option value="3">{isRTL ? '3 مرات' : '3 times'}</option>
+              <option value="unlimited">{isRTL ? 'غير محدود' : 'Unlimited'}</option>
+            </select>
+          </div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={() => onSend({ target_type: targetType, target_id: isTargeted ? targetId : 'all', area, message, severity })} disabled={actionLoading || !message.trim()} className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">{actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}{isRTL ? 'إرسال' : 'Send'}</button>
+          <button onClick={() => {
+            let expiresAt: string | null = null;
+            if (expiryDuration !== 'none') {
+              const hours = parseInt(expiryDuration);
+              expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
+            }
+            const maxViewsPerUser = maxViews === 'unlimited' ? null : parseInt(maxViews);
+            onSend({ target_type: targetType, target_id: isTargeted ? targetId : 'all', area, message, severity, expires_at: expiresAt, max_views_per_user: maxViewsPerUser });
+          }} disabled={actionLoading || !message.trim()} className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">{actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}{isRTL ? 'إرسال' : 'Send'}</button>
           <button onClick={onClose} className="btn-secondary text-sm px-4">{isRTL ? 'إلغاء' : 'Cancel'}</button>
         </div>
       </motion.div>

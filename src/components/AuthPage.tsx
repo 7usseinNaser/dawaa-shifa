@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowLeft, ArrowRight, Building2, CheckCircle, Lock,
@@ -93,6 +93,16 @@ export default function AuthPage() {
     setResetSent(false);
     setResetError('');
   };
+
+  // Auto-dismiss the reset success message after 5 seconds
+  useEffect(() => {
+    if (!resetSent) return;
+    const timer = setTimeout(() => {
+      setResetSent(false);
+      setView('auth');
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [resetSent]);
 
   if (profile?.frozen) {
     return (

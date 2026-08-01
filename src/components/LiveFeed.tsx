@@ -1,58 +1,75 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, Bell, Clock, Pill, Shield } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
-
-interface FeedItem {
-  id: number;
-  type: 'medicine' | 'facility' | 'status';
-  text: string;
-  time: string;
-  color: string;
-}
-
-const initialFeed: FeedItem[] = [
-  { id: 1, type: 'facility', text: 'مستشفى الشفاء — تحول إلى طوارئ', time: 'قبل 3 د', color: 'status-emergency' },
-  { id: 2, type: 'medicine', text: 'صيدلية النور — توفر بانادول', time: 'قبل 8 د', color: 'status-open' },
-  { id: 3, type: 'status', text: 'عيادة الجلدية — انتقلت لمزدحم', time: 'قبل 12 د', color: 'status-busy' },
-  { id: 4, type: 'medicine', text: 'صيدلية الرحمة — انخفض سعر أوجمنتين', time: 'قبل 15 د', color: 'brand-green' },
-  { id: 5, type: 'facility', text: 'نقطة طبية الشمال — عادت للعمل', time: 'قبل 20 د', color: 'status-open' },
-];
-
-const newItems: Omit<FeedItem, 'id' | 'time'>[] = [
-  { type: 'medicine', text: 'صيدلية السلام — توفر بروفين 400', color: 'status-open' },
-  { type: 'facility', text: 'مستشفى الأقصى — حالة طبيعية', color: 'status-open' },
-  { type: 'status', text: 'قسم الباطنية — انخفض الانتظار لـ 12', color: 'brand-blue' },
-  { type: 'medicine', text: 'صيدلية الحياة — نفد أوجمنتين', color: 'status-closed' },
-  { type: 'facility', text: 'عيادة الأطفال — طوارئ', color: 'status-emergency' },
-];
+import { useLang } from '@/lib/i18n';
+import { supabase } from '@/lib/supabase';
+import type { PublicActivityFeed } from '@/lib/supabase';
 
 /**
- * LiveFeed — real-time activity feed that auto-updates.
- * New items slide in from top with stagger, simulating live data.
+ * LiveFeed — subscribes to the public_activity_feed table via Supabase
+ * Realtime. Only citizen-useful operational events appear (medicine
+ * availability, facility status changes, wait-time drops). Administrative
+ * and private actions are never written to that table, so they never appear.
  */
 export default function LiveFeed() {
   const { ref, visible } = useReveal();
-  const [feed, setFeed] = useState<FeedItem[]>(initialFeed);
-  const [counter, setCounter] = useState(0);
-  const idRef = useRef(100);
+  const { lang } = useLang();
+  const isRTL = lang === 'ar';
+  const [feed, setFeed] = useState<PublicActivityFeed[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!visible) return;
-    const interval = setInterval(() => {
-      const newItem = newItems[counter % newItems.length];
-      setFeed((prev) => [
-        { ...newItem, id: idRef.current++, time: 'الآن' },
-        ...prev.slice(0, 7),
-      ]);
-      setCounter((c) => c + 1);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [visible, counter]);
+    let active = true;
 
-  const icon = (type: string) => {
-    if (type === 'medicine') return Pill;
-    if (type === 'facility') return Shield;
+    const loadInitial = async () => {
+      const { data } = await supabase
+        .from('public_activity_feed')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(8);
+      if (active) {
+        setFeed((data as PublicActivityFeed[] | null) ?? []);
+        setLoading(false);
+      }
+    };
+    loadInitial();
+
+    const channel = supabase
+      .channel('live-feed')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'public_activity_feed' },
+        (payload) => {
+          const row = payload.new as PublicActivityFeed;
+          setFeed((prev) => [row, ...prev].slice(0, 8));
+        },
+      )
+      .subscribe();
+
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, []);
+
+  const icon = (type: PublicActivityFeed['event_type']) => {
+    if (type === 'medicine_available') return Pill;
+    if (type === 'facility_status') return Shield;
     return Activity;
+  };
+
+  const color = (type: PublicActivityFeed['event_type']) => {
+    if (type === 'medicine_available') return 'status-open';
+    if (type === 'facility_status') return 'brand-green';
+    return 'brand-blue';
+  };
+
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return isRTL ? 'الآن' : 'now';
+    if (mins < 60) return isRTL ? `قبل ${mins} د` : `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return isRTL ? `قبل ${hrs} س` : `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return isRTL ? `قبل ${days} يوم` : `${days}d ago`;
   };
 
   return (
@@ -61,13 +78,15 @@ export default function LiveFeed() {
         <div className={`text-center mb-12 reveal ${visible ? 'visible' : ''}`}>
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-sm font-tajawal text-brand-green-light mb-4">
             <span className="w-2 h-2 bg-status-open rounded-full status-pulse text-status-open" />
-            تغذية لحظية
+            {isRTL ? 'تغذية لحظية' : 'Live feed'}
           </span>
           <h2 className="font-cairo font-black text-3xl sm:text-4xl lg:text-5xl mb-4">
-            ما يحدث <span className="text-gradient">الآن</span>
+            {isRTL ? <>ما يحدث <span className="text-gradient">الآن</span></> : <>What's happening <span className="text-gradient">now</span></>}
           </h2>
           <p className="text-[var(--text-soft)] font-tajawal max-w-2xl mx-auto">
-            تحديثات لحظية من الصيدليات والمرافق — كل تغيير يصل فوراً لكل المستخدمين.
+            {isRTL
+              ? 'تحديثات لحظية من الصيدليات والمرافق — كل تغيير يصل فوراً لكل المستخدمين.'
+              : 'Real-time updates from pharmacies and facilities — every change reaches all users instantly.'}
           </p>
         </div>
 
@@ -75,32 +94,43 @@ export default function LiveFeed() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Bell className="w-5 h-5 text-brand-green-light" />
-              <span className="font-cairo font-bold text-sm">آخر التحديثات</span>
+              <span className="font-cairo font-bold text-sm">{isRTL ? 'آخر التحديثات' : 'Latest updates'}</span>
             </div>
             <span className="text-xs font-tajawal text-[var(--text-muted)] flex items-center gap-1">
-              <Clock className="w-3 h-3" /> يتحدث تلقائياً
+              <Clock className="w-3 h-3" /> {isRTL ? 'يتحدّث تلقائياً' : 'Auto-updates'}
             </span>
           </div>
 
-          <div className="space-y-2">
-            {feed.map((item, i) => {
-              const Icon = icon(item.type);
-              return (
-                <div
-                  key={item.id}
-                  className={`glass rounded-xl p-3 flex items-center gap-3 ${i === 0 ? 'animate-slide-up' : ''}`}
-                  style={i === 0 ? { opacity: 0, animationFillMode: 'forwards' } : undefined}
-                >
-                  <div className={`w-9 h-9 rounded-lg bg-${item.color}/20 flex items-center justify-center shrink-0`}>
-                    <Icon className={`w-4 h-4 text-${item.color}`} />
+          <div className="space-y-2 min-h-[120px]">
+            {loading ? (
+              <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-6">
+                {isRTL ? 'جارٍ التحميل…' : 'Loading…'}
+              </p>
+            ) : feed.length === 0 ? (
+              <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-6">
+                {isRTL ? 'لا توجد تحديثات بعد' : 'No updates yet'}
+              </p>
+            ) : (
+              feed.map((item, i) => {
+                const Icon = icon(item.event_type);
+                const c = color(item.event_type);
+                return (
+                  <div
+                    key={item.id}
+                    className={`glass rounded-xl p-3 flex items-center gap-3 ${i === 0 ? 'animate-slide-up' : ''}`}
+                    style={i === 0 ? { opacity: 0, animationFillMode: 'forwards' } : undefined}
+                  >
+                    <div className={`w-9 h-9 rounded-lg bg-${c}/20 flex items-center justify-center shrink-0`}>
+                      <Icon className={`w-4 h-4 text-${c}`} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-tajawal font-bold">{isRTL ? item.message_ar : item.message_en}</div>
+                    </div>
+                    <span className="text-xs text-[var(--text-muted)] font-tajawal shrink-0">{timeAgo(item.created_at)}</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-tajawal font-bold">{item.text}</div>
-                  </div>
-                  <span className="text-xs text-[var(--text-muted)] font-tajawal shrink-0">{item.time}</span>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

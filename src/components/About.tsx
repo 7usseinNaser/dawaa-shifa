@@ -1,12 +1,12 @@
-import { Code2, Heart, Smartphone, Trophy } from 'lucide-react';
+import { Code2, Smartphone, Trophy, Cpu, Linkedin } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 import { useLang } from '@/lib/i18n';
 
 const badges = [
   { icon: Code2, label: 'Front-End 144h' },
   { icon: Smartphone, label: 'Flutter 40h' },
-  { icon: Trophy, label: 'WRO Palestine' },
-  { icon: Heart, label: 'Top 10 AI Gaza' },
+  { icon: Trophy, label: 'Software Engineer' },
+  { icon: Cpu, label: 'AI Automation Specialist' },
 ];
 
 /**
@@ -26,16 +26,28 @@ export default function About() {
       <div ref={ref} className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
 
-          {/* Portrait placeholder */}
+          {/* Portrait */}
           <div className={`reveal ${visible ? 'visible' : ''} flex justify-center`}>
             <div className="relative">
-              {/* Glow ring */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-green to-brand-blue blur-3xl opacity-30 animate-glow" />
+              {/* Neon glow ring */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-green via-brand-blue to-brand-green blur-3xl opacity-40 animate-glow" />
+              <div className="absolute -inset-2 rounded-full bg-gradient-to-br from-brand-green/40 to-brand-blue/40 blur-2xl animate-pulse" />
 
-              {/* Portrait circle */}
-              <div className="relative w-64 h-64 lg:w-80 lg:h-80 rounded-full glass-card flex items-center justify-center overflow-hidden border-glow">
-                <div className="absolute inset-0 bg-gradient-to-br from-brand-green/20 to-brand-blue/20" />
-                <div className="relative text-center">
+              {/* Photo avatar */}
+              <div className="relative w-64 h-64 lg:w-80 lg:h-80 rounded-full overflow-hidden border-glow ring-4 ring-brand-green/30">
+                <img
+                  src="/hussein-photo.jpg"
+                  alt={lang === 'ar' ? 'حسين محمد نصر' : 'Hussein Mohammed Nasr'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement | null;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+                {/* Fallback initial avatar (shown if photo missing) */}
+                <div className="absolute inset-0 hidden flex-col items-center justify-center bg-gradient-to-br from-brand-green/25 to-brand-blue/25">
                   <div className="font-cairo font-black text-6xl lg:text-7xl text-gradient mb-2">{lang === 'ar' ? 'ح' : 'H'}</div>
                   <div className="font-inter text-xs text-[var(--text-muted)] tracking-widest">HUSSEIN NASR</div>
                 </div>
@@ -46,7 +58,7 @@ export default function About() {
                 React Native
               </div>
               <div className="absolute -bottom-4 -left-8 glass rounded-full px-3 py-1.5 text-xs font-tajawal animate-float" style={{ animationDuration: '7s', animationDelay: '1s' }}>
-                Firebase
+                Front-End
               </div>
               <div className="absolute top-1/2 -left-12 glass rounded-full px-3 py-1.5 text-xs font-tajawal animate-float" style={{ animationDuration: '6s', animationDelay: '2s' }}>
                 Flutter
@@ -82,16 +94,27 @@ export default function About() {
               ))}
             </div>
 
-            {/* Website link */}
-            <a
-              href="https://7ussein.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 mt-6 text-brand-green-light font-tajawal hover:underline"
-            >
-              7ussein.com
-              <span className="text-[var(--text-muted)]">{lang === 'ar' ? '— الموقع الشخصي' : '— Personal website'}</span>
-            </a>
+            {/* Social links */}
+            <div className="flex items-center gap-3 mt-6">
+              <a
+                href="https://7ussein.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-brand-green-light font-tajawal hover:underline"
+              >
+                7ussein.com
+                <span className="text-[var(--text-muted)]">{lang === 'ar' ? '— الموقع الشخصي' : '— Personal website'}</span>
+              </a>
+              <a
+                href="https://www.linkedin.com/in/hussein-naser-098a533a8"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="LinkedIn"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#0A66C2]/20 hover:bg-[#0A66C2]/35 transition-colors"
+              >
+                <Linkedin className="w-5 h-5 text-[#0A66C2]" />
+              </a>
+            </div>
           </div>
         </div>
       </div>

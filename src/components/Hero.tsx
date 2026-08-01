@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Activity, ArrowLeft, ChevronDown, Clock, MapPin, Pill, Search,
+  Activity, ArrowLeft, ChevronDown, Clock, MapPin, Navigation, Pill, Search,
   Shield, Star,
 } from 'lucide-react';
 import ParticleField from './ParticleField';
 import { useLang } from '@/lib/i18n';
+import { useLiveStats, useNearbyEntities, useMapPoints } from '@/hooks/useLiveStats';
 
 const container = {
   hidden: { opacity: 0 },
@@ -19,11 +20,39 @@ const item = {
 export default function Hero() {
   const [time, setTime] = useState(new Date());
   const { t, lang } = useLang();
+  const stats = useLiveStats();
+  const nearby = useNearbyEntities();
+  const mapPins = useMapPoints(6);
+
+  const pinStyle = (p: { lat: number; lng: number }) => {
+    const pts = mapPins.filter((mp) => mp.lat && mp.lng);
+    if (pts.length === 0) return { top: '30%', left: '40%' };
+    const lats = pts.map((mp) => mp.lat);
+    const lngs = pts.map((mp) => mp.lng);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const latR = maxLat - minLat || 1;
+    const lngR = maxLng - minLng || 1;
+    return {
+      top: `${10 + ((maxLat - p.lat) / latR) * 75}%`,
+      left: `${8 + ((p.lng - minLng) / lngR) * 80}%`,
+    };
+  };
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const statusLabel = (s: string, l: string) => {
+    if (l === 'ar') return { open: 'متاح', busy: 'مزدحم', emergency: 'طوارئ', closed: 'مغلق' }[s] ?? s;
+    return { open: 'Open', busy: 'Busy', emergency: 'Emergency', closed: 'Closed' }[s] ?? s;
+  };
+
+  const nearbyPreview = [
+    ...nearby.facilities.map((f) => ({ name: f.name, status: f.status, dist: f.dist, icon: 'shield' as const })),
+    ...nearby.pharmacies.map((p) => ({ name: p.name, status: p.status, dist: p.dist, icon: 'pill' as const })),
+  ].slice(0, 4);
 
   return (
     <section id="hero" className="relative min-h-screen flex items-center overflow-hidden pt-16">
@@ -71,8 +100,8 @@ export default function Hero() {
 
             <motion.div variants={item} className="grid grid-cols-3 gap-4 mt-10 max-w-md mx-auto lg:mx-0">
               {[
-                { v: '+150', l: lang === 'ar' ? 'صيدلية' : 'Pharmacies' },
-                { v: '+40', l: lang === 'ar' ? 'مرفق طبي' : 'Facilities' },
+                { v: `+${stats.pharmacyCount}`, l: lang === 'ar' ? 'صيدلية' : 'Pharmacies' },
+                { v: `+${stats.facilityCount}`, l: lang === 'ar' ? 'مرفق طبي' : 'Facilities' },
                 { v: '10s', l: lang === 'ar' ? 'لإيجاد الدواء' : 'To find medicine' },
               ].map((s) => (
                 <div key={s.l} className="text-center lg:text-right">
@@ -112,34 +141,76 @@ export default function Hero() {
                 <span className="text-sm text-[var(--text-muted)] font-tajawal">{lang === 'ar' ? 'ابحث عن دواء...' : 'Search medicine...'}</span>
               </div>
 
-              <div className="relative h-48 rounded-2xl bg-dark-3/50 border border-[var(--border-subtle)] overflow-hidden mb-4">
+              <div className="relative h-48 rounded-2xl bg-dark-3/60 border border-[var(--border-subtle)] overflow-hidden mb-4">
                 <div className="absolute inset-0 bg-grid-pattern bg-[size:20px_20px] opacity-40" />
-                <div className="map-pin bg-status-open" style={{ top: '20%', left: '30%' }} />
-                <div className="map-pin bg-status-busy" style={{ top: '50%', left: '60%' }} />
-                <div className="map-pin bg-status-emergency" style={{ top: '70%', left: '25%' }} />
-                <div className="map-pin bg-status-open" style={{ top: '35%', left: '75%' }} />
+                {mapPins.filter((p) => p.lat && p.lng).slice(0, 6).map((p) => (
+                  <div
+                    key={p.id}
+                    className={`map-pin ${p.status === 'open' ? 'bg-status-open' : p.status === 'busy' ? 'bg-status-busy' : p.status === 'emergency' ? 'bg-status-emergency' : 'bg-status-closed'}`}
+                    style={{ ...pinStyle(p), transform: 'scale(0.7)' }}
+                  />
+                ))}
+                {mapPins.filter((p) => p.lat && p.lng).length === 0 && (
+                  <>
+                    <div className="map-pin bg-status-open" style={{ top: '20%', left: '30%' }} />
+                    <div className="map-pin bg-status-busy" style={{ top: '50%', left: '60%' }} />
+                    <div className="map-pin bg-status-emergency" style={{ top: '70%', left: '25%' }} />
+                    <div className="map-pin bg-status-open" style={{ top: '35%', left: '75%' }} />
+                  </>
+                )}
                 <div className="absolute inset-0 overflow-hidden">
                   <div className="w-full h-1/2 bg-gradient-to-b from-transparent via-brand-green/10 to-transparent animate-scan" />
                 </div>
+
+                {/* Legend — solid dark background for maximum contrast */}
+                <div className="absolute bottom-2 left-2 rounded-lg bg-black/80 backdrop-blur-sm px-3 py-2 space-y-1.5 shadow-lg border border-emerald-500/30">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-status-open" />
+                    <span className="text-xs font-bold text-white">{lang === 'ar' ? 'متاح' : 'Open'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-status-busy" />
+                    <span className="text-xs font-bold text-white">{lang === 'ar' ? 'مزدحم' : 'Busy'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-status-emergency" />
+                    <span className="text-xs font-bold text-white">{lang === 'ar' ? 'طوارئ' : 'Emergency'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-status-closed" />
+                    <span className="text-xs font-bold text-white">{lang === 'ar' ? 'مغلق' : 'Closed'}</span>
+                  </div>
+                </div>
+
+                {/* Total count badge */}
+                <div className="absolute bottom-2 right-2 rounded-lg bg-black/80 backdrop-blur-sm px-3 py-1.5 shadow-lg border border-emerald-500/30">
+                  <span className="text-xs font-bold text-white">{stats.totalCount} {lang === 'ar' ? 'مرفق وصيدلية' : 'facilities'}</span>
+                </div>
+
+                {/* Navigation button */}
+                <button
+                  type="button"
+                  aria-label={lang === 'ar' ? 'الاتجاهات' : 'Directions'}
+                  className="absolute top-2 right-2 w-9 h-9 rounded-full bg-brand-green flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                >
+                  <Navigation className="w-4 h-4 text-white" />
+                </button>
               </div>
 
               <div className="space-y-2">
-                {[
-                  { name: lang === 'ar' ? 'مستشفى الشفاء' : 'Al-Shifa Hospital', status: 'busy', icon: Shield, dist: lang === 'ar' ? '1.2 كم' : '1.2 km' },
-                  { name: lang === 'ar' ? 'صيدلية الرحمة' : 'Al-Rahma Pharmacy', status: 'open', icon: Pill, dist: lang === 'ar' ? '850 م' : '850 m' },
-                ].map((c) => (
+                {nearbyPreview.map((c) => (
                   <div key={c.name} className="glass rounded-xl p-3 flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-brand-green/20 flex items-center justify-center">
-                      <c.icon className="w-4 h-4 text-brand-green-light" />
+                      {c.icon === 'pill' ? <Pill className="w-4 h-4 text-brand-green-light" /> : <Shield className="w-4 h-4 text-brand-green-light" />}
                     </div>
                     <div className="flex-1 text-right">
                       <div className="text-sm font-cairo font-bold">{c.name}</div>
                       <div className="text-xs text-[var(--text-muted)] flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {c.dist}
+                        <MapPin className="w-3 h-3" /> {c.dist || (lang === 'ar' ? 'غزة' : 'Gaza')}
                       </div>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${c.status === 'open' ? 'bg-status-open/20 text-status-open' : 'bg-status-busy/20 text-status-busy'}`}>
-                      {c.status === 'open' ? (lang === 'ar' ? 'متاح' : 'Open') : (lang === 'ar' ? 'مزدحم' : 'Busy')}
+                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${c.status === 'open' ? 'bg-status-open/20 text-status-open' : c.status === 'emergency' ? 'bg-status-emergency/20 text-status-emergency' : c.status === 'closed' ? 'bg-status-closed/20 text-status-closed' : 'bg-status-busy/20 text-status-busy'}`}>
+                      {statusLabel(c.status, lang)}
                     </span>
                   </div>
                 ))}

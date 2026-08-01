@@ -7,32 +7,11 @@ export const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL);
 
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false,
+    persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    },
   },
 });
-
-// Strict no-client-storage policy: wipe any legacy cached data on load
-if (typeof window !== 'undefined') {
-  try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('sb-') || key.startsWith('supabase') || key.includes('auth-token')) {
-        localStorage.removeItem(key);
-      }
-    });
-    Object.keys(sessionStorage).forEach((key) => {
-      if (key.startsWith('sb-') || key.startsWith('supabase') || key.includes('auth-token')) {
-        sessionStorage.removeItem(key);
-      }
-    });
-  } catch { /* ignore */ }
-}
 
 export type UserRole = 'citizen' | 'pharmacist' | 'facility_owner' | 'admin';
 
@@ -47,6 +26,7 @@ export interface Profile {
   frozen: boolean;
   freeze_reason: string | null;
   email: string | null;
+  created_at: string;
 }
 
 export interface MedExchangeRequest {
@@ -323,6 +303,17 @@ export interface EmergencyBroadcast {
   created_by: string | null;
   created_at: string;
   expires_at: string;
+}
+
+export interface PublicActivityFeed {
+  id: string;
+  event_type: 'medicine_available' | 'facility_status' | 'wait_time';
+  message_ar: string;
+  message_en: string;
+  entity_type: 'pharmacy' | 'facility' | 'department';
+  entity_id: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface AvailabilityAlert {

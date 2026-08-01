@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, LayoutDashboard, LogIn, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { Activity, ArrowLeft, LayoutDashboard, LogIn, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import LanguageToggle from './LanguageToggle';
@@ -63,16 +63,18 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
 
             {user && profile ? (
               <>
-                <a href="#/dashboard" className="hidden sm:inline-flex btn-primary text-sm items-center gap-1.5">
+                <a href="#/dashboard" className="hidden sm:inline-flex btn-primary text-sm items-center gap-1.5 group">
                   <LayoutDashboard className="w-4 h-4" /> {t('nav.dashboard')}
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 </a>
                 <button onClick={signOut} className="p-2 rounded-full glass hover:bg-status-emergency/20 transition-colors" aria-label={t('nav.logout')}>
                   <LogOut className="w-5 h-5" />
                 </button>
               </>
             ) : (
-              <a href="#/auth" className="hidden sm:inline-flex btn-primary text-sm items-center gap-1.5">
+              <a href="#/auth" className="hidden sm:inline-flex btn-primary text-sm items-center gap-1.5 group">
                 <LogIn className="w-4 h-4" /> {t('nav.login')}
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
               </a>
             )}
 

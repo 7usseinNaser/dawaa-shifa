@@ -23,12 +23,11 @@ import Onboarding from '@/components/Onboarding';
 import ResetPasswordForm from '@/components/ResetPasswordForm';
 import PrivacySecurity from '@/components/PrivacySecurity';
 import Problem from '@/components/Problem';
-import Roadmap from '@/components/Roadmap';
+
 import ScrollProgress from '@/components/ScrollProgress';
 import SocialShare from '@/components/SocialShare';
 import Solution from '@/components/Solution';
-import StatsDashboard from '@/components/StatsDashboard';
-import TechStack from '@/components/TechStack';
+
 import Testimonials from '@/components/Testimonials';
 import UseCases from '@/components/UseCases';
 import Users from '@/components/Users';
@@ -37,6 +36,8 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { LanguageProvider } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SectionBoundary } from '@/components/ui/SectionBoundary';
+import NotificationBanner from '@/components/NotificationBanner';
 
 const CitizenDashboard = lazy(() => import('@/components/CitizenDashboard'));
 const PharmacistDashboard = lazy(() => import('@/components/PharmacistDashboard'));
@@ -152,6 +153,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-[var(--bg-dark)] text-[var(--text-main)] selection:bg-brand-green/30">
       <OfflineIndicator />
+      <NotificationBanner />
       <ScrollProgress />
       <CustomCursor />
       <BackToTop />
@@ -162,26 +164,23 @@ function AppContent() {
       <Navbar theme={theme} onToggleTheme={toggle} />
 
       <main>
-        <Hero />
+        <SectionBoundary name="hero"><Hero /></SectionBoundary>
         <Problem />
         <Solution />
         <InteractiveDemo />
-        <LiveMap />
+        <SectionBoundary name="live-map"><LiveMap /></SectionBoundary>
         <HowItWorks />
         <Users />
-        <AppPreview />
+        <SectionBoundary name="app-preview"><AppPreview /></SectionBoundary>
         <Comparison />
         <UseCases />
         <WaitTimeCalculator />
-        <StatsDashboard />
-        <LiveFeed />
-        <ImpactMetrics />
+        <SectionBoundary name="live-feed"><LiveFeed /></SectionBoundary>
+        <SectionBoundary name="impact-metrics"><ImpactMetrics /></SectionBoundary>
         <Testimonials />
         <CommunityStories />
         <PrivacySecurity />
-        <TechStack />
         <About />
-        <Roadmap />
         <FAQ />
       </main>
 
