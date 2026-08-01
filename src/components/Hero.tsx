@@ -163,7 +163,7 @@ export default function Hero() {
                 </div>
 
                 {/* Legend — solid dark background for maximum contrast */}
-                <div className="absolute bottom-2 left-2 rounded-lg bg-black/80 backdrop-blur-sm px-3 py-2 space-y-1.5 shadow-lg border border-emerald-500/30">
+                <div className="absolute bottom-2 left-2 rounded-lg bg-slate-950/95 backdrop-blur-sm px-3 py-2.5 space-y-1.5 shadow-2xl border border-emerald-500/40">
                   <div className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-status-open" />
                     <span className="text-xs font-bold text-white">{lang === 'ar' ? 'متاح' : 'Open'}</span>
@@ -183,7 +183,7 @@ export default function Hero() {
                 </div>
 
                 {/* Total count badge */}
-                <div className="absolute bottom-2 right-2 rounded-lg bg-black/80 backdrop-blur-sm px-3 py-1.5 shadow-lg border border-emerald-500/30">
+                <div className="absolute bottom-2 right-2 rounded-lg bg-slate-950/95 backdrop-blur-sm px-3 py-1.5 shadow-2xl border border-emerald-500/40">
                   <span className="text-xs font-bold text-white">{stats.totalCount} {lang === 'ar' ? 'مرفق وصيدلية' : 'facilities'}</span>
                 </div>
 

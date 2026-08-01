@@ -45,7 +45,7 @@ export default function ImpactMetrics() {
       <div ref={ref} className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className={`text-center mb-12 reveal ${visible ? 'visible' : ''}`}>
           <h2 className="font-cairo font-black text-3xl sm:text-4xl lg:text-5xl mb-4">
-            {isRTL ? <>أرقام <span className="text-gradient">تصنع فرقاً</span></> : <>Numbers that <span className="text-gradient">make a difference</span></>}
+            {isRTL ? <>تأثير <span className="text-gradient">حقيقي</span></> : <>Real <span className="text-gradient">Impact</span></>}
           </h2>
         </div>
 

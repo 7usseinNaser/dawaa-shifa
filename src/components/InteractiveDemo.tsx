@@ -89,7 +89,7 @@ export default function InteractiveDemo() {
                 aria-label="بحث الدواء"
               />
               {showSuggest && suggestions.length > 0 && (
-                <div className="absolute top-full mt-2 right-0 left-0 glass-card p-2 z-30 animate-fade-in">
+                <div className="absolute top-full mt-2 right-0 left-0 glass-card p-2 z-50 animate-fade-in shadow-2xl">
                   {suggestions.map((s) => (
                     <button
                       key={s}
