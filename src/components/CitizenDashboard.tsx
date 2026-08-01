@@ -1826,6 +1826,9 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
           </div>
         </motion.div>
 
+        {/* Rating card */}
+        <RatingCard targetId={facility.id} targetType="facility" targetName={facility.name} />
+
         {/* Departments */}
         <div>
           <h3 className="font-cairo font-bold text-lg mb-3 flex items-center gap-2">
@@ -1894,9 +1897,6 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
             )}
           </div>
         </div>
-
-        {/* Rating card */}
-        <RatingCard targetId={facility.id} targetType="facility" targetName={facility.name} />
       </div>
     </div>
   );
@@ -1988,6 +1988,9 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
           </button>
         </div>
 
+        {/* Rating card */}
+        <RatingCard targetId={pharmacy.id} targetType="pharmacy" targetName={pharmacy.name} />
+
         {/* Medicine search */}
         <div className="relative">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-green-light" />
@@ -2035,9 +2038,6 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
             )}
           </div>
         </div>
-
-        {/* Rating card */}
-        <RatingCard targetId={pharmacy.id} targetType="pharmacy" targetName={pharmacy.name} />
       </div>
     </div>
   );
