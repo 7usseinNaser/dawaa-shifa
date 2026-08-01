@@ -2284,19 +2284,56 @@ function AuditLogsList({ logs, onRollback, onLogClick, actionLoading, isRTL }: {
     change_role: <Users className="w-3.5 h-3.5 text-brand-blue-light" />,
   };
   const rollbackable = ['change_role', 'ban_user', 'unban_user', 'freeze_account', 'unfreeze_account', 'verify_pharmacy', 'verify_facility', 'unverify_pharmacy', 'unverify_facility', 'restrict_medicine'];
+  const roleAr: Record<string, string> = { citizen: 'مواطن', pharmacist: 'صيدلي', facility_owner: 'صاحب مرفق', admin: 'أدمن' };
   function formatDetail(log: AuditLog): string {
+    const actor = log.actor_name || (isRTL ? 'النظام' : 'System');
+    const target = log.entity_id || '';
+    const date = new Date(log.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US');
+    const time = new Date(log.created_at).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
     if (log.action === 'change_role' && log.before_state?.role && log.after_state?.role) {
-      const roleAr: Record<string, string> = { citizen: 'مواطن', pharmacist: 'صيدلي', facility_owner: 'صاحب مرفق', admin: 'أدمن' };
       return isRTL
-        ? `غيّر دور ${log.entity_id} من ${roleAr[String(log.before_state.role)] || log.before_state.role} إلى ${roleAr[String(log.after_state.role)] || log.after_state.role}`
-        : `Changed role of ${log.entity_id} from ${log.before_state.role} to ${log.after_state.role}`;
+        ? `قام ${actor} بتغيير صلاحية ${target} من "${roleAr[String(log.before_state.role)] || log.before_state.role}" إلى "${roleAr[String(log.after_state.role)] || log.after_state.role}" بتاريخ ${date} الساعة ${time}`
+        : `${actor} changed role of ${target} from "${log.before_state.role}" to "${log.after_state.role}" on ${date} at ${time}`;
+    }
+    if (log.action === 'ban_user') {
+      return isRTL ? `قام ${actor} بحظر المستخدم ${target} بتاريخ ${date} الساعة ${time}` : `${actor} banned user ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'unban_user') {
+      return isRTL ? `قام ${actor} بإلغاء حظر المستخدم ${target} بتاريخ ${date} الساعة ${time}` : `${actor} unbanned user ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'freeze_account') {
+      return isRTL ? `قام ${actor} بتجميد حساب ${target} بتاريخ ${date} الساعة ${time}` : `${actor} froze account ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'unfreeze_account') {
+      return isRTL ? `قام ${actor} بإلغاء تجميد حساب ${target} بتاريخ ${date} الساعة ${time}` : `${actor} unfroze account ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'verify_pharmacy' || log.action === 'verify_facility') {
+      return isRTL ? `قام ${actor} باعتماد ${target} بتاريخ ${date} الساعة ${time}` : `${actor} verified ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'unverify_pharmacy' || log.action === 'unverify_facility') {
+      return isRTL ? `قام ${actor} بإلغاء اعتماد ${target} بتاريخ ${date} الساعة ${time}` : `${actor} unverified ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'restrict_medicine') {
+      return isRTL ? `قام ${actor} بتقييد الدواء ${target} بتاريخ ${date} الساعة ${time}` : `${actor} restricted medicine ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'soft_delete_pharmacies' || log.action === 'soft_delete_facilities' || log.action === 'soft_delete_medicines') {
+      return isRTL ? `قام ${actor} بنقل ${target} إلى سلة المهملات بتاريخ ${date} الساعة ${time}` : `${actor} moved ${target} to trash on ${date} at ${time}`;
+    }
+    if (log.action === 'restore_pharmacies' || log.action === 'restore_facilities' || log.action === 'restore_medicines') {
+      return isRTL ? `قام ${actor} باستعادة ${target} من سلة المهملات بتاريخ ${date} الساعة ${time}` : `${actor} restored ${target} from trash on ${date} at ${time}`;
+    }
+    if (log.action === 'approve_donation') {
+      return isRTL ? `قام ${actor} بالموافقة على طلب تبرع دواء (${target}) بتاريخ ${date} الساعة ${time}` : `${actor} approved donation (${target}) on ${date} at ${time}`;
+    }
+    if (log.action === 'reject_donation') {
+      return isRTL ? `قام ${actor} برفض طلب تبرع دواء (${target}) بتاريخ ${date} الساعة ${time}` : `${actor} rejected donation (${target}) on ${date} at ${time}`;
     }
     if (log.before_state || log.after_state) {
       const before = log.before_state ? Object.entries(log.before_state).map(([k, v]) => `${k}=${String(v)}`).join(', ') : '';
       const after = log.after_state ? Object.entries(log.after_state).map(([k, v]) => `${k}=${String(v)}`).join(', ') : '';
-      return isRTL ? `قبل: ${before} ← بعد: ${after}` : `Before: ${before} → After: ${after}`;
+      return isRTL ? `قام ${actor} بتعديل ${target} — قبل: ${before} ← بعد: ${after} — بتاريخ ${date} الساعة ${time}` : `${actor} updated ${target} — Before: ${before} → After: ${after} — on ${date} at ${time}`;
     }
-    return log.entity_id;
+    return isRTL ? `قام ${actor} بإجراء "${log.action.replace(/_/g, ' ')}" على ${target} بتاريخ ${date} الساعة ${time}` : `${actor} performed "${log.action.replace(/_/g, ' ')}" on ${target} on ${date} at ${time}`;
   }
   if (logs.length === 0) return (<div className="text-center py-8"><ScrollText className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد سجلات' : 'No audit logs'}</p></div>);
   return (
