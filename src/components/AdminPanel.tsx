@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, ShieldX, Loader2, Building2, Pill, CheckCircle, XCircle,
@@ -18,8 +18,8 @@ import {
   type AuditLog, type FacilityWarning, type SearchLog, type EmergencyBroadcast,
   type MedicineDonation, type BugReport, type BugReportChat,
 } from '@/lib/supabase';
-import { BulkImport } from '@/components/BulkImport';
 import { showToast } from '@/components/ui/Toast';
+const BulkImport = lazy(() => import('@/components/BulkImport').then(m => ({ default: m.BulkImport })));
 
 type Tab = 'pending' | 'pharmacies' | 'facilities' | 'medicines' | 'reviews' | 'users' | 'trash' | 'alerts' | 'exchange' | 'reports' | 'recalls' | 'audit' | 'warnings' | 'heatmap' | 'broadcasts' | 'donations' | 'bugs';
 
@@ -146,15 +146,15 @@ export default function AdminPanel() {
         supabase.from('profiles').select('*'),
         supabase.from('entity_versions').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('admin_alerts').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('med_exchange_requests').select('*').order('created_at', { ascending: false }),
-        supabase.from('data_reports').select('*').order('created_at', { ascending: false }),
-        supabase.from('batch_recalls').select('*').order('created_at', { ascending: false }),
+        supabase.from('med_exchange_requests').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('data_reports').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('batch_recalls').select('*').order('created_at', { ascending: false }).limit(200),
         supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('facility_warnings').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('search_logs').select('*').order('created_at', { ascending: false }).limit(500),
         supabase.from('emergency_broadcasts').select('*').order('created_at', { ascending: false }).limit(50),
         supabase.from('departments').select('*'),
-        supabase.from('medicine_donations').select('*').order('created_at', { ascending: false }),
+        supabase.from('medicine_donations').select('*').order('created_at', { ascending: false }).limit(200),
       ]);
       const phData = (ph.data || []) as Pharmacy[];
       const facData = (fac.data || []) as Facility[];
@@ -181,7 +181,7 @@ export default function AdminPanel() {
       setSearchLogs((slog.data || []) as SearchLog[]);
       setBroadcasts((bcast.data || []) as EmergencyBroadcast[]);
       setDonations((don.data || []) as MedicineDonation[]);
-      const bugs = await supabase.from('bug_reports').select('*').order('created_at', { ascending: false });
+      const bugs = await supabase.from('bug_reports').select('*').order('created_at', { ascending: false }).limit(200);
       setBugReports((bugs.data || []) as BugReport[]);
       const deptData = (dept.data || []) as Department[];
       const deptMap: Record<string, Department[]> = {};
@@ -1028,7 +1028,9 @@ export default function AdminPanel() {
       {/* Bulk Import Modal */}
       <AnimatePresence>
         {showImport && (
-          <BulkImport entityType={showImport} onClose={() => setShowImport(null)} onDone={loadAll} isRTL={isRTL} />
+          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"><Loader2 className="w-8 h-8 animate-spin text-brand-green" /></div>}>
+            <BulkImport entityType={showImport} onClose={() => setShowImport(null)} onDone={loadAll} isRTL={isRTL} />
+          </Suspense>
         )}
       </AnimatePresence>
 

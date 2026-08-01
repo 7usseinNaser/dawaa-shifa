@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader2, Send } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -18,8 +18,8 @@ import ChronicMedicines from '@/components/ChronicMedicines';
 import { FamilyCabinet, RadiusSelector } from '@/components/FamilyCabinet';
 import { GenericFinder } from '@/components/AIFeatures';
 import { AIChatbot } from '@/components/AIChatbot';
-import { OCRScanner } from '@/components/OCRScanner';
-import { BarcodeScanner } from '@/components/BarcodeScanner';
+const OCRScanner = lazy(() => import('@/components/OCRScanner').then(m => ({ default: m.OCRScanner })));
+const BarcodeScanner = lazy(() => import('@/components/BarcodeScanner').then(m => ({ default: m.BarcodeScanner })));
 import { EmergencyMedicalID } from '@/components/EmergencyMedicalID';
 import { DonationHub } from '@/components/DonationHub';
 import type { EmergencyBroadcast } from '@/lib/supabase';
@@ -263,10 +263,12 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
     setNotifications((p) => p.map((n) => ({ ...n, unread: false })));
   };
 
-  /* ---------- Derived stats ---------- */
-  const openPharmacies = pharmacies.filter((p) => p.is_open).length;
-  const activeFacilities = facilities.filter((f) => f.overall_status !== 'closed').length;
-  const emergencyFacilities = facilities.filter((f) => f.overall_status === 'emergency').length;
+  /* ---------- Derived stats (memoized to avoid recompute on every render) ---------- */
+  const { openPharmacies, activeFacilities, emergencyFacilities } = useMemo(() => ({
+    openPharmacies: pharmacies.filter((p) => p.is_open).length,
+    activeFacilities: facilities.filter((f) => f.overall_status !== 'closed').length,
+    emergencyFacilities: facilities.filter((f) => f.overall_status === 'emergency').length,
+  }), [pharmacies, facilities]);
 
   const seniorCls = seniorMode ? 'text-lg' : '';
 
@@ -481,14 +483,18 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
       {/* OCR Scanner Modal */}
       <AnimatePresence>
         {showOCR && (
-          <OCRScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowOCR(false)} isRTL={lang === 'ar'} />
+          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"><div className="w-8 h-8 border-2 border-brand-green border-t-transparent rounded-full animate-spin" /></div>}>
+            <OCRScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowOCR(false)} isRTL={lang === 'ar'} />
+          </Suspense>
         )}
       </AnimatePresence>
 
       {/* Barcode Scanner Modal */}
       <AnimatePresence>
         {showBarcode && (
-          <BarcodeScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowBarcode(false)} isRTL={lang === 'ar'} />
+          <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"><div className="w-8 h-8 border-2 border-brand-green border-t-transparent rounded-full animate-spin" /></div>}>
+            <BarcodeScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowBarcode(false)} isRTL={lang === 'ar'} />
+          </Suspense>
         )}
       </AnimatePresence>
 
