@@ -1,13 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ShieldCheck, ShieldX, Loader2, Building2, Pill, CheckCircle, XCircle,
-  Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity,
-  RotateCcw, Ban, AlertTriangle, Radio, FileText, History, Filter,
-  Search, Flag, Package, AlertOctagon, ExternalLink, Upload,
-  ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift,
-  Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone,
-} from 'lucide-react';
+import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -127,6 +120,8 @@ export default function AdminPanel() {
   const [chatBugReport, setChatBugReport] = useState<BugReport | null>(null);
   const [rejectPending, setRejectPending] = useState<{ table: string; id: string; name: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [reviewPending, setReviewPending] = useState<{ table: string; id: string; name: string } | null>(null);
+  const [reviewReason, setReviewReason] = useState('');
   const [auditDetail, setAuditDetail] = useState<AuditLog | null>(null);
 
   // Filters
@@ -591,7 +586,7 @@ export default function AdminPanel() {
   async function rejectEntity(table: 'pharmacies' | 'facilities', id: string, name: string, reason: string) {
     setActionLoading(id);
     try {
-      const { error } = await supabase.from(table).update({ approval_status: 'rejected', verified: false, rejection_reason: sanitize(reason) }).eq('id', id);
+      const { error } = await supabase.from(table).update({ approval_status: 'rejected', verified: false, rejection_reason: sanitize(reason), review_reason: sanitize(reason), reviewed_at: new Date().toISOString(), resubmitted: false }).eq('id', id);
       if (error) throw error;
       await logAction(`reject_${table}`, name, null, { reason: sanitize(reason) });
       const { data: entity } = await supabase.from(table).select('owner_id').eq('id', id).maybeSingle();
@@ -599,6 +594,25 @@ export default function AdminPanel() {
         await supabase.from('notifications').insert({ user_id: entity.owner_id, title: isRTL ? `تم رفض: ${name}` : `Rejected: ${name}`, body: isRTL ? `سبب الرفض: ${reason}` : `Rejection reason: ${reason}`, type: 'rejection' });
       }
       showToast(isRTL ? `تم رفض: ${name}` : `Rejected: ${name}`);
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function reviewEntity(table: 'pharmacies' | 'facilities', id: string, name: string, reason: string) {
+    setActionLoading(id);
+    try {
+      const { error } = await supabase.from(table).update({ approval_status: 'under_review', verified: false, review_reason: sanitize(reason), reviewed_at: new Date().toISOString(), resubmitted: false }).eq('id', id);
+      if (error) throw error;
+      await logAction(`review_${table}`, name, null, { reason: sanitize(reason) });
+      const { data: entity } = await supabase.from(table).select('owner_id').eq('id', id).maybeSingle();
+      if (entity?.owner_id) {
+        await supabase.from('notifications').insert({ user_id: entity.owner_id, title: isRTL ? `قيد المراجعة: ${name}` : `Under Review: ${name}`, body: isRTL ? `سبب المراجعة: ${reason}` : `Review reason: ${reason}`, type: 'info' });
+      }
+      showToast(isRTL ? `تم وضع: ${name} قيد المراجعة` : `Set under review: ${name}`);
       loadAll();
     } catch {
       showToast(isRTL ? 'فشل' : 'Failed', 'error');
@@ -885,7 +899,7 @@ export default function AdminPanel() {
           ) : (
             <>
               {tab === 'pending' && (
-                <PendingList pharmacies={pharmacies} facilities={facilities} medicines={medicines} departments={departments} onApprove={(t, id, name) => approveEntity(t as 'pharmacies' | 'facilities', id, name)} onReject={(t, id, name) => setRejectPending({ table: t, id, name })} actionLoading={actionLoading} isRTL={isRTL} />
+                <PendingList pharmacies={pharmacies} facilities={facilities} medicines={medicines} departments={departments} onApprove={(t, id, name) => approveEntity(t as 'pharmacies' | 'facilities', id, name)} onReject={(t, id, name) => setRejectPending({ table: t, id, name })} onReview={(t, id, name) => setReviewPending({ table: t, id, name })} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'pharmacies' && (
@@ -935,7 +949,7 @@ export default function AdminPanel() {
               )}
 
               {tab === 'reviews' && (
-                <ReviewsList reviews={filterBySearch(reviews, ['user_name', 'target_name', 'text'])} pharmacies={pharmacies} facilities={facilities} onDelete={(id) => permanentDelete('reviews', id, id.slice(0, 8))} onTargetClick={(type, id, name) => setSelectedReviewTarget({ type, id, name })} actionLoading={actionLoading} isRTL={isRTL} />
+                <ReviewsList reviews={filterBySearch(reviews, ['user_name', 'target_name', 'text'])} pharmacies={pharmacies} facilities={facilities} users={users} auditLogs={auditLogs} dataReports={dataReports} onDelete={(id) => permanentDelete('reviews', id, id.slice(0, 8))} onTargetClick={(type, id, name) => setSelectedReviewTarget({ type, id, name })} onUserClick={(u) => setSelectedUser(u)} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'users' && (
@@ -1115,6 +1129,21 @@ export default function AdminPanel() {
       {/* Chat Modal for Bug Reports */}
       {chatBugReport && (
         <BugReportChatModal report={chatBugReport} adminName={profile?.display_name || 'Admin'} adminId={user?.id || null} isRTL={isRTL} onClose={() => setChatBugReport(null)} />
+      )}
+
+      {/* Review Reason Modal */}
+      {reviewPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setReviewPending(null)}>
+          <div className="glass-card p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-cairo font-bold text-base mb-3 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" />{isRTL ? 'طلب مراجعة' : 'Request Review'}</h3>
+            <p className="text-sm font-tajawal text-[var(--text-soft)] mb-2">{isRTL ? `سيوضع: ${reviewPending.name} قيد المراجعة. أدخل السبب:` : `Set under review: ${reviewPending.name}. Enter reason:`}</p>
+            <textarea value={reviewReason} onChange={(e) => setReviewReason(e.target.value)} rows={3} className="w-full glass rounded-xl p-3 text-sm font-tajawal focus:outline-none focus:border-amber-400 resize-none" placeholder={isRTL ? 'سبب المراجعة...' : 'Review reason...'} />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setReviewPending(null); setReviewReason(''); }} className="btn-secondary flex-1 text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button>
+              <button onClick={() => { reviewEntity(reviewPending.table as 'pharmacies' | 'facilities', reviewPending.id, reviewPending.name, reviewReason || (isRTL ? 'يحتاج مراجعة' : 'Needs review')); setReviewPending(null); setReviewReason(''); }} disabled={!reviewReason.trim()} className="flex-1 text-sm py-2.5 rounded-xl bg-amber-500/20 text-amber-400 font-bold hover:bg-amber-500/30 transition-colors disabled:opacity-50">{isRTL ? 'تأكيد المراجعة' : 'Confirm Review'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Rejection Reason Modal */}
@@ -1524,46 +1553,67 @@ function DonationsList({ donations, pharmacies, facilities, onApprove, onReject,
 }
 
 // ============ Pending List ============
-function PendingList({ pharmacies, facilities, medicines, departments, onApprove, onReject, actionLoading, isRTL }: {
+function PendingList({ pharmacies, facilities, medicines, departments, onApprove, onReject, onReview, actionLoading, isRTL }: {
   pharmacies: Pharmacy[]; facilities: Facility[]; medicines: Medicine[]; departments: Record<string, Department[]>;
   onApprove: (table: string, id: string, name: string) => void;
   onReject: (table: string, id: string, name: string) => void;
+  onReview: (table: string, id: string, name: string) => void;
   actionLoading: string | null; isRTL: boolean;
 }) {
   const [preview, setPreview] = useState<{ type: 'pharmacy' | 'facility'; data: Pharmacy | Facility } | null>(null);
   const pending = [
-    ...pharmacies.filter((p) => !p.verified && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone })),
-    ...facilities.filter((f) => !f.verified && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone })),
+    ...pharmacies.filter((p) => !p.verified && !p.deleted_at && (p.approval_status === 'pending' || p.approval_status === 'under_review' || p.approval_status === 'resubmitted')).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone, status: p.approval_status, reason: p.review_reason || p.rejection_reason || '', reviewedAt: p.reviewed_at || '', resubmitted: p.resubmitted || false })),
+    ...facilities.filter((f) => !f.verified && !f.deleted_at && (f.approval_status === 'pending' || f.approval_status === 'under_review' || f.approval_status === 'resubmitted')).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone, status: f.approval_status, reason: f.review_reason || f.rejection_reason || '', reviewedAt: f.reviewed_at || '', resubmitted: f.resubmitted || false })),
   ];
+  // Sort: resubmitted first (priority), then under_review, then pending
+  pending.sort((a, b) => {
+    const order: Record<string, number> = { resubmitted: 0, under_review: 1, pending: 2 };
+    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+  });
   if (pending.length === 0) return (<div className="text-center py-8"><CheckCircle className="w-10 h-10 mx-auto mb-3 text-status-open" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد تسجيلات معلّقة' : 'No pending registrations'}</p></div>);
+  const statusBadge: Record<string, { cls: string; label: string; labelEn: string }> = {
+    pending: { cls: 'bg-amber-500/20 text-amber-400', label: 'معلّق', labelEn: 'Pending' },
+    under_review: { cls: 'bg-brand-blue/20 text-brand-blue-light', label: 'قيد المراجعة', labelEn: 'Under Review' },
+    resubmitted: { cls: 'bg-status-emergency/20 text-status-emergency', label: 'أعيد إرسالها', labelEn: 'Resubmitted' },
+  };
   return (
     <div className="space-y-3">
       <AnimatePresence>
         {preview && (
-          <PendingPreviewModal data={preview.data} type={preview.type} medicines={medicines} departments={departments} onClose={() => setPreview(null)} onApprove={(t, id, name) => { onApprove(t, id, name); setPreview(null); }} onReject={(t, id, name) => { onReject(t, id, name); setPreview(null); }} actionLoading={actionLoading} isRTL={isRTL} />
+          <PendingPreviewModal data={preview.data} type={preview.type} medicines={medicines} departments={departments} onClose={() => setPreview(null)} onApprove={(t, id, name) => { onApprove(t, id, name); setPreview(null); }} onReject={(t, id, name) => { onReject(t, id, name); setPreview(null); }} onReview={(t, id, name) => { onReview(t, id, name); setPreview(null); }} actionLoading={actionLoading} isRTL={isRTL} />
         )}
       </AnimatePresence>
-      {pending.map((item) => (
-        <div key={item.id} className="glass-card p-4 flex items-center justify-between gap-3 cursor-pointer hover:border-brand-green/40 transition-colors" onClick={() => setPreview({ type: item.type, data: item.type === 'pharmacy' ? pharmacies.find((p) => p.id === item.id)! : facilities.find((f) => f.id === item.id)! })}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.type === 'pharmacy' ? 'bg-brand-green/20' : 'bg-brand-blue/20'}`}>
-              {item.type === 'pharmacy' ? <Pill className="w-5 h-5 text-brand-green-light" /> : <Building2 className="w-5 h-5 text-brand-blue-light" />}
+      {pending.map((item) => {
+        const badge = statusBadge[item.status] || statusBadge.pending;
+        return (
+          <div key={item.id} className="glass-card p-4 flex items-center justify-between gap-3 cursor-pointer hover:border-brand-green/40 transition-colors" onClick={() => setPreview({ type: item.type, data: item.type === 'pharmacy' ? pharmacies.find((p) => p.id === item.id)! : facilities.find((f) => f.id === item.id)! })}>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.type === 'pharmacy' ? 'bg-brand-green/20' : 'bg-brand-blue/20'}`}>
+                {item.type === 'pharmacy' ? <Pill className="w-5 h-5 text-brand-green-light" /> : <Building2 className="w-5 h-5 text-brand-blue-light" />}
+              </div>
+              <div className="min-w-0">
+                <div className="font-cairo font-bold text-sm truncate">{item.name}</div>
+                <div className="text-xs text-[var(--text-muted)] font-tajawal">{item.type === 'pharmacy' ? (isRTL ? 'صيدلية' : 'Pharmacy') : (isRTL ? 'مرفق' : 'Facility')} · {item.area} · {item.phone}</div>
+                {item.reason && <div className="text-xs text-amber-400 font-tajawal mt-0.5 truncate">{isRTL ? 'السبب:' : 'Reason:'} {item.reason}</div>}
+              </div>
             </div>
-            <div className="min-w-0">
-              <div className="font-cairo font-bold text-sm truncate">{item.name}</div>
-              <div className="text-xs text-[var(--text-muted)] font-tajawal">{item.type === 'pharmacy' ? (isRTL ? 'صيدلية' : 'Pharmacy') : (isRTL ? 'مرفق' : 'Facility')} · {item.area} · {item.phone}</div>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${badge.cls}`}>{isRTL ? badge.label : badge.labelEn}{item.resubmitted ? (isRTL ? ' ⚡' : ' ⚡') : ''}</span>
+              <div className="flex gap-2">
+                <button onClick={(e) => { e.stopPropagation(); onApprove(item.type === 'pharmacy' ? 'pharmacies' : 'facilities', item.id, item.name); }} disabled={actionLoading === item.id} className="px-3 py-2 rounded-xl bg-status-open/15 text-status-open text-xs font-bold flex items-center gap-1 disabled:opacity-50">
+                  {actionLoading === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{isRTL ? 'تأكيد' : 'Approve'}
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); onReview(item.type === 'pharmacy' ? 'pharmacies' : 'facilities', item.id, item.name); }} disabled={actionLoading === item.id} className="px-3 py-2 rounded-xl bg-brand-blue/15 text-brand-blue-light text-xs font-bold flex items-center gap-1 disabled:opacity-50">
+                  <AlertTriangle className="w-3.5 h-3.5" />{isRTL ? 'مراجعة' : 'Review'}
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); onReject(item.type === 'pharmacy' ? 'pharmacies' : 'facilities', item.id, item.name); }} disabled={actionLoading === item.id} className="px-3 py-2 rounded-xl bg-status-emergency/15 text-status-emergency text-xs font-bold flex items-center gap-1 disabled:opacity-50">
+                  <XCircle className="w-3.5 h-3.5" />{isRTL ? 'رفض' : 'Reject'}
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <button onClick={() => onApprove(item.type === 'pharmacy' ? 'pharmacies' : 'facilities', item.id, item.name)} disabled={actionLoading === item.id} className="px-3 py-2 rounded-xl bg-status-open/15 text-status-open text-xs font-bold flex items-center gap-1 disabled:opacity-50">
-              {actionLoading === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{isRTL ? 'تأكيد' : 'Approve'}
-            </button>
-            <button onClick={() => onReject(item.type === 'pharmacy' ? 'pharmacies' : 'facilities', item.id, item.name)} disabled={actionLoading === item.id} className="px-3 py-2 rounded-xl bg-status-emergency/15 text-status-emergency text-xs font-bold flex items-center gap-1 disabled:opacity-50">
-              <XCircle className="w-3.5 h-3.5" />{isRTL ? 'رفض' : 'Reject'}
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1655,7 +1705,7 @@ function MedicinesList({ medicines, pharmacies, pharmFilter, setPharmFilter, onA
 }
 
 // ============ Reviews List (Enhanced) ============
-function ReviewsList({ reviews, pharmacies, facilities, onDelete, onTargetClick, actionLoading, isRTL }: { reviews: Review[]; pharmacies: Pharmacy[]; facilities: Facility[]; onDelete: (id: string) => void; onTargetClick: (type: 'facility' | 'pharmacy', id: string, name: string) => void; actionLoading: string | null; isRTL: boolean; }) {
+function ReviewsList({ reviews, pharmacies, facilities, users, auditLogs, dataReports, onDelete, onTargetClick, onUserClick, actionLoading, isRTL }: { reviews: Review[]; pharmacies: Pharmacy[]; facilities: Facility[]; users: Profile[]; auditLogs: AuditLog[]; dataReports: DataReport[]; onDelete: (id: string) => void; onTargetClick: (type: 'facility' | 'pharmacy', id: string, name: string) => void; onUserClick: (u: Profile) => void; actionLoading: string | null; isRTL: boolean; }) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'pharmacy' | 'facility'>('all');
   const [starFilter, setStarFilter] = useState<number>(0);
   const filtered = reviews.filter((r) => (typeFilter === 'all' || r.target_type === typeFilter) && (starFilter === 0 || r.rating === starFilter));
@@ -1698,10 +1748,36 @@ function ReviewsList({ reviews, pharmacies, facilities, onDelete, onTargetClick,
                   <div key={r.id} className="flex items-start justify-between gap-2 ps-6">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-cairo font-bold">{r.anon ? (isRTL ? 'مجهول' : 'Anonymous') : r.user_name}</span>
+                        {r.anon ? (
+                        <span className="text-xs font-cairo font-bold">{isRTL ? 'مجهول' : 'Anonymous'}</span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const u = users.find((x) => x.id === r.user_id || x.display_name === r.user_name);
+                            if (u) onUserClick(u);
+                          }}
+                          className="text-xs font-cairo font-bold hover:text-brand-blue-light transition-colors cursor-pointer"
+                        >
+                          {r.user_name}
+                        </button>
+                      )}
                         <div className="flex">{[1, 2, 3, 4, 5].map((n) => (<Star key={n} className={`w-2.5 h-2.5 ${n <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-[var(--border-subtle)]'}`} />))}</div>
                       </div>
                       {r.text && <p className="text-[10px] font-tajawal text-[var(--text-soft)] truncate">{r.text}</p>}
+                      {(() => {
+                        const u = users.find((x) => x.id === r.user_id || x.display_name === r.user_name);
+                        if (!u || r.anon) return null;
+                        const userReviews = reviews.filter((rv) => (rv.user_id === u.id || rv.user_name === u.display_name) && !rv.anon);
+                        const userReports = dataReports.filter((dr) => dr.reporter_id === u.id);
+                        return (
+                          <div className="text-[9px] text-[var(--text-muted)] font-tajawal mt-0.5">
+                            {u.email && <span>{u.email}</span>}
+                            {u.phone && <span> · {u.phone}</span>}
+                            <span> · {isRTL ? 'تقييمات' : 'Reviews'}: {userReviews.length}</span>
+                            <span> · {isRTL ? 'بلاغات' : 'Reports'}: {userReports.length}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <button onClick={() => onDelete(r.id)} disabled={actionLoading === r.id} className="p-1 rounded-lg glass hover:bg-status-emergency/15 transition-colors disabled:opacity-50 shrink-0">{actionLoading === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3 text-status-emergency" />}</button>
                   </div>
@@ -1726,8 +1802,20 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
   onUserClick: (u: Profile) => void;
   actionLoading: string | null; isRTL: boolean;
 }) {
-  const filtered = users.filter((u) => !u.deleted_at && (roleFilter === 'all' || u.role === roleFilter));
+  const [search, setSearch] = useState('');
   const roleLabels: Record<string, string> = { all: isRTL ? 'الكل' : 'All', citizen: isRTL ? 'مواطن' : 'Citizen', pharmacist: isRTL ? 'صيدلي' : 'Pharmacist', facility_owner: isRTL ? 'صاحب مرفق' : 'Facility Owner', admin: isRTL ? 'أدمن' : 'Admin' };
+  const q = search.trim().toLowerCase();
+  const filtered = users.filter((u) => {
+    if (u.deleted_at) return false;
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+    if (!q) return true;
+    return (
+      (u.display_name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.unique_id || '').toLowerCase().includes(q) ||
+      (u.phone || '').toLowerCase().includes(q)
+    );
+  });
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1738,6 +1826,13 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
           ))}
         </div>
       </div>
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={isRTL ? 'بحث بالاسم أو البريد أو الـ ID أو الهاتف...' : 'Search by name, email, ID, or phone...'}
+        className="w-full glass rounded-xl px-4 py-2.5 text-sm font-tajawal focus:outline-none focus:border-brand-green transition-colors"
+      />
       {filtered.length === 0 ? (<p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-6">{isRTL ? 'لا يوجد مستخدمون' : 'No users'}</p>) : (
         <div className="space-y-2 max-h-[50vh] overflow-y-auto">
           {filtered.map((u) => (
@@ -1747,8 +1842,17 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
                 {u.banned && <Ban className="w-4 h-4 shrink-0 text-status-emergency" />}
                 {u.frozen && <Snowflake className="w-4 h-4 shrink-0 text-brand-blue-light" />}
                 <div className="min-w-0">
-                  <div className="font-cairo font-bold text-sm truncate hover:text-brand-blue-light transition-colors">{u.display_name}</div>
-                  <div className="text-xs text-[var(--text-muted)] font-tajawal">{u.role}{u.phone ? ' · ' + u.phone : ''}{u.banned ? ` · ${isRTL ? 'محظور' : 'banned'}` : ''}{u.frozen ? ` · ${isRTL ? 'مجمّد' : 'frozen'}` : ''}</div>
+                  <div className="font-cairo font-bold text-sm truncate hover:text-brand-blue-light transition-colors">
+                    {u.display_name}
+                    {u.unique_id && <span className="text-[10px] text-brand-blue-light font-mono mr-1.5 px-1.5 py-0.5 rounded bg-brand-blue/10">{u.unique_id}</span>}
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)] font-tajawal truncate">
+                    {u.email && <span>{u.email}</span>}
+                    {u.phone && <span> · {u.phone}</span>}
+                    <span> · {u.role}</span>
+                    {u.banned && <span> · {isRTL ? 'محظور' : 'banned'}</span>}
+                    {u.frozen && <span> · {isRTL ? 'مجمّد' : 'frozen'}</span>}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-1.5 shrink-0">
@@ -2256,19 +2360,56 @@ function AuditLogsList({ logs, onRollback, onLogClick, actionLoading, isRTL }: {
     change_role: <Users className="w-3.5 h-3.5 text-brand-blue-light" />,
   };
   const rollbackable = ['change_role', 'ban_user', 'unban_user', 'freeze_account', 'unfreeze_account', 'verify_pharmacy', 'verify_facility', 'unverify_pharmacy', 'unverify_facility', 'restrict_medicine'];
+  const roleAr: Record<string, string> = { citizen: 'مواطن', pharmacist: 'صيدلي', facility_owner: 'صاحب مرفق', admin: 'أدمن' };
   function formatDetail(log: AuditLog): string {
+    const actor = log.actor_name || (isRTL ? 'النظام' : 'System');
+    const target = log.entity_id || '';
+    const date = new Date(log.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US');
+    const time = new Date(log.created_at).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
     if (log.action === 'change_role' && log.before_state?.role && log.after_state?.role) {
-      const roleAr: Record<string, string> = { citizen: 'مواطن', pharmacist: 'صيدلي', facility_owner: 'صاحب مرفق', admin: 'أدمن' };
       return isRTL
-        ? `غيّر دور ${log.entity_id} من ${roleAr[String(log.before_state.role)] || log.before_state.role} إلى ${roleAr[String(log.after_state.role)] || log.after_state.role}`
-        : `Changed role of ${log.entity_id} from ${log.before_state.role} to ${log.after_state.role}`;
+        ? `قام ${actor} بتغيير صلاحية ${target} من "${roleAr[String(log.before_state.role)] || log.before_state.role}" إلى "${roleAr[String(log.after_state.role)] || log.after_state.role}" بتاريخ ${date} الساعة ${time}`
+        : `${actor} changed role of ${target} from "${log.before_state.role}" to "${log.after_state.role}" on ${date} at ${time}`;
+    }
+    if (log.action === 'ban_user') {
+      return isRTL ? `قام ${actor} بحظر المستخدم ${target} بتاريخ ${date} الساعة ${time}` : `${actor} banned user ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'unban_user') {
+      return isRTL ? `قام ${actor} بإلغاء حظر المستخدم ${target} بتاريخ ${date} الساعة ${time}` : `${actor} unbanned user ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'freeze_account') {
+      return isRTL ? `قام ${actor} بتجميد حساب ${target} بتاريخ ${date} الساعة ${time}` : `${actor} froze account ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'unfreeze_account') {
+      return isRTL ? `قام ${actor} بإلغاء تجميد حساب ${target} بتاريخ ${date} الساعة ${time}` : `${actor} unfroze account ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'verify_pharmacy' || log.action === 'verify_facility') {
+      return isRTL ? `قام ${actor} باعتماد ${target} بتاريخ ${date} الساعة ${time}` : `${actor} verified ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'unverify_pharmacy' || log.action === 'unverify_facility') {
+      return isRTL ? `قام ${actor} بإلغاء اعتماد ${target} بتاريخ ${date} الساعة ${time}` : `${actor} unverified ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'restrict_medicine') {
+      return isRTL ? `قام ${actor} بتقييد الدواء ${target} بتاريخ ${date} الساعة ${time}` : `${actor} restricted medicine ${target} on ${date} at ${time}`;
+    }
+    if (log.action === 'soft_delete_pharmacies' || log.action === 'soft_delete_facilities' || log.action === 'soft_delete_medicines') {
+      return isRTL ? `قام ${actor} بنقل ${target} إلى سلة المهملات بتاريخ ${date} الساعة ${time}` : `${actor} moved ${target} to trash on ${date} at ${time}`;
+    }
+    if (log.action === 'restore_pharmacies' || log.action === 'restore_facilities' || log.action === 'restore_medicines') {
+      return isRTL ? `قام ${actor} باستعادة ${target} من سلة المهملات بتاريخ ${date} الساعة ${time}` : `${actor} restored ${target} from trash on ${date} at ${time}`;
+    }
+    if (log.action === 'approve_donation') {
+      return isRTL ? `قام ${actor} بالموافقة على طلب تبرع دواء (${target}) بتاريخ ${date} الساعة ${time}` : `${actor} approved donation (${target}) on ${date} at ${time}`;
+    }
+    if (log.action === 'reject_donation') {
+      return isRTL ? `قام ${actor} برفض طلب تبرع دواء (${target}) بتاريخ ${date} الساعة ${time}` : `${actor} rejected donation (${target}) on ${date} at ${time}`;
     }
     if (log.before_state || log.after_state) {
       const before = log.before_state ? Object.entries(log.before_state).map(([k, v]) => `${k}=${String(v)}`).join(', ') : '';
       const after = log.after_state ? Object.entries(log.after_state).map(([k, v]) => `${k}=${String(v)}`).join(', ') : '';
-      return isRTL ? `قبل: ${before} ← بعد: ${after}` : `Before: ${before} → After: ${after}`;
+      return isRTL ? `قام ${actor} بتعديل ${target} — قبل: ${before} ← بعد: ${after} — بتاريخ ${date} الساعة ${time}` : `${actor} updated ${target} — Before: ${before} → After: ${after} — on ${date} at ${time}`;
     }
-    return log.entity_id;
+    return isRTL ? `قام ${actor} بإجراء "${log.action.replace(/_/g, ' ')}" على ${target} بتاريخ ${date} الساعة ${time}` : `${actor} performed "${log.action.replace(/_/g, ' ')}" on ${target} on ${date} at ${time}`;
   }
   if (logs.length === 0) return (<div className="text-center py-8"><ScrollText className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد سجلات' : 'No audit logs'}</p></div>);
   return (
@@ -2434,7 +2575,7 @@ function WarningForm({ editing, facilities, pharmacies, onClose, onSend, actionL
 }
 
 // ============ Pending Preview Modal ============
-function PendingPreviewModal({ data, type, medicines, departments, onClose, onApprove, onReject, actionLoading, isRTL }: {
+function PendingPreviewModal({ data, type, medicines, departments, onClose, onApprove, onReject, onReview, actionLoading, isRTL }: {
   data: Pharmacy | Facility;
   type: 'pharmacy' | 'facility';
   medicines: Medicine[];
@@ -2442,6 +2583,7 @@ function PendingPreviewModal({ data, type, medicines, departments, onClose, onAp
   onClose: () => void;
   onApprove: (table: string, id: string, name: string) => void;
   onReject: (table: string, id: string, name: string) => void;
+  onReview: (table: string, id: string, name: string) => void;
   actionLoading: string | null;
   isRTL: boolean;
 }) {
@@ -2528,6 +2670,10 @@ function PendingPreviewModal({ data, type, medicines, departments, onClose, onAp
           <button onClick={() => onApprove(table, data.id, name)} disabled={actionLoading === data.id} className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
             {actionLoading === data.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
             {isRTL ? 'اعتماد' : 'Approve'}
+          </button>
+          <button onClick={() => onReview(table, data.id, name)} disabled={actionLoading === data.id} className="text-sm px-4 py-2.5 rounded-xl bg-brand-blue/15 text-brand-blue-light font-bold flex items-center gap-1.5 disabled:opacity-50">
+            <AlertTriangle className="w-4 h-4" />
+            {isRTL ? 'مراجعة' : 'Review'}
           </button>
           <button onClick={() => onReject(table, data.id, name)} disabled={actionLoading === data.id} className="btn-secondary text-sm px-4 flex items-center gap-1.5 text-status-emergency disabled:opacity-50">
             <XCircle className="w-4 h-4" />

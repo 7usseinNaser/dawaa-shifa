@@ -107,25 +107,22 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
         </p>
       </div>
 
-      {/* Donate button */}
+      {/* Primary action: donate medicine */}
       <button onClick={() => setShowForm(true)} className="btn-primary w-full flex items-center justify-center gap-2">
         <Plus className="w-5 h-5" />
-        {isRTL ? 'تبرع بدواء' : 'Donate Medicine'}
+        {isRTL ? '+ تبرع بدواء' : '+ Donate Medicine'}
       </button>
 
-      {/* WhatsApp Donation CTA */}
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => onOpenModal?.('medicine')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
-          <Gift className="w-5 h-5 mx-auto mb-1 text-brand-green-light" />
-          <div className="font-cairo font-bold text-xs">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
-          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'تواصل مباشر' : 'Direct contact'}</div>
-        </button>
-        <button onClick={() => onOpenModal?.('platform')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
-          <Heart className="w-5 h-5 mx-auto mb-1 text-brand-blue-light" />
-          <div className="font-cairo font-bold text-xs">{isRTL ? 'دعم المنصة' : 'Support Platform'}</div>
-          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي' : 'Financial support'}</div>
-        </button>
-      </div>
+      {/* Secondary action: support platform via DonationModal */}
+      <button onClick={() => onOpenModal?.('platform')} className="glass-card p-3 rounded-2xl w-full flex items-center gap-3 hover:scale-[1.01] transition-transform">
+        <div className="w-10 h-10 rounded-xl bg-brand-blue/15 flex items-center justify-center shrink-0">
+          <Heart className="w-5 h-5 text-brand-blue-light" />
+        </div>
+        <div className="text-right">
+          <div className="font-cairo font-bold text-sm">{isRTL ? 'دعم المنصة' : 'Support Platform'}</div>
+          <div className="text-[10px] font-tajawal text-[var(--text-muted)]">{isRTL ? 'دعم مالي للعمليات' : 'Financial support for operations'}</div>
+        </div>
+      </button>
 
       {/* Donations list */}
       <div>

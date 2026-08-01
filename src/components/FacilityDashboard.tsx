@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Moon, Pencil, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Plus, RotateCcw, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
@@ -20,6 +20,8 @@ interface DeptForm {
   status: FacilityStatus;
   waiting_count: string;
   estimated_clear_time: string;
+  avg_service_time_minutes: string;
+  department_capacity: string;
 }
 
 const emptyDeptForm: DeptForm = {
@@ -28,6 +30,8 @@ const emptyDeptForm: DeptForm = {
   status: 'open',
   waiting_count: '0',
   estimated_clear_time: '',
+  avg_service_time_minutes: '15',
+  department_capacity: '20',
 };
 
 const STATUS_OPTIONS: FacilityStatus[] = ['open', 'busy', 'emergency', 'closed'];
@@ -316,6 +320,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       status: dept.status,
       waiting_count: String(dept.waiting_count),
       estimated_clear_time: dept.estimated_clear_time,
+      avg_service_time_minutes: String(dept.avg_service_time_minutes ?? 15),
+      department_capacity: String(dept.department_capacity ?? 20),
     });
     setModalOpen(true);
   }
@@ -338,6 +344,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
           status: deptForm.status,
           waiting_count: waiting,
           estimated_clear_time: deptForm.estimated_clear_time.trim(),
+          avg_service_time_minutes: parseInt(deptForm.avg_service_time_minutes) || 15,
+          department_capacity: parseInt(deptForm.department_capacity) || 20,
+          current_queue_count: waiting,
           last_updated: new Date().toISOString(),
         })
         .eq('id', editingDept.id);
@@ -356,6 +365,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         status: deptForm.status,
         waiting_count: waiting,
         estimated_clear_time: deptForm.estimated_clear_time.trim(),
+        avg_service_time_minutes: parseInt(deptForm.avg_service_time_minutes) || 15,
+        department_capacity: parseInt(deptForm.department_capacity) || 20,
+        current_queue_count: waiting,
         open_time: '',
         close_time: '',
         last_updated: new Date().toISOString(),
@@ -551,7 +563,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                   <Heart className="w-5 h-5 text-brand-green-light" />
                   <div className="text-right">
                     <div className="font-bold text-sm">{isRTL ? 'ساهم في إنقاذ الأرواح' : 'Help Save Lives'}</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">{isRTL ? 'دعم المنصة' : 'Support Platform'}</div>
                   </div>
                 </button>
               </div>
@@ -618,6 +630,50 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                       </div>
                     </div>
                   </div>
+
+                  {/* Review status banner (under_review / rejected / resubmitted) */}
+                  {(facility.approval_status === 'under_review' || facility.approval_status === 'rejected' || facility.approval_status === 'resubmitted') && (
+                    <div className={`glass-card p-5 border-2 ${facility.approval_status === 'rejected' ? 'border-status-emergency/40 bg-status-emergency/5' : facility.approval_status === 'resubmitted' ? 'border-brand-blue/40 bg-brand-blue/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${facility.approval_status === 'rejected' ? 'text-status-emergency' : 'text-amber-400'}`} />
+                        <div className="flex-1">
+                          <p className="font-cairo font-bold text-sm mb-1">
+                            {facility.approval_status === 'rejected'
+                              ? (isRTL ? 'تم رفض مرفقك' : 'Your facility was rejected')
+                              : facility.approval_status === 'resubmitted'
+                              ? (isRTL ? 'تمت إعادة الإرسال — بانتظار المراجعة' : 'Resubmitted — awaiting review')
+                              : (isRTL ? 'مرفقك قيد المراجعة' : 'Your facility is under review')}
+                          </p>
+                          {(facility.review_reason || facility.rejection_reason) && (
+                            <p className="text-xs font-tajawal text-[var(--text-soft)] mb-2">
+                              {isRTL ? 'السبب: ' : 'Reason: '}{facility.review_reason || facility.rejection_reason}
+                            </p>
+                          )}
+                          {facility.reviewed_at && (
+                            <p className="text-[10px] text-[var(--text-muted)] font-tajawal mb-3">
+                              {isRTL ? 'آخر مراجعة: ' : 'Last review: '}{new Date(facility.reviewed_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}
+                            </p>
+                          )}
+                          {facility.approval_status !== 'resubmitted' && (
+                            <button
+                              onClick={async () => {
+                                if (!facility || !user) return;
+                                await supabase.from('facilities').update({ approval_status: 'resubmitted', resubmitted: true, resubmitted_at: new Date().toISOString() }).eq('id', facility.id);
+                                await supabase.from('audit_logs').insert({ actor_id: user.id, actor_name: profile?.display_name || user.email || '', action: 'resubmit_facility', entity_type: 'facility', entity_id: facility.id, details: { name: facility.name } });
+                                await supabase.from('notifications').insert({ user_id: user.id, title: isRTL ? 'تمت إعادة إرسال مرفقك للمراجعة' : 'Facility resubmitted for review', body: isRTL ? 'سيقوم الأدمن بمراجعة طلبك قريباً' : 'An admin will review your request soon', type: 'info' });
+                                setFacility({ ...facility, approval_status: 'resubmitted', resubmitted: true, resubmitted_at: new Date().toISOString() });
+                                showToast(isRTL ? 'تمت إعادة الإرسال للمراجعة' : 'Resubmitted for review');
+                              }}
+                              className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              {isRTL ? 'تم التعديل — إعادة إرسال للمراجعة' : 'Edited — Resubmit for review'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Global status control card */}
                   <div className="glass-card p-6 border border-red-500/40 bg-red-500/10">
@@ -824,6 +880,55 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                                 {d.estimated_clear_time || '—'}
                               </span>
                             </div>
+                          </div>
+
+                          {/* Wait-time badge */}
+                          {(() => {
+                            const queue = d.current_queue_count ?? d.waiting_count ?? 0;
+                            const serviceTime = d.avg_service_time_minutes ?? 15;
+                            const capacity = d.department_capacity ?? 20;
+                            const waitMin = queue * serviceTime;
+                            const occPct = capacity > 0 ? Math.min(100, Math.round((queue / capacity) * 100)) : 0;
+                            const waitLevel = queue === 0 ? 'none' : waitMin < 15 ? 'green' : waitMin <= 45 ? 'yellow' : 'red';
+                            const levelClasses: Record<string, string> = {
+                              green: 'bg-status-open/20 text-status-open border-status-open/40',
+                              yellow: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
+                              red: 'bg-status-emergency/20 text-status-emergency border-status-emergency/40',
+                              none: 'bg-status-open/20 text-status-open border-status-open/40',
+                            };
+                            return (
+                              <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold ${levelClasses[waitLevel]}`}>
+                                {queue === 0
+                                  ? (isRTL ? 'دخول مباشر — لا يوجد انتظار' : 'Direct entry — no wait')
+                                  : (isRTL ? `${waitMin} دقيقة انتظار — إشغال ${occPct}%` : `${waitMin} min wait — ${occPct}% occupancy`)}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Queue management controls */}
+                          <div className="flex items-center gap-2 mt-3">
+                            <span className="text-xs text-[var(--text-muted)] font-tajawal">{isRTL ? 'تعديل الطابور:' : 'Adjust queue:'}</span>
+                            <button
+                              onClick={async () => {
+                                const next = Math.max(0, (d.current_queue_count ?? d.waiting_count) - 1);
+                                await supabase.from('departments').update({ current_queue_count: next, waiting_count: next, last_updated: new Date().toISOString() }).eq('id', d.id);
+                                setDepartments((prev) => prev.map((x) => x.id === d.id ? { ...x, current_queue_count: next, waiting_count: next } : x));
+                              }}
+                              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/15 flex items-center justify-center transition-colors"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="font-bold text-sm w-8 text-center">{d.current_queue_count ?? d.waiting_count}</span>
+                            <button
+                              onClick={async () => {
+                                const next = (d.current_queue_count ?? d.waiting_count) + 1;
+                                await supabase.from('departments').update({ current_queue_count: next, waiting_count: next, last_updated: new Date().toISOString() }).eq('id', d.id);
+                                setDepartments((prev) => prev.map((x) => x.id === d.id ? { ...x, current_queue_count: next, waiting_count: next } : x));
+                              }}
+                              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-brand-green/15 flex items-center justify-center transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
                           </div>
 
                           <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
@@ -1049,6 +1154,20 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                     value={deptForm.estimated_clear_time}
                     onChange={(v) => setDeptForm({ ...deptForm, estimated_clear_time: v })}
                     placeholder={isRTL ? '30 د' : '30 min'}
+                  />
+                  <SetupField
+                    label={isRTL ? 'متوسط وقت الخدمة (دقيقة)' : 'Avg service time (min)'}
+                    value={deptForm.avg_service_time_minutes}
+                    onChange={(v) => setDeptForm({ ...deptForm, avg_service_time_minutes: v })}
+                    placeholder="15"
+                    type="number"
+                  />
+                  <SetupField
+                    label={isRTL ? 'سعة القسم (عدد أشخاص)' : 'Department capacity (people)'}
+                    value={deptForm.department_capacity}
+                    onChange={(v) => setDeptForm({ ...deptForm, department_capacity: v })}
+                    placeholder="20"
+                    type="number"
                   />
                 </div>
               </div>

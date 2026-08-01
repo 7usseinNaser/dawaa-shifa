@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Heart, Chrome as Home, Info, LogOut, Moon, Package, Pencil, Pill, Plus, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Heart, Chrome as Home, Info, LogOut, Moon, Package, Pencil, Pill, Plus, RotateCcw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
@@ -18,9 +18,11 @@ interface MedForm {
   price: string;
   quantity: string;
   expiry_date: string;
+  has_alternative: 'yes' | 'no';
+  alternative_medicine_id: string;
 }
 
-const emptyMedForm: MedForm = { medicine_name: '', generic_name: '', price: '', quantity: '', expiry_date: '' };
+const emptyMedForm: MedForm = { medicine_name: '', generic_name: '', price: '', quantity: '', expiry_date: '', has_alternative: 'no', alternative_medicine_id: '' };
 
 export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: 'dark' | 'light'; onToggleTheme: () => void }) {
   const { user, profile, signOut } = useAuth();
@@ -30,6 +32,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const [tab, setTab] = useState<Tab>('home');
   const [pharmacy, setPharmacy] = useState<Pharmacy | null>(null);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [allMedicines, setAllMedicines] = useState<Medicine[]>([]);
   const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,6 +100,13 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       .eq('pharmacy_id', pharmacyId)
       .order('medicine_name', { ascending: true });
     if (data) setMedicines(data as Medicine[]);
+    // Also fetch all medicines for the alternative dropdown (global list)
+    const { data: allData } = await supabase
+      .from('medicines')
+      .select('id, medicine_name, generic_name, pharmacy_id')
+      .order('medicine_name', { ascending: true })
+      .limit(200);
+    if (allData) setAllMedicines(allData as Medicine[]);
   }
 
   async function loadActivity(userId: string) {
@@ -253,6 +263,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       price: String(med.price),
       quantity: String(med.quantity),
       expiry_date: med.expiry_date || '',
+      has_alternative: med.alternative_medicine_id ? 'yes' : 'no',
+      alternative_medicine_id: med.alternative_medicine_id || '',
     });
     setModalOpen(true);
   }
@@ -267,6 +279,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     const quantity = parseInt(medForm.quantity, 10) || 0;
 
     setSaving(true);
+    const altId = medForm.has_alternative === 'yes' && medForm.alternative_medicine_id ? medForm.alternative_medicine_id : null;
     if (editingMed) {
       const { error } = await supabase
         .from('medicines')
@@ -276,6 +289,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           price,
           quantity,
           expiry_date: medForm.expiry_date || null,
+          alternative_medicine_id: altId,
           last_updated: new Date().toISOString(),
         })
         .eq('id', editingMed.id);
@@ -296,6 +310,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           price,
           quantity,
           expiry_date: medForm.expiry_date || null,
+          alternative_medicine_id: altId,
           last_updated: new Date().toISOString(),
         });
       setSaving(false);
@@ -504,7 +519,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                   <Heart className="w-5 h-5 text-brand-green-light" />
                   <div className="text-right">
                     <div className="font-bold text-sm">{isRTL ? 'ساهم في إنقاذ الأرواح' : 'Help Save Lives'}</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">{isRTL ? 'دعم المنصة' : 'Support Platform'}</div>
                   </div>
                 </button>
               </div>
@@ -566,6 +581,50 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                       </div>
                     </div>
                   </div>
+
+                  {/* Review status banner (under_review / rejected / resubmitted) */}
+                  {(pharmacy.approval_status === 'under_review' || pharmacy.approval_status === 'rejected' || pharmacy.approval_status === 'resubmitted') && (
+                    <div className={`glass-card p-5 border-2 ${pharmacy.approval_status === 'rejected' ? 'border-status-emergency/40 bg-status-emergency/5' : pharmacy.approval_status === 'resubmitted' ? 'border-brand-blue/40 bg-brand-blue/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${pharmacy.approval_status === 'rejected' ? 'text-status-emergency' : 'text-amber-400'}`} />
+                        <div className="flex-1">
+                          <p className="font-cairo font-bold text-sm mb-1">
+                            {pharmacy.approval_status === 'rejected'
+                              ? (isRTL ? 'تم رفض صيدليتك' : 'Your pharmacy was rejected')
+                              : pharmacy.approval_status === 'resubmitted'
+                              ? (isRTL ? 'تمت إعادة الإرسال — بانتظار المراجعة' : 'Resubmitted — awaiting review')
+                              : (isRTL ? 'صيدليتك قيد المراجعة' : 'Your pharmacy is under review')}
+                          </p>
+                          {(pharmacy.review_reason || pharmacy.rejection_reason) && (
+                            <p className="text-xs font-tajawal text-[var(--text-soft)] mb-2">
+                              {isRTL ? 'السبب: ' : 'Reason: '}{pharmacy.review_reason || pharmacy.rejection_reason}
+                            </p>
+                          )}
+                          {pharmacy.reviewed_at && (
+                            <p className="text-[10px] text-[var(--text-muted)] font-tajawal mb-3">
+                              {isRTL ? 'آخر مراجعة: ' : 'Last review: '}{new Date(pharmacy.reviewed_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}
+                            </p>
+                          )}
+                          {pharmacy.approval_status !== 'resubmitted' && (
+                            <button
+                              onClick={async () => {
+                                if (!pharmacy || !user) return;
+                                await supabase.from('pharmacies').update({ approval_status: 'resubmitted', resubmitted: true, resubmitted_at: new Date().toISOString() }).eq('id', pharmacy.id);
+                                await supabase.from('audit_logs').insert({ actor_id: user.id, actor_name: profile?.display_name || user.email || '', action: 'resubmit_pharmacy', entity_type: 'pharmacy', entity_id: pharmacy.id, details: { name: pharmacy.name } });
+                                await supabase.from('notifications').insert({ user_id: user.id, title: isRTL ? 'تمت إعادة إرسال صيدليتك للمراجعة' : 'Pharmacy resubmitted for review', body: isRTL ? 'سيقوم الأدمن بمراجعة طلبك قريباً' : 'An admin will review your request soon', type: 'info' });
+                                setPharmacy({ ...pharmacy, approval_status: 'resubmitted', resubmitted: true, resubmitted_at: new Date().toISOString() });
+                                showToast(isRTL ? 'تمت إعادة الإرسال للمراجعة' : 'Resubmitted for review');
+                              }}
+                              className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              {isRTL ? 'تم التعديل — إعادة إرسال للمراجعة' : 'Edited — Resubmit for review'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Out of stock alert */}
                   {outOfStockNames.length > 0 && (
@@ -1038,8 +1097,56 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     className="w-full glass rounded-2xl px-4 py-3 bg-transparent outline-none focus:border-brand-green transition-colors"
                   />
                 </div>
+
+                {/* Alternative medicine field */}
+                <div className="mt-4">
+                  <label className="block text-sm font-semibold text-[var(--text-soft)] mb-1.5">
+                    {isRTL ? 'هل يوجد دواء بديل؟' : 'Is there an alternative medicine?'}
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setMedForm({ ...medForm, has_alternative: 'no', alternative_medicine_id: '' })}
+                      className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${medForm.has_alternative === 'no' ? 'bg-brand-green/20 border-2 border-brand-green' : 'glass border-2 border-transparent'}`}
+                    >
+                      {isRTL ? 'لا' : 'No'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMedForm({ ...medForm, has_alternative: 'yes' })}
+                      className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${medForm.has_alternative === 'yes' ? 'bg-brand-green/20 border-2 border-brand-green' : 'glass border-2 border-transparent'}`}
+                    >
+                      {isRTL ? 'نعم' : 'Yes'}
+                    </button>
+                  </div>
+                  {medForm.has_alternative === 'yes' && (
+                    <select
+                      value={medForm.alternative_medicine_id}
+                      onChange={(e) => setMedForm({ ...medForm, alternative_medicine_id: e.target.value })}
+                      className="w-full glass rounded-2xl px-4 py-3 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
+                    >
+                      <option value="" className="bg-[var(--bg-dark)]">
+                        {isRTL ? 'اختر دواء بديل من القائمة...' : 'Select an alternative from the list...'}
+                      </option>
+                      <optgroup label={isRTL ? 'أدويتي بالمخزون' : 'My inventory'} className="bg-[var(--bg-dark)]">
+                        {medicines.filter((m) => m.id !== editingMed?.id).map((m) => (
+                          <option key={m.id} value={m.id} className="bg-[var(--bg-dark)]">
+                            {m.medicine_name} {m.generic_name ? `(${m.generic_name})` : ''} — {m.quantity} {isRTL ? 'قطعة' : 'units'}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={isRTL ? 'كل الأدوية بالنظام' : 'All medicines in system'} className="bg-[var(--bg-dark)]">
+                        {allMedicines.filter((m) => m.id !== editingMed?.id && !medicines.some((own) => own.id === m.id)).slice(0, 50).map((m) => (
+                          <option key={m.id} value={m.id} className="bg-[var(--bg-dark)]">
+                            {m.medicine_name} {m.generic_name ? `(${m.generic_name})` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-3 mt-6">
+                <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setModalOpen(false)}
                   className="btn-secondary flex-1"

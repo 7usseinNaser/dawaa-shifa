@@ -24,6 +24,7 @@ import { EmergencyMedicalID } from '@/components/EmergencyMedicalID';
 import { DonationHub } from '@/components/DonationHub';
 import { DonationModal, type DonationType } from '@/components/DonationModal';
 import type { EmergencyBroadcast } from '@/lib/supabase';
+import { to12Hour, autoCloseStatus } from '@/lib/timeUtils';
 import { Camera, Gift, Radio, ScanLine, MoonStar } from 'lucide-react';
 
 type Tab = 'home' | 'search' | 'map' | 'meds' | 'profile' | 'discover' | 'donate';
@@ -70,6 +71,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   const [query, setQuery] = useState('');
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [medicines, setMedicines] = useState<Record<string, Medicine[]>>({});
+  const allMedicines = useMemo(() => Object.values(medicines).flat(), [medicines]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [departments, setDepartments] = useState<Record<string, Department[]>>({});
   const [favorites, setFavorites] = useState<Favorite[]>([]);
@@ -487,7 +489,13 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
       <AnimatePresence>
         {showOCR && (
           <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"><div className="w-8 h-8 border-2 border-brand-green border-t-transparent rounded-full animate-spin" /></div>}>
-            <OCRScanner onResult={(text) => { setQuery(text); setTab('search'); }} onClose={() => setShowOCR(false)} isRTL={lang === 'ar'} />
+            <OCRScanner
+              onResult={(text) => { setQuery(text); setTab('search'); }}
+              onClose={() => setShowOCR(false)}
+              isRTL={lang === 'ar'}
+              medicines={allMedicines}
+              pharmacies={pharmacies}
+            />
           </Suspense>
         )}
       </AnimatePresence>
@@ -1062,7 +1070,7 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
                 {/* Substitutes when out of stock */}
                 {medicine.quantity === 0 && (() => {
                   const substitutes = allMedicines
-                    .filter((m) => m.id !== medicine.id && m.quantity > 0 && (m.generic_name === medicine.generic_name || m.category === medicine.category))
+                    .filter((m) => m.id !== medicine.id && m.quantity > 0 && (m.generic_name === medicine.generic_name || m.category === medicine.category || m.id === medicine.alternative_medicine_id))
                     .slice(0, 3);
                   if (substitutes.length === 0) return null;
                   return (
@@ -1818,6 +1826,9 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
           </div>
         </motion.div>
 
+        {/* Rating card */}
+        <RatingCard targetId={facility.id} targetType="facility" targetName={facility.name} />
+
         {/* Departments */}
         <div>
           <h3 className="font-cairo font-bold text-lg mb-3 flex items-center gap-2">
@@ -1846,10 +1857,27 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
                     <span className="text-xs text-[var(--text-muted)] font-tajawal">{t('dash.estClear')}:</span>
                     <span className="text-xs font-bold text-brand-green-light">{d.estimated_clear_time || '—'}</span>
                   </div>
+                  {(() => {
+                    const queue = d.current_queue_count ?? d.waiting_count ?? 0;
+                    const serviceTime = d.avg_service_time_minutes ?? 15;
+                    const waitMin = queue * serviceTime;
+                    const level = queue === 0 ? 'none' : waitMin < 15 ? 'green' : waitMin <= 45 ? 'yellow' : 'red';
+                    const cls: Record<string, string> = {
+                      green: 'bg-status-open/20 text-status-open',
+                      yellow: 'bg-amber-500/20 text-amber-400',
+                      red: 'bg-status-emergency/20 text-status-emergency',
+                      none: 'bg-status-open/20 text-status-open',
+                    };
+                    return (
+                      <div className={`rounded-lg px-2.5 py-1.5 text-xs font-bold mb-2 ${cls[level]}`}>
+                        {queue === 0 ? (lang === 'ar' ? 'دخول مباشر — لا انتظار' : 'Direct entry — no wait') : (lang === 'ar' ? `${waitMin} دقيقة انتظار` : `${waitMin} min wait`)}
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                     <span className="text-xs text-[var(--text-muted)] font-tajawal">{t('dash.workHours')}:</span>
-                    <span className="text-xs font-bold text-[var(--text-soft)]">{d.open_time} - {d.close_time}</span>
+                    <span className="text-xs font-bold text-[var(--text-soft)]">{to12Hour(d.open_time, lang === 'ar')} - {to12Hour(d.close_time, lang === 'ar')}</span>
                   </div>
                   {canNotify && (
                     <button
@@ -1869,9 +1897,6 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
             )}
           </div>
         </div>
-
-        {/* Rating card */}
-        <RatingCard targetId={facility.id} targetType="facility" targetName={facility.name} />
       </div>
     </div>
   );
@@ -1963,6 +1988,9 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
           </button>
         </div>
 
+        {/* Rating card */}
+        <RatingCard targetId={pharmacy.id} targetType="pharmacy" targetName={pharmacy.name} />
+
         {/* Medicine search */}
         <div className="relative">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-green-light" />
@@ -2010,9 +2038,6 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
             )}
           </div>
         </div>
-
-        {/* Rating card */}
-        <RatingCard targetId={pharmacy.id} targetType="pharmacy" targetName={pharmacy.name} />
       </div>
     </div>
   );

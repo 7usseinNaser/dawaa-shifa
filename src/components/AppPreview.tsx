@@ -2,6 +2,7 @@ import { ArrowLeft, Clock, MapPin, Search } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 import { useMedicinePreviews, useMapPoints, useFacilityPreview } from '@/hooks/useLiveStats';
 import { useLang } from '@/lib/i18n';
+import { to12Hour, autoCloseStatus } from '@/lib/timeUtils';
 
 const STATUS_COLORS: Record<string, string> = {
   open: 'bg-status-open',
@@ -151,6 +152,23 @@ export default function AppPreview() {
                           </span>
                           <span className="text-brand-green-light font-bold">{d.estimated_clear_time || (isRTL ? '—' : '—')}</span>
                         </div>
+                        {(() => {
+                          const queue = (d as unknown as Record<string, number>).current_queue_count ?? d.waiting_count;
+                          const serviceTime = (d as unknown as Record<string, number>).avg_service_time_minutes ?? 15;
+                          const waitMin = queue * serviceTime;
+                          const level = queue === 0 ? 'none' : waitMin < 15 ? 'green' : waitMin <= 45 ? 'yellow' : 'red';
+                          const cls: Record<string, string> = {
+                            green: 'text-status-open',
+                            yellow: 'text-amber-400',
+                            red: 'text-status-emergency',
+                            none: 'text-status-open',
+                          };
+                          return (
+                            <div className={`text-[10px] font-bold mt-1 ${cls[level]}`}>
+                              {queue === 0 ? (isRTL ? 'دخول مباشر' : 'Direct entry') : (isRTL ? `${waitMin} دقيقة` : `${waitMin} min`)}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                     {facility.departments.length === 0 && (

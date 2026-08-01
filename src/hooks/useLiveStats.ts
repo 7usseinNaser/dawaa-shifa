@@ -27,6 +27,8 @@ const FALLBACK: LiveStats = {
   statusDist: { open: 62, busy: 18, emergency: 14, closed: 14 },
 };
 
+const userResFallback = 0;
+
 const FALLBACK_MEDICINES: MedicinePreview[] = [
   { medicine_name: 'Augmentin 1g', pharmacy_name: 'Al-Rahma Pharmacy', price: 15, is_available: true, status: 'open' },
   { medicine_name: 'Panadol Extra', pharmacy_name: 'Al-Shifa Pharmacy', price: 8, is_available: true, status: 'open' },
@@ -56,13 +58,13 @@ const FALLBACK_FACILITY: FacilityPreview = {
 
 async function loadStats(): Promise<LiveStats> {
   try {
-    const [pharmRes, facilRes, mpRes, userRes, fStatusRes, pStatusRes] = await Promise.all([
+    const [pharmRes, facilRes, mpRes, fStatusRes, pStatusRes, statsRes] = await Promise.all([
       supabase.from('pharmacies').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('approval_status', 'approved'),
       supabase.from('facilities').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('approval_status', 'approved'),
       supabase.from('facilities').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('approval_status', 'approved').eq('type', 'medical_point'),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).is('deleted_at', null),
       supabase.from('facilities').select('overall_status').is('deleted_at', null).eq('approval_status', 'approved'),
       supabase.from('pharmacies').select('status').is('deleted_at', null).eq('approval_status', 'approved'),
+      supabase.rpc('get_public_stats'),
     ]);
 
     const dist = { open: 0, busy: 0, emergency: 0, closed: 0 };
@@ -76,11 +78,15 @@ async function loadStats(): Promise<LiveStats> {
     const pharmacyCount = pharmRes.count ?? FALLBACK.pharmacyCount;
     const facilityCount = facilRes.count ?? FALLBACK.facilityCount;
 
+    // Use the RPC result for user count (bypasses RLS via SECURITY DEFINER)
+    const rpcData = statsRes.data as { user_count?: number } | null;
+    const userCount = rpcData?.user_count ?? userResFallback;
+
     return {
       pharmacyCount,
       facilityCount,
       medicalPointCount: mpRes.count ?? FALLBACK.medicalPointCount,
-      userCount: userRes.count ?? 0,
+      userCount,
       totalCount: pharmacyCount + facilityCount,
       statusDist: dist,
     };

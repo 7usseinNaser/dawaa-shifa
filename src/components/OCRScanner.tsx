@@ -1,22 +1,70 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, X, Loader2, ScanLine, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Camera, X, Loader as Loader2, ScanLine, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, RefreshCw, Search } from 'lucide-react';
+import type { Medicine, Pharmacy } from '@/lib/supabase';
+import { matchTextToMedicines } from '@/lib/search';
 
 interface OCRScannerProps {
   onResult: (text: string) => void;
   onClose: () => void;
   isRTL: boolean;
+  medicines?: Medicine[];
+  pharmacies?: Pharmacy[];
 }
 
 type ScanStatus = 'idle' | 'scanning' | 'done' | 'error';
 
-export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
+interface MatchResult {
+  name: string;
+  score: number;
+  pharmacyName?: string;
+}
+
+/**
+ * Preprocess image: improve contrast and crop empty borders.
+ * Draws to an offscreen canvas, applies grayscale + contrast boost,
+ * then crops to the non-empty bounding box to reduce OCR noise.
+ */
+async function preprocessImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(dataUrl); return; }
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Grayscale + contrast boost
+      const contrast = 1.5;
+      const intercept = 128 * (1 - contrast);
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        const v = Math.max(0, Math.min(255, gray * contrast + intercept));
+        data[i] = data[i + 1] = data[i + 2] = v;
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+export function OCRScanner({ onResult, onClose, isRTL, medicines = [], pharmacies = [] }: OCRScannerProps) {
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<ScanStatus>('idle');
   const [progress, setProgress] = useState(0);
   const [detected, setDetected] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [recognizedLines, setRecognizedLines] = useState<string[]>([]);
+  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<{ terminate: () => Promise<unknown> } | null>(null);
@@ -29,7 +77,12 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
     setDetected('');
     setRecognizedLines([]);
     setErrorMsg('');
+    setMatchResults([]);
+
     try {
+      // Preprocess: improve contrast before OCR
+      const processedUrl = await preprocessImage(imgUrl);
+
       const Tesseract = await import('tesseract.js');
       const createWorker = Tesseract.createWorker ?? Tesseract.default?.createWorker;
       if (!createWorker) throw new Error('Tesseract createWorker not found');
@@ -39,7 +92,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
         },
       });
       workerRef.current = worker;
-      const { data } = await worker.recognize(imgUrl);
+      const { data } = await worker.recognize(processedUrl);
       await worker.terminate();
       workerRef.current = null;
 
@@ -52,6 +105,30 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
       const lines = rawText.split('\n').map((l: string) => l.trim()).filter(Boolean);
       setRecognizedLines(lines);
 
+      // Match against real medicine inventory using fuzzy search
+      if (medicines.length > 0) {
+        const matches = matchTextToMedicines(rawText, medicines, pharmacies, 0.45);
+        if (matches.length > 0) {
+          const results: MatchResult[] = matches.slice(0, 5).map((m) => ({
+            name: m.medicine.medicine_name,
+            score: m.score,
+            pharmacyName: m.pharmacy?.name,
+          }));
+          setMatchResults(results);
+
+          if (matches.length === 1 || (matches.length > 1 && matches[0].score < 0.2)) {
+            // Strong single match — auto-select
+            setDetected(matches[0].medicine.medicine_name);
+          } else {
+            // Multiple candidates — let user pick
+            setDetected(matches[0].medicine.medicine_name);
+          }
+          setStatus('done');
+          return;
+        }
+      }
+
+      // Fallback: extract from raw text if no inventory match
       const medKeywords = [
         'paracetamol', 'amoxicillin', 'ibuprofen', 'omeprazole', 'metformin',
         'loratadine', 'aspirin', 'cetirizine', 'azithromycin', 'ciprofloxacin',
@@ -78,7 +155,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
       setStatus('error');
       setErrorMsg(isRTL ? 'فشل قراءة الصورة. حاول مرة أخرى.' : 'Failed to read image. Please try again.');
     }
-  }, [isRTL]);
+  }, [isRTL, medicines, pharmacies]);
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
@@ -97,6 +174,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
     setProgress(0);
     setRecognizedLines([]);
     setErrorMsg('');
+    setMatchResults([]);
   };
 
   return (
@@ -111,7 +189,7 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="glass-card p-5 w-full max-w-md"
+        className="glass-card p-5 w-full max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -177,6 +255,43 @@ export function OCRScanner({ onResult, onClose, isRTL }: OCRScannerProps) {
 
             {status === 'done' && (
               <>
+                {/* Medicine inventory matches */}
+                {matchResults.length > 0 && (
+                  <div className="glass-card p-3">
+                    <p className="text-xs font-tajawal font-bold text-brand-green-light mb-2 flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5" />
+                      {isRTL
+                        ? `وُجدت ${matchResults.length} تطابق محتمل في المخزون:`
+                        : `Found ${matchResults.length} potential matches in inventory:`}
+                    </p>
+                    <div className="space-y-1.5">
+                      {matchResults.map((m, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setDetected(m.name)}
+                          className={`w-full text-right px-3 py-2 rounded-lg transition-colors flex items-center justify-between gap-2 ${
+                            detected === m.name
+                              ? 'bg-brand-green/20 border border-brand-green/40'
+                              : 'bg-white/5 hover:bg-brand-green/10'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-tajawal font-bold block truncate">{m.name}</span>
+                            {m.pharmacyName && (
+                              <span className="text-[10px] text-[var(--text-muted)] block truncate">{m.pharmacyName}</span>
+                            )}
+                          </div>
+                          {i === 0 && (
+                            <span className="text-[10px] text-brand-green-light font-bold shrink-0">
+                              {isRTL ? 'الأقرب' : 'Best match'}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {recognizedLines.length > 1 && (
                   <div className="glass-card p-2 max-h-20 overflow-y-auto">
                     <p className="text-[10px] font-tajawal text-[var(--text-muted)] mb-1">
