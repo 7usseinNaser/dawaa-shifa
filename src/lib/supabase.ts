@@ -27,6 +27,7 @@ export interface Profile {
   freeze_reason: string | null;
   email: string | null;
   created_at: string;
+  unique_id?: string | null;
 }
 
 export interface MedExchangeRequest {
