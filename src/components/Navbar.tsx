@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, ArrowLeft, Heart, LayoutDashboard, LogIn, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import LanguageToggle from './LanguageToggle';
@@ -15,7 +14,6 @@ interface Props {
 export default function Navbar({ theme, onToggleTheme }: Props) {
   const { user, profile, signOut } = useAuth();
   const { t, lang } = useLang();
-  const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
@@ -24,7 +22,7 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
     if (user) {
       window.location.hash = '#/donate';
     } else {
-      navigate('/auth?redirect=/donate');
+      window.location.hash = '#/auth?redirect=/donate';
     }
   };
 
