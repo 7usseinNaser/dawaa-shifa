@@ -1,37 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Activity,
-  AlertTriangle,
-  Box,
-  Check,
-  ClipboardCopy,
-  Clock,
-  Home,
-  Info,
-  LogOut,
-  Moon,
-  Package,
-  Pencil,
-  Pill,
-  Plus,
-  Search,
-  Settings,
-  Star,
-  Store,
-  Sun,
-  Trash2,
-  Upload,
-  UserCheck,
-  UserX,
-  X,
-  XCircle,
-} from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Heart, Chrome as Home, Info, LogOut, Moon, Package, Pencil, Pill, Plus, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { BulkImport } from '@/components/BulkImport';
+import { DonationModal } from '@/components/DonationModal';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -75,6 +50,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   // Search
   const [search, setSearch] = useState('');
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showDonationModal, setShowDonationModal] = useState(false);
 
   // Status toggle
   const [statusSaving, setStatusSaving] = useState(false);
@@ -519,6 +495,19 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                 })}
               </nav>
 
+              {/* Donation CTA */}
+              <div className="mt-6 pt-6 border-t border-[var(--border-subtle)]">
+                <button
+                  onClick={() => setShowDonationModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-brand-green/10 to-brand-blue/10 hover:from-brand-green/20 hover:to-brand-blue/20 transition-all border border-brand-green/20"
+                >
+                  <Heart className="w-5 h-5 text-brand-green-light" />
+                  <div className="text-right">
+                    <div className="font-bold text-sm">{isRTL ? 'ساهم في إنقاذ الأرواح' : 'Help Save Lives'}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
+                  </div>
+                </button>
+              </div>
 
             </div>
           </aside>
@@ -1069,6 +1058,9 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Donation Modal */}
+      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} />
 
       {/* Delete confirmation */}
       <AnimatePresence>

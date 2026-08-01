@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader2, Send } from 'lucide-react';
+import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, OctagonAlert as AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader as Loader2, Send } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -22,6 +22,7 @@ const OCRScanner = lazy(() => import('@/components/OCRScanner').then(m => ({ def
 const BarcodeScanner = lazy(() => import('@/components/BarcodeScanner').then(m => ({ default: m.BarcodeScanner })));
 import { EmergencyMedicalID } from '@/components/EmergencyMedicalID';
 import { DonationHub } from '@/components/DonationHub';
+import { DonationModal, type DonationType } from '@/components/DonationModal';
 import type { EmergencyBroadcast } from '@/lib/supabase';
 import { Camera, Gift, Radio, ScanLine, MoonStar } from 'lucide-react';
 
@@ -85,6 +86,8 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   const [listening, setListening] = useState(false);
   const [broadcast, setBroadcast] = useState<EmergencyBroadcast | null>(null);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [showDonationModal, setShowDonationModal] = useState(false);
+  const [donationDefaultType, setDonationDefaultType] = useState<DonationType>('medicine');
 
   const favIds = useMemo(() => new Set(favorites.map((f) => f.target_id)), [favorites]);
   const notifyIds = useMemo(
@@ -422,7 +425,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
             )}
             {tab === 'donate' && (
               <motion.div key="donate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                <DonationHub />
+                <DonationHub onOpenModal={(type) => { setDonationDefaultType(type); setShowDonationModal(true); }} />
               </motion.div>
             )}
             {tab === 'meds' && (
@@ -524,6 +527,9 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
 
       {/* AI Chatbot */}
       <AIChatbot />
+
+      {/* Donation Modal */}
+      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} defaultType={donationDefaultType} />
 
       {/* Notification Panel */}
       <AnimatePresence>
@@ -971,9 +977,9 @@ function SearchTab({ query, setQuery, pharmacies, medicines, facilities, departm
 
       {/* Autocomplete suggestions */}
       {suggestions.length > 0 && query.length >= 2 && (
-        <div className="glass-card p-2 space-y-1">
+        <div className="glass-card p-2 space-y-1 max-h-60 overflow-y-auto">
           {suggestions.map((s) => (
-            <button key={s} onClick={() => setQuery(s)} className="w-full text-right px-3 py-2 rounded-lg hover:bg-brand-green/10 transition-colors text-sm font-tajawal flex items-center gap-2">
+            <button key={s} onClick={() => { setQuery(s); }} className="w-full text-right px-3 py-2 rounded-lg hover:bg-brand-green/10 transition-colors text-sm font-tajawal flex items-center gap-2">
               <Search className="w-3.5 h-3.5 text-brand-green-light shrink-0" />
               <span>{s}</span>
             </button>

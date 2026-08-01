@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gift, Plus, X, Clock, Package, MapPin, CheckCircle, XCircle, Loader2, Heart, AlertTriangle } from 'lucide-react';
+import { Gift, Plus, X, Clock, Package, MapPin, CircleCheck as CheckCircle, Circle as XCircle, Loader as Loader2, Heart, TriangleAlert as AlertTriangle, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type MedicineDonation, type Pharmacy } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
+import type { DonationType } from '@/components/DonationModal';
 
-export function DonationHub() {
+export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType) => void }) {
   const { user, profile } = useAuth();
   const { lang } = useLang();
   const isRTL = lang === 'ar';
@@ -111,6 +112,20 @@ export function DonationHub() {
         <Plus className="w-5 h-5" />
         {isRTL ? 'تبرع بدواء' : 'Donate Medicine'}
       </button>
+
+      {/* WhatsApp Donation CTA */}
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => onOpenModal?.('medicine')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
+          <Gift className="w-5 h-5 mx-auto mb-1 text-brand-green-light" />
+          <div className="font-cairo font-bold text-xs">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
+          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'تواصل مباشر' : 'Direct contact'}</div>
+        </button>
+        <button onClick={() => onOpenModal?.('platform')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
+          <Heart className="w-5 h-5 mx-auto mb-1 text-brand-blue-light" />
+          <div className="font-cairo font-bold text-xs">{isRTL ? 'دعم المنصة' : 'Support Platform'}</div>
+          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي' : 'Financial support'}</div>
+        </button>
+      </div>
 
       {/* Donations list */}
       <div>

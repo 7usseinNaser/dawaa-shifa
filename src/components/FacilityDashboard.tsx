@@ -1,31 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Activity,
-  AlertTriangle,
-  Building2,
-  Clock,
-  Download,
-  Home,
-  Info,
-  LayoutGrid,
-  Lightbulb,
-  LogOut,
-  Moon,
-  Pencil,
-  Plus,
-  Settings,
-  Stethoscope,
-  Sun,
-  Trash2,
-  Users,
-  X,
-} from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Moon, Pencil, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { OccupancyBar, StatusBadge } from '@/components/ui/DashboardParts';
+import { DonationModal } from '@/components/DonationModal';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -103,6 +84,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [deptForm, setDeptForm] = useState<DeptForm>(emptyDeptForm);
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
+  const [showDonationModal, setShowDonationModal] = useState(false);
 
   const isRTL = lang === 'ar';
 
@@ -562,7 +544,16 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
               </nav>
 
               <div className="mt-6 pt-6 border-t border-[var(--border-subtle)]">
-                <p className="text-xs text-[var(--text-muted)] px-4 pb-2">{isRTL ? 'الإعدادات في تبويب منفصل' : 'Settings in separate tab'}</p>
+                <button
+                  onClick={() => setShowDonationModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-brand-green/10 to-brand-blue/10 hover:from-brand-green/20 hover:to-brand-blue/20 transition-all border border-brand-green/20"
+                >
+                  <Heart className="w-5 h-5 text-brand-green-light" />
+                  <div className="text-right">
+                    <div className="font-bold text-sm">{isRTL ? 'ساهم في إنقاذ الأرواح' : 'Help Save Lives'}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
+                  </div>
+                </button>
               </div>
             </div>
           </aside>
@@ -1077,6 +1068,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Donation Modal */}
+      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} />
 
       {/* Delete confirmation */}
       <AnimatePresence>
