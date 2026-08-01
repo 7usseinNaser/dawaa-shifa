@@ -95,7 +95,7 @@ export default function ImpactMetrics() {
               <div key={d.key} className="flex items-center gap-2">
                 <span className={`w-3 h-3 rounded-full ${STATUS_COLORS[d.key]}`} />
                 <span className="text-xs font-tajawal text-[var(--text-soft)]">{d.label}</span>
-                <span className="text-xs font-cairo font-bold mr-auto">{d.count}</span>
+                <span className="text-xs font-cairo font-bold mr-auto">{d.count} ({pct(d.count)}%)</span>
               </div>
             ))}
           </div>

@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, Layers, Crosshair, Loader2 } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
+import { useLiveStats } from '@/hooks/useLiveStats';
 import { supabase, type Pharmacy, type Facility } from '@/lib/supabase';
 
 const GAZA_CENTER: [number, number] = [31.42, 34.35];
@@ -41,6 +42,7 @@ export default function LiveMap() {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [filter, setFilter] = useState<'all' | 'pharmacy' | 'facility' | 'open'>('all');
+  const stats = useLiveStats();
 
   useEffect(() => {
     (async () => {
@@ -147,9 +149,10 @@ export default function LiveMap() {
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
-                className={`text-xs px-3 py-1.5 rounded-full glass font-tajawal transition-colors ${
-                  filter === f.id ? 'bg-brand-green/20 text-brand-green-light border border-brand-green/40' : 'text-[var(--text-soft)]'
+                className={`text-xs px-3 py-1.5 rounded-full font-tajawal transition-colors ${
+                  filter === f.id ? 'bg-brand-green/30 text-white border border-brand-green/50' : 'text-white/80'
                 }`}
+                style={{ background: filter === f.id ? undefined : 'rgba(10, 10, 20, 0.7)', backdropFilter: 'blur(8px)', border: filter === f.id ? undefined : '1px solid rgba(255,255,255,0.1)' }}
               >
                 {f.label}
               </button>
@@ -157,13 +160,13 @@ export default function LiveMap() {
           </div>
 
           {/* Bottom info card */}
-          <div className="absolute bottom-4 right-4 left-4 z-[500] glass-card p-4">
+          <div className="absolute bottom-4 right-4 left-4 z-[500] rounded-2xl p-4" style={{ background: 'rgba(10, 10, 20, 0.85)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div className="text-sm font-cairo font-bold">
-                  {pharmacies.length + facilities.length} مرفق طبي وصيدلية على الخريطة
+                <div className="text-sm font-cairo font-bold text-white">
+                  {stats.totalCount} مرفق طبي وصيدلية على الخريطة
                 </div>
-                <div className="text-xs text-[var(--text-muted)] font-tajawal mt-1">
+                <div className="text-xs text-white/60 font-tajawal mt-1">
                   انقر على أي مؤشر لعرض التفاصيل
                 </div>
               </div>
@@ -175,11 +178,11 @@ export default function LiveMap() {
           </div>
 
           {/* Legend */}
-          <div className="absolute bottom-24 left-4 z-[500] glass rounded-xl p-3 space-y-1.5 hidden sm:block">
+          <div className="absolute bottom-24 left-4 z-[500] rounded-xl p-3 space-y-1.5 hidden sm:block" style={{ background: 'rgba(10, 10, 20, 0.85)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
             {Object.entries(statusLabels).map(([k, v]) => (
               <div key={k} className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ background: statusColors[k] }} />
-                <span className="text-xs font-tajawal text-[var(--text-soft)]">{v}</span>
+                <span className="text-xs font-tajawal text-white">{v}</span>
               </div>
             ))}
           </div>
