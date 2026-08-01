@@ -8,6 +8,7 @@ import AuthPage from '@/components/AuthPage';
 import BackToTop from '@/components/BackToTop';
 import CommunityStories from '@/components/CommunityStories';
 import Comparison from '@/components/Comparison';
+import DonatePage from '@/components/DonatePage';
 import CustomCursor from '@/components/CustomCursor';
 import ExitIntent from '@/components/ExitIntent';
 import FAQ from '@/components/FAQ';
@@ -82,6 +83,7 @@ function AppContent() {
 
   const isAuthRoute = hash === '#/auth' || hash === '#/login' || hash === '#/register';
   const isDashboardRoute = hash === '#/dashboard';
+  const isDonateRoute = hash === '#/donate' || hash.startsWith('#/donate');
 
   if (loading) {
     return (
@@ -119,6 +121,16 @@ function AppContent() {
       <AnimatePresence mode="wait">
         <motion.div key="auth" variants={pageVariants} initial="initial" animate="enter" exit="exit">
           <AuthPage />
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  if (isDonateRoute) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key="donate" variants={pageVariants} initial="initial" animate="enter" exit="exit">
+          <DonatePage />
         </motion.div>
       </AnimatePresence>
     );

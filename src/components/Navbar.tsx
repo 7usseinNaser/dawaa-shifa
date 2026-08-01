@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, ArrowLeft, Heart, LayoutDashboard, LogIn, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import LanguageToggle from './LanguageToggle';
@@ -14,9 +15,18 @@ interface Props {
 export default function Navbar({ theme, onToggleTheme }: Props) {
   const { user, profile, signOut } = useAuth();
   const { t, lang } = useLang();
+  const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
+
+  const handleDonateClick = () => {
+    if (user) {
+      window.location.hash = '#/donate';
+    } else {
+      navigate('/auth?redirect=/donate');
+    }
+  };
 
   const links = [
     { href: '#hero', label: t('nav.home') },
@@ -65,11 +75,12 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
             </button>
 
             <button
-              onClick={() => setShowDonate(true)}
-              className="px-3 py-1.5 rounded-full bg-gradient-to-r from-brand-green to-brand-green-dark text-white text-sm font-bold flex items-center gap-1.5 hover:shadow-lg hover:shadow-brand-green/30 transition-all"
+              onClick={handleDonateClick}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full glass hover:bg-brand-green/10 transition-colors text-sm font-tajawal"
+              aria-label={lang === 'ar' ? 'تبرّع' : 'Donate'}
             >
-              <Heart className="w-4 h-4" />
-              <span className="hidden sm:inline">{lang === 'ar' ? 'تبرّع' : 'Donate'}</span>
+              <Heart className="w-4 h-4 text-brand-green-light" />
+              <span className="hidden sm:inline font-bold">{lang === 'ar' ? 'تبرّع' : 'Donate'}</span>
             </button>
 
             {user && profile ? (
@@ -107,8 +118,8 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
                 </a>
               ))}
               <button
-                onClick={() => { setShowDonate(true); setOpen(false); }}
-                className="block w-full text-center px-4 py-3 rounded-xl bg-brand-green/10 hover:bg-brand-green/20 transition-colors font-tajawal flex items-center gap-2 justify-center"
+                onClick={() => { handleDonateClick(); setOpen(false); }}
+                className="block w-full text-center px-4 py-3 rounded-xl glass hover:bg-brand-green/10 transition-colors font-tajawal flex items-center gap-2 justify-center"
               >
                 <Heart className="w-5 h-5 text-brand-green-light" />
                 {lang === 'ar' ? 'تبرّع' : 'Donate'}

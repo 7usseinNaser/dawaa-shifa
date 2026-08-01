@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -17,6 +18,7 @@ const slideVariants = {
 export default function AuthPage() {
   const { signIn, signUp, profile, resetPassword } = useAuth();
   const { t, lang } = useLang();
+  const navigate = useNavigate();
   const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [step, setStep] = useState(0);
@@ -79,6 +81,15 @@ export default function AuthPage() {
       if (error) setError(error);
     }
     setLoading(false);
+
+    // After successful auth, check for redirect target in query string
+    if (!error && profile) {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      if (redirect) {
+        navigate(redirect);
+      }
+    }
   };
 
   const handleReset = async (e: React.FormEvent) => {
@@ -113,6 +124,16 @@ export default function AuthPage() {
     }, 5000);
     return () => clearTimeout(timer);
   }, [resetSent]);
+
+  // After successful auth, redirect to the intended page if present
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get('redirect');
+    if (redirect) {
+      navigate(redirect);
+    }
+  }, [profile, navigate]);
 
   if (profile?.frozen) {
     return (
