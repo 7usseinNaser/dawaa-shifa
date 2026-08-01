@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Sitemap: https://7ussein.com/sitemap.xml

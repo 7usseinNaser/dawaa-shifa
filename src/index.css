@@ -1,0 +1,596 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   دواء وشفاء — Global Design System
+   ============================================ */
+
+:root {
+  --bg-dark: #071116;
+  --bg-card: #0E1B22;
+  --bg-elevated: #122734;
+  --primary: #1D9E75;
+  --primary-dark: #15835F;
+  --primary-light: #34D399;
+  --secondary: #1D6FA4;
+  --secondary-dark: #155A87;
+  --secondary-light: #38BDF8;
+  --text-main: #F8FAFC;
+  --text-soft: #CBD5E1;
+  --text-muted: #6B96B5;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --glass: rgba(255, 255, 255, 0.04);
+}
+
+/* Light mode override */
+.light {
+  --bg-dark: #F8FBFE;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --text-main: #0B1929;
+  --text-soft: #2B5070;
+  --text-muted: #6B96B5;
+  --border-subtle: rgba(11, 25, 41, 0.08);
+  --glass: rgba(255, 255, 255, 0.7);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Cairo', 'Tajawal', sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-main);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--primary), var(--secondary));
+  border-radius: 4px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(29, 158, 117, 0.3);
+  color: var(--text-main);
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+
+@layer components {
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-subtle);
+    border-radius: 24px;
+  }
+
+  .light .glass-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
+    border: 1px solid rgba(11,25,41,0.06);
+    box-shadow: 0 12px 40px rgba(13,45,80,0.08);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-light) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-green {
+    background: linear-gradient(135deg, #34D399 0%, #1D9E75 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-blue {
+    background: linear-gradient(135deg, #38BDF8 0%, #1D6FA4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .glow-green { box-shadow: 0 0 40px rgba(29, 158, 117, 0.4); }
+  .glow-blue { box-shadow: 0 0 40px rgba(29, 111, 164, 0.4); }
+
+  .border-glow {
+    position: relative;
+  }
+  .border-glow::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(29,158,117,0.5), rgba(29,111,164,0.5));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 999px;
+    font-weight: 700;
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 8px 24px rgba(29, 158, 117, 0.3);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(29, 158, 117, 0.5);
+  }
+
+  .btn-secondary {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    color: var(--text-main);
+    padding: 14px 28px;
+    border-radius: 999px;
+    font-weight: 600;
+    border: 1px solid var(--border-subtle);
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn-secondary:hover {
+    border-color: var(--primary);
+    background: rgba(29, 158, 117, 0.08);
+  }
+}
+
+/* ============================================
+   Scroll Reveal Animation
+   ============================================ */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1), transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+/* ============================================
+   Custom Cursor
+   ============================================ */
+
+.cursor-dot {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  background: var(--primary-light);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transition: transform 0.1s ease;
+  mix-blend-mode: difference;
+}
+
+.cursor-ring {
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid rgba(29, 158, 117, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  transition: transform 0.2s ease, width 0.3s ease, height 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .cursor-dot, .cursor-ring { display: none; }
+}
+
+/* ============================================
+   Scroll Progress Bar
+   ============================================ */
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 0%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  z-index: 9999;
+  transition: width 0.1s ease;
+}
+
+/* ============================================
+   Particles
+   ============================================ */
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--primary-light);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ============================================
+   Phone Mockup
+   ============================================ */
+
+.phone-mockup {
+  width: 280px;
+  height: 580px;
+  border-radius: 40px;
+  background: linear-gradient(145deg, #1a2e45 0%, #0E1B22 100%);
+  padding: 12px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.05);
+  position: relative;
+}
+.phone-mockup::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 24px;
+  background: #071116;
+  border-radius: 999px;
+  z-index: 10;
+}
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 30px;
+  overflow: hidden;
+  background: #0E1B22;
+  position: relative;
+}
+
+/* ============================================
+   Map Pins
+   ============================================ */
+
+.map-pin {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.map-pin::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+}
+
+/* ============================================
+   Status Pulse
+   ============================================ */
+
+.status-pulse {
+  position: relative;
+}
+.status-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+  animation: statusPulse 1.4s ease-in-out infinite;
+}
+@keyframes statusPulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.4); opacity: 0; }
+}
+
+/* ============================================
+   Wave
+   ============================================ */
+
+.wave-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  line-height: 0;
+}
+.wave-svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+}
+
+/* ============================================
+   Light Mode Adjustments
+   ============================================ */
+
+.light body { background: #F8FBFE; }
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(11, 25, 41, 0.06);
+}
+
+/* ============================================
+   High Contrast Mode
+   ============================================ */
+
+.high-contrast {
+  --text-main: #FFFFFF;
+  --text-soft: #F1F5F9;
+  --text-muted: #94A3B8;
+  --border-subtle: rgba(255, 255, 255, 0.25);
+}
+.high-contrast .glass { border-width: 2px; }
+.high-contrast .glass-card { border-width: 2px; }
+
+/* ============================================
+   Reduce Motion Mode
+   ============================================ */
+
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ============================================
+   Big Touch Targets
+   ============================================ */
+
+.big-touch button, .big-touch a {
+  min-height: 56px;
+  min-width: 56px;
+}
+.big-touch .btn-primary, .big-touch .btn-secondary {
+  padding: 18px 36px;
+}
+
+/* ============================================
+   Senior Mode — enlarged fonts + simplified UI
+   ============================================ */
+.senior-mode .glass-card {
+  padding: 1.25rem !important;
+  border-width: 2px !important;
+}
+.senior-mode .btn-primary, .senior-mode .btn-secondary {
+  min-height: 56px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.senior-mode .font-cairo {
+  font-size: 1.1em;
+}
+.senior-mode .font-tajawal {
+  font-size: 1.05em;
+}
+.senior-mode .text-xs {
+  font-size: 0.875rem !important;
+}
+.senior-mode .text-sm {
+  font-size: 1rem !important;
+}
+.senior-mode input, .senior-mode textarea, .senior-mode select {
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+/* ============================================
+   Ripple Effect
+   ============================================ */
+
+.ripple-container { position: relative; overflow: hidden; }
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(0);
+  animation: rippleAnim 0.6s ease-out;
+  pointer-events: none;
+}
+@keyframes rippleAnim {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* ============================================
+   Stagger Animation
+   ============================================ */
+
+.stagger-item {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: staggerIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes staggerIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   3D Tilt
+   ============================================ */
+
+.tilt-card {
+  transition: transform 0.2s ease;
+  transform-style: preserve-3d;
+}
+
+/* ============================================
+   Reduced Motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   Gradient Mesh Background
+   ============================================ */
+
+.mesh-gradient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+}
+
+/* ============================================
+   Section Dividers
+   ============================================ */
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+}
+
+/* ============================================
+   Number Counter
+   ============================================ */
+
+.counter {
+  font-family: 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+/* ============================================
+   Dropdown & Form Element Dark Mode Fixes
+   ============================================ */
+
+select,
+select option,
+select optgroup {
+  background-color: #1e293b;
+  color: #ffffff;
+}
+
+select:focus {
+  background-color: #1e293b;
+  color: #ffffff;
+}
+
+/* Ensure option text is visible in all browsers */
+select option:checked,
+select option:hover {
+  background-color: #1D9E75;
+  color: #ffffff;
+}
+
+/* Light mode dropdowns */
+.light select,
+.light select option,
+.light select optgroup {
+  background-color: #ffffff;
+  color: #0B1929;
+}
+
+.light select option:checked,
+.light select option:hover {
+  background-color: #34D399;
+  color: #0B1929;
+}
+
+/* Modal/dialog dark backgrounds */
+dialog,
+[role="dialog"] {
+  background-color: #0E1B22;
+  color: var(--text-main);
+}
+
+/* Input/textarea consistent dark styling */
+input,
+textarea {
+  color: var(--text-main);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* File input button styling */
+input[type="file"] {
+  color: var(--text-soft);
+}
+input[type="file"]::file-selector-button {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-inline-end: 12px;
+  transition: all 0.2s ease;
+}
+input[type="file"]::file-selector-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(29, 158, 117, 0.4);
+}
+
+/* ============================================
+   Card Hover Light Sweep
+   ============================================ */
+
+.light-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.light-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  transition: left 0.6s ease;
+}
+.light-sweep:hover::after {
+  left: 100%;
+}
