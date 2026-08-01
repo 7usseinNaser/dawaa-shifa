@@ -133,6 +133,7 @@ export interface Facility {
   power_status: 'generator' | 'no_power' | 'grid' | 'unknown';
   occupancy_rate: number;
   max_capacity: number;
+  facility_capacity?: number;
   deleted_at: string | null;
   last_updated_at: string | null;
   approval_status: 'pending' | 'approved' | 'rejected';
@@ -150,6 +151,9 @@ export interface Department {
   open_time: string;
   close_time: string;
   last_updated: string;
+  current_queue_count?: number;
+  avg_service_time_minutes?: number;
+  department_capacity?: number;
 }
 
 export interface Notification {

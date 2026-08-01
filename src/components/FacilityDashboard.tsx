@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Moon, Pencil, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
@@ -20,6 +20,8 @@ interface DeptForm {
   status: FacilityStatus;
   waiting_count: string;
   estimated_clear_time: string;
+  avg_service_time_minutes: string;
+  department_capacity: string;
 }
 
 const emptyDeptForm: DeptForm = {
@@ -28,6 +30,8 @@ const emptyDeptForm: DeptForm = {
   status: 'open',
   waiting_count: '0',
   estimated_clear_time: '',
+  avg_service_time_minutes: '15',
+  department_capacity: '20',
 };
 
 const STATUS_OPTIONS: FacilityStatus[] = ['open', 'busy', 'emergency', 'closed'];
@@ -316,6 +320,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       status: dept.status,
       waiting_count: String(dept.waiting_count),
       estimated_clear_time: dept.estimated_clear_time,
+      avg_service_time_minutes: String(dept.avg_service_time_minutes ?? 15),
+      department_capacity: String(dept.department_capacity ?? 20),
     });
     setModalOpen(true);
   }
@@ -338,6 +344,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
           status: deptForm.status,
           waiting_count: waiting,
           estimated_clear_time: deptForm.estimated_clear_time.trim(),
+          avg_service_time_minutes: parseInt(deptForm.avg_service_time_minutes) || 15,
+          department_capacity: parseInt(deptForm.department_capacity) || 20,
+          current_queue_count: waiting,
           last_updated: new Date().toISOString(),
         })
         .eq('id', editingDept.id);
@@ -356,6 +365,9 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         status: deptForm.status,
         waiting_count: waiting,
         estimated_clear_time: deptForm.estimated_clear_time.trim(),
+        avg_service_time_minutes: parseInt(deptForm.avg_service_time_minutes) || 15,
+        department_capacity: parseInt(deptForm.department_capacity) || 20,
+        current_queue_count: waiting,
         open_time: '',
         close_time: '',
         last_updated: new Date().toISOString(),
@@ -826,6 +838,55 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                             </div>
                           </div>
 
+                          {/* Wait-time badge */}
+                          {(() => {
+                            const queue = d.current_queue_count ?? d.waiting_count ?? 0;
+                            const serviceTime = d.avg_service_time_minutes ?? 15;
+                            const capacity = d.department_capacity ?? 20;
+                            const waitMin = queue * serviceTime;
+                            const occPct = capacity > 0 ? Math.min(100, Math.round((queue / capacity) * 100)) : 0;
+                            const waitLevel = queue === 0 ? 'none' : waitMin < 15 ? 'green' : waitMin <= 45 ? 'yellow' : 'red';
+                            const levelClasses: Record<string, string> = {
+                              green: 'bg-status-open/20 text-status-open border-status-open/40',
+                              yellow: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
+                              red: 'bg-status-emergency/20 text-status-emergency border-status-emergency/40',
+                              none: 'bg-status-open/20 text-status-open border-status-open/40',
+                            };
+                            return (
+                              <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold ${levelClasses[waitLevel]}`}>
+                                {queue === 0
+                                  ? (isRTL ? 'دخول مباشر — لا يوجد انتظار' : 'Direct entry — no wait')
+                                  : (isRTL ? `${waitMin} دقيقة انتظار — إشغال ${occPct}%` : `${waitMin} min wait — ${occPct}% occupancy`)}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Queue management controls */}
+                          <div className="flex items-center gap-2 mt-3">
+                            <span className="text-xs text-[var(--text-muted)] font-tajawal">{isRTL ? 'تعديل الطابور:' : 'Adjust queue:'}</span>
+                            <button
+                              onClick={async () => {
+                                const next = Math.max(0, (d.current_queue_count ?? d.waiting_count) - 1);
+                                await supabase.from('departments').update({ current_queue_count: next, waiting_count: next, last_updated: new Date().toISOString() }).eq('id', d.id);
+                                setDepartments((prev) => prev.map((x) => x.id === d.id ? { ...x, current_queue_count: next, waiting_count: next } : x));
+                              }}
+                              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/15 flex items-center justify-center transition-colors"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="font-bold text-sm w-8 text-center">{d.current_queue_count ?? d.waiting_count}</span>
+                            <button
+                              onClick={async () => {
+                                const next = (d.current_queue_count ?? d.waiting_count) + 1;
+                                await supabase.from('departments').update({ current_queue_count: next, waiting_count: next, last_updated: new Date().toISOString() }).eq('id', d.id);
+                                setDepartments((prev) => prev.map((x) => x.id === d.id ? { ...x, current_queue_count: next, waiting_count: next } : x));
+                              }}
+                              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-brand-green/15 flex items-center justify-center transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+
                           <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
                             <button
                               onClick={() => openEditModal(d)}
@@ -1049,6 +1110,20 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                     value={deptForm.estimated_clear_time}
                     onChange={(v) => setDeptForm({ ...deptForm, estimated_clear_time: v })}
                     placeholder={isRTL ? '30 د' : '30 min'}
+                  />
+                  <SetupField
+                    label={isRTL ? 'متوسط وقت الخدمة (دقيقة)' : 'Avg service time (min)'}
+                    value={deptForm.avg_service_time_minutes}
+                    onChange={(v) => setDeptForm({ ...deptForm, avg_service_time_minutes: v })}
+                    placeholder="15"
+                    type="number"
+                  />
+                  <SetupField
+                    label={isRTL ? 'سعة القسم (عدد أشخاص)' : 'Department capacity (people)'}
+                    value={deptForm.department_capacity}
+                    onChange={(v) => setDeptForm({ ...deptForm, department_capacity: v })}
+                    placeholder="20"
+                    type="number"
                   />
                 </div>
               </div>

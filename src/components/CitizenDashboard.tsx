@@ -1853,6 +1853,23 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
                     <span className="text-xs text-[var(--text-muted)] font-tajawal">{t('dash.estClear')}:</span>
                     <span className="text-xs font-bold text-brand-green-light">{d.estimated_clear_time || '—'}</span>
                   </div>
+                  {(() => {
+                    const queue = d.current_queue_count ?? d.waiting_count ?? 0;
+                    const serviceTime = d.avg_service_time_minutes ?? 15;
+                    const waitMin = queue * serviceTime;
+                    const level = queue === 0 ? 'none' : waitMin < 15 ? 'green' : waitMin <= 45 ? 'yellow' : 'red';
+                    const cls: Record<string, string> = {
+                      green: 'bg-status-open/20 text-status-open',
+                      yellow: 'bg-amber-500/20 text-amber-400',
+                      red: 'bg-status-emergency/20 text-status-emergency',
+                      none: 'bg-status-open/20 text-status-open',
+                    };
+                    return (
+                      <div className={`rounded-lg px-2.5 py-1.5 text-xs font-bold mb-2 ${cls[level]}`}>
+                        {queue === 0 ? (lang === 'ar' ? 'دخول مباشر — لا انتظار' : 'Direct entry — no wait') : (lang === 'ar' ? `${waitMin} دقيقة انتظار` : `${waitMin} min wait`)}
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                     <span className="text-xs text-[var(--text-muted)] font-tajawal">{t('dash.workHours')}:</span>
