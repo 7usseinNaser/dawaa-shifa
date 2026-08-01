@@ -1726,8 +1726,20 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
   onUserClick: (u: Profile) => void;
   actionLoading: string | null; isRTL: boolean;
 }) {
-  const filtered = users.filter((u) => !u.deleted_at && (roleFilter === 'all' || u.role === roleFilter));
+  const [search, setSearch] = useState('');
   const roleLabels: Record<string, string> = { all: isRTL ? 'الكل' : 'All', citizen: isRTL ? 'مواطن' : 'Citizen', pharmacist: isRTL ? 'صيدلي' : 'Pharmacist', facility_owner: isRTL ? 'صاحب مرفق' : 'Facility Owner', admin: isRTL ? 'أدمن' : 'Admin' };
+  const q = search.trim().toLowerCase();
+  const filtered = users.filter((u) => {
+    if (u.deleted_at) return false;
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+    if (!q) return true;
+    return (
+      (u.display_name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.unique_id || '').toLowerCase().includes(q) ||
+      (u.phone || '').toLowerCase().includes(q)
+    );
+  });
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1738,6 +1750,13 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
           ))}
         </div>
       </div>
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={isRTL ? 'بحث بالاسم أو البريد أو الـ ID أو الهاتف...' : 'Search by name, email, ID, or phone...'}
+        className="w-full glass rounded-xl px-4 py-2.5 text-sm font-tajawal focus:outline-none focus:border-brand-green transition-colors"
+      />
       {filtered.length === 0 ? (<p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-6">{isRTL ? 'لا يوجد مستخدمون' : 'No users'}</p>) : (
         <div className="space-y-2 max-h-[50vh] overflow-y-auto">
           {filtered.map((u) => (
@@ -1747,8 +1766,17 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
                 {u.banned && <Ban className="w-4 h-4 shrink-0 text-status-emergency" />}
                 {u.frozen && <Snowflake className="w-4 h-4 shrink-0 text-brand-blue-light" />}
                 <div className="min-w-0">
-                  <div className="font-cairo font-bold text-sm truncate hover:text-brand-blue-light transition-colors">{u.display_name}</div>
-                  <div className="text-xs text-[var(--text-muted)] font-tajawal">{u.role}{u.phone ? ' · ' + u.phone : ''}{u.banned ? ` · ${isRTL ? 'محظور' : 'banned'}` : ''}{u.frozen ? ` · ${isRTL ? 'مجمّد' : 'frozen'}` : ''}</div>
+                  <div className="font-cairo font-bold text-sm truncate hover:text-brand-blue-light transition-colors">
+                    {u.display_name}
+                    {u.unique_id && <span className="text-[10px] text-brand-blue-light font-mono mr-1.5 px-1.5 py-0.5 rounded bg-brand-blue/10">{u.unique_id}</span>}
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)] font-tajawal truncate">
+                    {u.email && <span>{u.email}</span>}
+                    {u.phone && <span> · {u.phone}</span>}
+                    <span> · {u.role}</span>
+                    {u.banned && <span> · {isRTL ? 'محظور' : 'banned'}</span>}
+                    {u.frozen && <span> · {isRTL ? 'مجمّد' : 'frozen'}</span>}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-1.5 shrink-0">
