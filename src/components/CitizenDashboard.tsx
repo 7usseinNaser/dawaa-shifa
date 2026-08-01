@@ -24,6 +24,7 @@ import { EmergencyMedicalID } from '@/components/EmergencyMedicalID';
 import { DonationHub } from '@/components/DonationHub';
 import { DonationModal, type DonationType } from '@/components/DonationModal';
 import type { EmergencyBroadcast } from '@/lib/supabase';
+import { to12Hour, autoCloseStatus } from '@/lib/timeUtils';
 import { Camera, Gift, Radio, ScanLine, MoonStar } from 'lucide-react';
 
 type Tab = 'home' | 'search' | 'map' | 'meds' | 'profile' | 'discover' | 'donate';
@@ -1873,7 +1874,7 @@ function FacilityDetail({ facility, departments, isFav, notifyIds, onBack, onTog
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                     <span className="text-xs text-[var(--text-muted)] font-tajawal">{t('dash.workHours')}:</span>
-                    <span className="text-xs font-bold text-[var(--text-soft)]">{d.open_time} - {d.close_time}</span>
+                    <span className="text-xs font-bold text-[var(--text-soft)]">{to12Hour(d.open_time, lang === 'ar')} - {to12Hour(d.close_time, lang === 'ar')}</span>
                   </div>
                   {canNotify && (
                     <button
