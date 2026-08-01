@@ -935,7 +935,7 @@ export default function AdminPanel() {
               )}
 
               {tab === 'reviews' && (
-                <ReviewsList reviews={filterBySearch(reviews, ['user_name', 'target_name', 'text'])} pharmacies={pharmacies} facilities={facilities} onDelete={(id) => permanentDelete('reviews', id, id.slice(0, 8))} onTargetClick={(type, id, name) => setSelectedReviewTarget({ type, id, name })} actionLoading={actionLoading} isRTL={isRTL} />
+                <ReviewsList reviews={filterBySearch(reviews, ['user_name', 'target_name', 'text'])} pharmacies={pharmacies} facilities={facilities} users={users} auditLogs={auditLogs} dataReports={dataReports} onDelete={(id) => permanentDelete('reviews', id, id.slice(0, 8))} onTargetClick={(type, id, name) => setSelectedReviewTarget({ type, id, name })} onUserClick={(u) => setSelectedUser(u)} actionLoading={actionLoading} isRTL={isRTL} />
               )}
 
               {tab === 'users' && (
@@ -1655,7 +1655,7 @@ function MedicinesList({ medicines, pharmacies, pharmFilter, setPharmFilter, onA
 }
 
 // ============ Reviews List (Enhanced) ============
-function ReviewsList({ reviews, pharmacies, facilities, onDelete, onTargetClick, actionLoading, isRTL }: { reviews: Review[]; pharmacies: Pharmacy[]; facilities: Facility[]; onDelete: (id: string) => void; onTargetClick: (type: 'facility' | 'pharmacy', id: string, name: string) => void; actionLoading: string | null; isRTL: boolean; }) {
+function ReviewsList({ reviews, pharmacies, facilities, users, auditLogs, dataReports, onDelete, onTargetClick, onUserClick, actionLoading, isRTL }: { reviews: Review[]; pharmacies: Pharmacy[]; facilities: Facility[]; users: Profile[]; auditLogs: AuditLog[]; dataReports: DataReport[]; onDelete: (id: string) => void; onTargetClick: (type: 'facility' | 'pharmacy', id: string, name: string) => void; onUserClick: (u: Profile) => void; actionLoading: string | null; isRTL: boolean; }) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'pharmacy' | 'facility'>('all');
   const [starFilter, setStarFilter] = useState<number>(0);
   const filtered = reviews.filter((r) => (typeFilter === 'all' || r.target_type === typeFilter) && (starFilter === 0 || r.rating === starFilter));
@@ -1698,10 +1698,36 @@ function ReviewsList({ reviews, pharmacies, facilities, onDelete, onTargetClick,
                   <div key={r.id} className="flex items-start justify-between gap-2 ps-6">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-cairo font-bold">{r.anon ? (isRTL ? 'مجهول' : 'Anonymous') : r.user_name}</span>
+                        {r.anon ? (
+                        <span className="text-xs font-cairo font-bold">{isRTL ? 'مجهول' : 'Anonymous'}</span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const u = users.find((x) => x.id === r.user_id || x.display_name === r.user_name);
+                            if (u) onUserClick(u);
+                          }}
+                          className="text-xs font-cairo font-bold hover:text-brand-blue-light transition-colors cursor-pointer"
+                        >
+                          {r.user_name}
+                        </button>
+                      )}
                         <div className="flex">{[1, 2, 3, 4, 5].map((n) => (<Star key={n} className={`w-2.5 h-2.5 ${n <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-[var(--border-subtle)]'}`} />))}</div>
                       </div>
                       {r.text && <p className="text-[10px] font-tajawal text-[var(--text-soft)] truncate">{r.text}</p>}
+                      {(() => {
+                        const u = users.find((x) => x.id === r.user_id || x.display_name === r.user_name);
+                        if (!u || r.anon) return null;
+                        const userReviews = reviews.filter((rv) => (rv.user_id === u.id || rv.user_name === u.display_name) && !rv.anon);
+                        const userReports = dataReports.filter((dr) => dr.reporter_id === u.id);
+                        return (
+                          <div className="text-[9px] text-[var(--text-muted)] font-tajawal mt-0.5">
+                            {u.email && <span>{u.email}</span>}
+                            {u.phone && <span> · {u.phone}</span>}
+                            <span> · {isRTL ? 'تقييمات' : 'Reviews'}: {userReviews.length}</span>
+                            <span> · {isRTL ? 'بلاغات' : 'Reports'}: {userReports.length}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <button onClick={() => onDelete(r.id)} disabled={actionLoading === r.id} className="p-1 rounded-lg glass hover:bg-status-emergency/15 transition-colors disabled:opacity-50 shrink-0">{actionLoading === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3 text-status-emergency" />}</button>
                   </div>
