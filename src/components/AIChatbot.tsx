@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Loader as Loader2 } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -112,9 +112,18 @@ export function AIChatbot() {
 
       let reply = FALLBACK[isRTL ? 'ar' : 'en'];
       if (resp.ok) {
-        const data = await resp.json();
-        if (data && typeof data.reply === 'string' && data.reply.trim()) {
-          reply = data.reply;
+        try {
+          const data = await resp.json();
+          const candidate =
+            (typeof data?.reply === 'string' && data.reply.trim()) ? data.reply :
+            (typeof data?.message === 'string' && data.message.trim()) ? data.message :
+            (typeof data?.response === 'string' && data.response.trim()) ? data.response :
+            (typeof data?.text === 'string' && data.text.trim()) ? data.text :
+            (typeof data?.error === 'string' && data.error.trim()) ? data.error :
+            null;
+          if (candidate) reply = candidate;
+        } catch {
+          // JSON parse failed — keep fallback
         }
       }
       setMessages((p) => [...p, { role: 'bot', text: reply }]);
