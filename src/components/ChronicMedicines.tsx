@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pill, Plus, Trash2, Clock, Loader2, MapPin, AlertCircle, CreditCard as Edit3, X } from 'lucide-react';
+import { Pill, Plus, Trash2, Clock, Loader as Loader2, MapPin, CircleAlert as AlertCircle, CreditCard as Edit3, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type Pharmacy, type Medicine } from '@/lib/supabase';
@@ -55,8 +55,8 @@ export default function ChronicMedicines() {
     (async () => {
       try {
         const [{ data: ph }, { data: meds }] = await Promise.all([
-          supabase.from('pharmacies').select('*'),
-          supabase.from('medicines').select('*'),
+          supabase.from('pharmacies').select('id,name,area,address,phone,is_open,status,verified,deleted_at,lat,lng,rating'),
+          supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_incomplete'),
         ]);
         if (ph) setPharmacies(ph as Pharmacy[]);
         if (meds) setAllMedicines(meds as Medicine[]);

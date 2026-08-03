@@ -33,8 +33,8 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
   const load = useCallback(async () => {
     setLoading(true);
     const [donRes, pharmRes] = await Promise.all([
-      supabase.from('medicine_donations').select('*').order('created_at', { ascending: false }),
-      supabase.from('pharmacies').select('*').eq('verified', true).is('deleted_at', null),
+      supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false }),
+      supabase.from('pharmacies').select('id,name,area,phone,verified,deleted_at').eq('verified', true).is('deleted_at', null),
     ]);
     if (donRes.data) setDonations(donRes.data as MedicineDonation[]);
     if (pharmRes.data) setPharmacies(pharmRes.data as Pharmacy[]);

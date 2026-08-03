@@ -102,10 +102,10 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   useEffect(() => {
     (async () => {
       const [ph, meds, facs, depts] = await Promise.all([
-        supabase.from('pharmacies').select('*').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
-        supabase.from('medicines').select('*').is('deleted_at', null),
-        supabase.from('facilities').select('*').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
-        supabase.from('departments').select('*'),
+        supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
+        supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at').is('deleted_at', null),
+        supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
+        supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated'),
       ]);
 
       const verifiedPharmIds = new Set((ph.data as Pharmacy[] || []).map((p) => p.id));
@@ -135,8 +135,8 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
     if (!user) return;
     (async () => {
       const [{ data: favs }, { data: notifs }] = await Promise.all([
-        supabase.from('favorites').select('*').eq('user_id', user.id),
-        supabase.from('notifications').select('*').eq('user_id', user.id).order('ts', { ascending: false }),
+        supabase.from('favorites').select('id,user_id,target_id,target_type,target_name').eq('user_id', user.id),
+        supabase.from('notifications').select('id,user_id,title,content,type,body,unread,ts').eq('user_id', user.id).order('ts', { ascending: false }),
       ]);
       if (favs) setFavorites(favs as Favorite[]);
       if (notifs) setNotifications(notifs as Notification[]);
@@ -211,7 +211,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   const [crisisAlerts, setCrisisAlerts] = useState<AdminAlert[]>([]);
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('admin_alerts').select('*').eq('severity', 'emergency').order('created_at', { ascending: false }).limit(3);
+      const { data } = await supabase.from('admin_alerts').select('id,severity,message,created_at').eq('severity', 'emergency').order('created_at', { ascending: false }).limit(3);
       if (data) setCrisisAlerts(data as AdminAlert[]);
     })();
   }, []);
@@ -219,7 +219,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   /* ---------- Emergency broadcast ---------- */
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('emergency_broadcasts').select('*').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('emergency_broadcasts').select('id,title,message,expires_at,created_at').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1);
       if (data && data.length > 0) {
         const b = data[0] as EmergencyBroadcast;
         const dismissedKey = `broadcast_${b.id}`;

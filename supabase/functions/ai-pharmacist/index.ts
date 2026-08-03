@@ -22,12 +22,12 @@ Rules:
 6. Never recommend self-medicating for serious conditions.
 7. If the question is unrelated to medicines/pharmacy, politely redirect to medicine topics.`;
 
-// Simple in-memory rate limiting (per user ID)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
 const MAX_INPUT_CHARS = 2000;
 const MAX_MESSAGES = 20;
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -42,7 +42,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // 1. JWT Authentication — verify the user is signed in
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(
@@ -68,7 +67,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2. Rate limiting per user
     const now = Date.now();
     const rl = rateLimitMap.get(user.id);
     if (rl) {
@@ -87,7 +85,6 @@ Deno.serve(async (req: Request) => {
       rateLimitMap.set(user.id, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     }
 
-    // 3. Input validation
     const body = await req.json();
     const { messages, lang } = body;
 
@@ -120,8 +117,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 4. Read API key securely from environment
-    const apiKey = Deno.env.get("GROQ_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
       return new Response(
         JSON.stringify({
@@ -134,49 +130,89 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const apiMessages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...messages.map((m: { role: string; content: string }) => ({
-        role: m.role === "bot" ? "assistant" : m.role,
-        content: m.content,
-      })),
+    // Map chat messages to Gemini's contents format (roles: "user" / "model")
+    const contents = messages.map((m: { role: string; content: string }) => ({
+      role: m.role === "bot" || m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const requestBody = {
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents,
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 600,
+      },
+    };
+
+    // Candidate endpoints ordered by preference.
+    // v1 is the stable channel; v1beta is the preview channel.
+    // We distinguish 429 (quota) from other errors and surface it immediately.
+    const endpoints = [
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
     ];
 
-    // 5. Call Groq API securely from server-side
-    const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: apiMessages,
-        temperature: 0.4,
-        max_tokens: 600,
-      }),
-    });
+    let geminiData: Record<string, unknown> | null = null;
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error("Groq API error:", resp.status, errText);
+    for (const endpoint of endpoints) {
+      const geminiResp = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (geminiResp.ok) {
+        geminiData = await geminiResp.json() as Record<string, unknown>;
+        break;
+      }
+
+      const errText = await geminiResp.text();
+      console.error(`Gemini error [${geminiResp.status}] ${endpoint.split("/models/")[1]?.split(":")[0]}: ${errText.slice(0, 200)}`);
+
+      if (geminiResp.status === 429) {
+        // Quota exceeded — stop immediately and tell the user clearly
+        return new Response(
+          JSON.stringify({
+            reply:
+              lang === "ar"
+                ? "⏳ المساعد الذكي مزدحم حالياً بسبب كثرة الطلبات. يرجى الانتظار دقيقة واحدة ثم إعادة المحاولة."
+                : "⏳ The AI assistant is busy right now due to high demand. Please wait a minute and try again.",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      // 404 or other error: try next endpoint
+    }
+
+    if (!geminiData) {
       return new Response(
         JSON.stringify({
           reply:
             lang === "ar"
-              ? "عذراً، حدث خطأ مؤقت. حاول مرة أخرى لاحقاً. تذكر: استشر طبيبك أو الصيدلي دائماً."
-              : "Sorry, a temporary error occurred. Please try again later. Remember: always consult your doctor or pharmacist.",
+              ? "عذراً، المساعد الذكي غير متاح مؤقتاً. حاول مرة أخرى لاحقاً. تذكر: استشر طبيبك أو الصيدلي دائماً."
+              : "Sorry, the AI assistant is temporarily unavailable. Please try again later. Remember: always consult your doctor or pharmacist.",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const data = await resp.json();
-    const reply =
-      data?.choices?.[0]?.message?.content ??
-      (lang === "ar"
+    let reply = "";
+    try {
+      const candidates = geminiData?.candidates as Array<Record<string, unknown>> | undefined;
+      const content = candidates?.[0]?.content as Record<string, unknown> | undefined;
+      const parts = content?.parts as Array<Record<string, unknown>> | undefined;
+      reply = (parts?.[0]?.text as string) ?? "";
+    } catch {
+      reply = "";
+    }
+    if (!reply || !reply.trim()) {
+      reply = lang === "ar"
         ? "عذراً، لم أتمكن من توليد رد. حاول مرة أخرى."
-        : "Sorry, I could not generate a reply. Please try again.");
+        : "Sorry, I could not generate a reply. Please try again.";
+    }
 
     return new Response(
       JSON.stringify({ reply }),

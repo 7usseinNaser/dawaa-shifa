@@ -24,7 +24,7 @@ export default function LiveFeed() {
     const loadInitial = async () => {
       const { data } = await supabase
         .from('public_activity_feed')
-        .select('*')
+        .select('id,event_type,message_ar,message_en,created_at')
         .order('created_at', { ascending: false })
         .limit(8);
       if (active) {

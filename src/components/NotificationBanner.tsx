@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Info, ShieldAlert, X } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, Bell, Info, ShieldAlert, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -11,6 +11,10 @@ interface Notification {
   content: string;
   type: 'info' | 'warning' | 'emergency';
   max_views_per_user: number | null;
+}
+
+interface NotifWithRead extends Notification {
+  is_read: boolean;
 }
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
@@ -25,8 +29,9 @@ export default function NotificationBanner() {
   const { user } = useAuth();
   const { lang } = useLang();
   const isRTL = lang === 'ar';
-  const [visibleNotifs, setVisibleNotifs] = useState<Notification[]>([]);
+  const [visibleNotifs, setVisibleNotifs] = useState<NotifWithRead[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchAndFilter = useCallback(async () => {
     if (!user) return;
@@ -52,16 +57,18 @@ export default function NotificationBanner() {
         viewMap.set(v.notification_id, { view_count: v.view_count, is_dismissed: v.is_dismissed });
       });
 
-      const toShow: Notification[] = [];
+      const toShow: NotifWithRead[] = [];
       for (const n of notifs as Notification[]) {
         const view = viewMap.get(n.id);
         if (view?.is_dismissed) continue;
         if (n.max_views_per_user !== null && n.max_views_per_user > 0) {
           if (view && view.view_count >= n.max_views_per_user) continue;
         }
-        toShow.push(n);
+        const isRead = view ? view.view_count > 0 : false;
+        toShow.push({ ...n, is_read: isRead });
       }
       setVisibleNotifs(toShow);
+      setUnreadCount(toShow.filter((n) => !n.is_read).length);
 
       // Increment view counts for shown notifications
       for (const n of toShow) {
@@ -113,6 +120,8 @@ export default function NotificationBanner() {
   const active = visibleNotifs.filter((n) => !dismissed.has(n.id));
   if (active.length === 0) return null;
 
+  const totalUnread = active.filter((n) => !n.is_read).length;
+
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg px-4 space-y-2">
       <AnimatePresence>
@@ -131,7 +140,12 @@ export default function NotificationBanner() {
                 <Icon className={`w-5 h-5 ${cfg.textClass}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-cairo font-bold text-sm text-[var(--text-main)] mb-0.5">{n.title}</h4>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h4 className="font-cairo font-bold text-sm text-[var(--text-main)]">{n.title}</h4>
+                  {!n.is_read && (
+                    <span className="shrink-0 w-2 h-2 rounded-full bg-brand-green animate-pulse" aria-label={isRTL ? 'غير مقروء' : 'Unread'} />
+                  )}
+                </div>
                 <p className="text-sm font-tajawal text-[var(--text-soft)] leading-relaxed">{n.content}</p>
               </div>
               <button

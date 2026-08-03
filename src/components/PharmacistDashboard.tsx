@@ -68,7 +68,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       setLoading(true);
       const { data: pharmData } = await supabase
         .from('pharmacies')
-        .select('*')
+        .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at')
         .eq('owner_id', user.id)
         .maybeSingle();
 
@@ -96,7 +96,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   async function loadMedicines(pharmacyId: string) {
     const { data } = await supabase
       .from('medicines')
-      .select('*')
+      .select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at')
       .eq('pharmacy_id', pharmacyId)
       .order('medicine_name', { ascending: true });
     if (data) setMedicines(data as Medicine[]);
@@ -112,7 +112,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   async function loadActivity(userId: string) {
     const { data } = await supabase
       .from('activity_log')
-      .select('*')
+      .select('id,user_id,user_name,action,item,ts')
       .eq('user_id', userId)
       .order('ts', { ascending: false })
       .limit(10);
@@ -122,7 +122,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   async function loadReservations(pharmacyId: string) {
     const { data } = await supabase
       .from('medicine_reservations')
-      .select('*')
+      .select('id,medicine_id,pharmacy_id,user_id,user_name,user_phone,medicine_name,status,expires_at,confirmed_at,cancelled_at,created_at')
       .eq('pharmacy_id', pharmacyId)
       .in('status', ['pending', 'confirmed'])
       .order('created_at', { ascending: false });
@@ -182,7 +182,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         lat: 0,
         lng: 0,
       })
-      .select('*')
+      .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at')
       .single();
     setSaving(false);
     if (error) {

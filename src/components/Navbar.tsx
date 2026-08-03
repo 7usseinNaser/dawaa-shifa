@@ -19,11 +19,7 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
   const [showDonate, setShowDonate] = useState(false);
 
   const handleDonateClick = () => {
-    if (user) {
-      window.location.hash = '#/donate';
-    } else {
-      window.location.hash = '#/auth?redirect=/donate';
-    }
+    setShowDonate(true);
   };
 
   const links = [

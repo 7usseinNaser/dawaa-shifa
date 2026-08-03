@@ -100,7 +100,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       setLoading(true);
       const { data: facData } = await supabase
         .from('facilities')
-        .select('*')
+        .select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at')
         .eq('owner_id', user.id)
         .maybeSingle();
 
@@ -149,7 +149,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
   async function loadDepartments(facilityId: string) {
     const { data } = await supabase
       .from('departments')
-      .select('*')
+      .select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated')
       .eq('facility_id', facilityId)
       .order('name', { ascending: true });
     if (data) setDepartments(data as Department[]);
@@ -158,7 +158,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
   async function loadActivity(userId: string) {
     const { data } = await supabase
       .from('activity_log')
-      .select('*')
+      .select('id,user_id,user_name,action,item,ts')
       .eq('user_id', userId)
       .order('ts', { ascending: false })
       .limit(10);
@@ -205,7 +205,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         lng: 0,
         overall_status: 'open',
       })
-      .select('*')
+      .select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at')
       .single();
     setSaving(false);
     if (error) {
@@ -257,6 +257,31 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       closed: { ar: 'مغلق', en: 'Closed' },
     };
     return isRTL ? map[s].ar : map[s].en;
+  }
+
+  // ---- Resubmit after rejection ----
+  async function resubmitForReview() {
+    if (!facility) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('facilities')
+      .update({ approval_status: 'pending', rejection_reason: null })
+      .eq('id', facility.id);
+    setSaving(false);
+    if (error) {
+      showToast(isRTL ? 'فشل إعادة الإرسال' : 'Failed to resubmit', 'error');
+      return;
+    }
+    setFacility({ ...facility, approval_status: 'pending', rejection_reason: null });
+    showToast(isRTL ? 'تم إعادة إرسال المرفق للمراجعة' : 'Facility resubmitted for review');
+    await logActivity('resubmit_facility', facility.name);
+    // Notify admin
+    await supabase.from('admin_alerts').insert({
+      target_type: 'facility',
+      target_id: facility.id,
+      message: `${isRTL ? 'إعادة إرسال مرفق للمراجعة' : 'Facility resubmitted for review'}: ${facility.name}`,
+      severity: 'info',
+    });
   }
 
   // ---- Info save ----
@@ -1013,8 +1038,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                     onClick={async () => {
                       try {
                         const [{ data: fac }, { data: depts }] = await Promise.all([
-                          supabase.from('facilities').select('*').eq('owner_id', user?.id).maybeSingle(),
-                          supabase.from('departments').select('*').eq('facility_id', facility?.id),
+                          supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at').eq('owner_id', user?.id).maybeSingle(),
+                          supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated').eq('facility_id', facility?.id),
                         ]);
                         const backup = {
                           exportDate: new Date().toISOString(),

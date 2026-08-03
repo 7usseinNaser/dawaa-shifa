@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Heart, Gift, MessageCircle, CircleCheck as CheckCircle, Loader as Loader2, BookOpen, Sparkles } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Heart, Gift, MessageCircle, CircleCheck as CheckCircle, Loader as Loader2, BookOpen, Sparkles, Share2 } from 'lucide-react';
 import { donationVerses, type DonationVerse } from '@/data/donationVerses';
 import { useLang } from '@/lib/i18n';
 import { DONATION_CONFIG } from '@/lib/config';
@@ -19,6 +19,7 @@ export function DonationModal({ open, onClose, defaultType = 'medicine' }: Donat
   const [verseIndex, setVerseIndex] = useState(0);
   const [donationType, setDonationType] = useState<DonationType>(defaultType);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -45,6 +46,23 @@ export function DonationModal({ open, onClose, defaultType = 'medicine' }: Donat
       setShowConfirm(true);
     } else {
       onClose();
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: isRTL ? 'دواء وشِفاء — منصة التبرع بالأدوية' : 'Dawaa Shifa — Medicine Donation Platform',
+      text: isRTL ? 'ساعد في إيصال الدواء لمن يحتاجه. تبرع أو شارك المنصة.' : 'Help deliver medicine to those in need. Donate or share the platform.',
+      url: window.location.origin,
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch { /* user cancelled */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareData.url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch { /* clipboard unavailable */ }
     }
   };
 
@@ -173,6 +191,20 @@ export function DonationModal({ open, onClose, defaultType = 'medicine' }: Donat
                     ? 'دعمك المالي يساعدنا في تغطية تكاليف النقل والتخزين والتحقق من الأدوية لإيصالها لمن يحتاجها.'
                     : 'Your financial support helps us cover transportation, storage, and verification costs to deliver medicines to those in need.')}
               </p>
+            </div>
+
+            {/* Share Section */}
+            <div className="px-5 pt-3">
+              <div className="glass-card p-3 flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="font-cairo font-bold text-sm">{isRTL ? 'شارك المنصة' : 'Share the Platform'}</div>
+                  <div className="text-[10px] font-tajawal text-[var(--text-muted)]">{isRTL ? 'دعوة غير متبرع — نشر الخير صدقة' : 'Invite others — spreading good is charity too'}</div>
+                </div>
+                <button onClick={handleShare} className="btn-secondary text-sm flex items-center gap-1.5 px-3 py-2">
+                  <Share2 className="w-4 h-4" />
+                  {copied ? (isRTL ? 'تم النسخ' : 'Copied!') : (isRTL ? 'مشاركة' : 'Share')}
+                </button>
+              </div>
             </div>
 
             {/* Action Button */}

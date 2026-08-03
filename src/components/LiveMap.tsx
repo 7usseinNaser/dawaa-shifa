@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Navigation, Layers, Crosshair, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, Layers, Crosshair, Loader as Loader2 } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 import { useLiveStats } from '@/hooks/useLiveStats';
 import { supabase, type Pharmacy, type Facility } from '@/lib/supabase';
@@ -48,8 +48,8 @@ export default function LiveMap() {
     (async () => {
       try {
         const [{ data: pharms, error: e1 }, { data: facs, error: e2 }] = await Promise.all([
-          supabase.from('pharmacies').select('*').limit(100),
-          supabase.from('facilities').select('*').limit(100),
+          supabase.from('pharmacies').select('id,name,area,phone,lat,lng,status,is_open').limit(100),
+          supabase.from('facilities').select('id,name,area,phone,lat,lng,overall_status,type').limit(100),
         ]);
         if (e1 || e2) throw e1 || e2;
         if (pharms) setPharmacies(pharms as Pharmacy[]);
@@ -96,7 +96,7 @@ export default function LiveMap() {
         const color = statusColors[p.status] || statusColors.open;
         L.marker([p.lat, p.lng], { icon: createIcon(color, 'pharmacy') })
           .addTo(map)
-          .bindPopup(`<div style="font-family:sans-serif;direction:rtl;"><strong>${p.name}</strong><br/>${statusLabels[p.status] || p.status}<br/>${p.area || ''}<br/>${p.phone || ''}</div>`);
+          .bindPopup(`<div style="font-family:sans-serif;direction:rtl;"><strong>${p.name}</strong><br/>${statusLabels[p.status] || p.status}<br/>${p.area || ''}${p.phone ? `<br/><a href="tel:${p.phone}" style="color:#10b981;text-decoration:none;">📞 اتصال</a> &nbsp; <a href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:none;">🧭 اتجاهات</a>` : ''}</div>`);
       });
     }
 
@@ -107,7 +107,7 @@ export default function LiveMap() {
         const color = statusColors[f.overall_status] || statusColors.open;
         L.marker([f.lat, f.lng], { icon: createIcon(color, 'facility') })
           .addTo(map)
-          .bindPopup(`<div style="font-family:sans-serif;direction:rtl;"><strong>${f.name}</strong><br/>${statusLabels[f.overall_status] || f.overall_status}<br/>${f.area || ''}<br/>${f.phone || ''}</div>`);
+          .bindPopup(`<div style="font-family:sans-serif;direction:rtl;"><strong>${f.name}</strong><br/>${statusLabels[f.overall_status] || f.overall_status}<br/>${f.area || ''}${f.phone ? `<br/><a href="tel:${f.phone}" style="color:#10b981;text-decoration:none;">📞 اتصال</a> &nbsp; <a href="https://www.google.com/maps/dir/?api=1&destination=${f.lat},${f.lng}" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:none;">🧭 اتجاهات</a>` : ''}</div>`);
       });
     }
   }, [pharmacies, facilities, filter, loading]);
@@ -170,10 +170,10 @@ export default function LiveMap() {
                   انقر على أي مؤشر لعرض التفاصيل
                 </div>
               </div>
-              <button className="btn-primary text-xs inline-flex items-center gap-1">
+              <a href="#/dashboard" className="btn-primary text-xs inline-flex items-center gap-1">
                 <Navigation className="w-3 h-3" />
                 افتح الخريطة الكاملة
-              </button>
+              </a>
             </div>
           </div>
 

@@ -81,9 +81,10 @@ function AppContent() {
   const { user, profile, loading, isRecovery, clearRecovery } = useAuth();
   const hash = useHashRoute();
 
-  const isAuthRoute = hash === '#/auth' || hash === '#/login' || hash === '#/register';
-  const isDashboardRoute = hash === '#/dashboard';
-  const isDonateRoute = hash === '#/donate' || hash.startsWith('#/donate');
+  const currentRoute = hash.split('?')[0];
+  const isAuthRoute = currentRoute === '#/auth' || currentRoute === '#/login' || currentRoute === '#/register';
+  const isDashboardRoute = currentRoute === '#/dashboard';
+  const isDonateRoute = currentRoute === '#/donate' || hash.startsWith('#/donate');
 
   if (loading) {
     return (

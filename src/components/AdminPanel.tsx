@@ -1,13 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ShieldCheck, ShieldX, Loader2, Building2, Pill, CheckCircle, XCircle,
-  Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity,
-  RotateCcw, Ban, AlertTriangle, Radio, FileText, History, Filter,
-  Search, Flag, Package, AlertOctagon, ExternalLink, Upload,
-  ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift,
-  Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone,
-} from 'lucide-react';
+import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -139,22 +132,22 @@ export default function AdminPanel() {
     setLoading(true);
     try {
       const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast, dept, don] = await Promise.all([
-        supabase.from('pharmacies').select('*'),
-        supabase.from('facilities').select('*'),
-        supabase.from('medicines').select('*'),
-        supabase.from('reviews').select('*'),
-        supabase.from('profiles').select('*'),
-        supabase.from('entity_versions').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('admin_alerts').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('med_exchange_requests').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('data_reports').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('batch_recalls').select('*').order('created_at', { ascending: false }).limit(200),
-        supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('facility_warnings').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('search_logs').select('*').order('created_at', { ascending: false }).limit(500),
-        supabase.from('emergency_broadcasts').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('departments').select('*'),
-        supabase.from('medicine_donations').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at'),
+        supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at'),
+        supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at'),
+        supabase.from('reviews').select('id,target_type,target_id,target_name,user_id,user_name,rating,text,anon,ts,reply,created_at'),
+        supabase.from('profiles').select('id,display_name,email,phone,role,unique_id,banned,frozen,freeze_reason,deleted_at,created_at'),
+        supabase.from('entity_versions').select('id,entity_type,entity_id,version_data,snapshot,created_by,created_at').order('created_at', { ascending: false }).limit(50),
+        supabase.from('admin_alerts').select('id,severity,message,created_at').order('created_at', { ascending: false }).limit(50),
+        supabase.from('med_exchange_requests').select('id,medicine_name,generic_name,pharmacy_id,pharmacy_name,requester_id,requester_name,request_type,quantity,price,expiry_date,storage_conditions,notes,status,admin_notes,created_at,reviewed_at,reviewed_by').order('created_at', { ascending: false }).limit(200),
+        supabase.from('data_reports').select('id,reporter_id,reporter_name,target_type,target_id,target_name,issue_type,message,status,created_at').order('created_at', { ascending: false }).limit(200),
+        supabase.from('batch_recalls').select('id,medicine_name,batch_number,reason,status,created_at').order('created_at', { ascending: false }).limit(200),
+        supabase.from('audit_logs').select('id,actor_id,actor_name,action,entity_type,entity_id,details,before_state,after_state,created_at').order('created_at', { ascending: false }).limit(100),
+        supabase.from('facility_warnings').select('id,target_type,target_id,message,severity,created_at').order('created_at', { ascending: false }).limit(50),
+        supabase.from('search_logs').select('id,user_id,query,search_type,area,created_at').order('created_at', { ascending: false }).limit(500),
+        supabase.from('emergency_broadcasts').select('id,title,message,expires_at,created_at').order('created_at', { ascending: false }).limit(50),
+        supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated'),
+        supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false }).limit(200),
       ]);
       const phData = (ph.data || []) as Pharmacy[];
       const facData = (fac.data || []) as Facility[];
@@ -181,7 +174,7 @@ export default function AdminPanel() {
       setSearchLogs((slog.data || []) as SearchLog[]);
       setBroadcasts((bcast.data || []) as EmergencyBroadcast[]);
       setDonations((don.data || []) as MedicineDonation[]);
-      const bugs = await supabase.from('bug_reports').select('*').order('created_at', { ascending: false }).limit(200);
+      const bugs = await supabase.from('bug_reports').select('id,reporter_id,reporter_name,bug_type,category,description,status,resolved_at,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
       setBugReports((bugs.data || []) as BugReport[]);
       const deptData = (dept.data || []) as Department[];
       const deptMap: Record<string, Department[]> = {};
@@ -296,10 +289,10 @@ export default function AdminPanel() {
       }
       let res;
       if (id) {
-        res = await supabase.from(table).update(clean).eq('id', id).select('*').single();
+        res = await supabase.from(table).update(clean).eq('id', id).select('id').single();
         await logAction(`update_${table}`, String(clean.name || clean.medicine_name || id));
       } else {
-        res = await supabase.from(table).insert(clean).select('*').single();
+        res = await supabase.from(table).insert(clean).select('id').single();
         await logAction(`insert_${table}`, String(clean.name || clean.medicine_name || 'new'));
       }
       if (res.error) throw res.error;
@@ -1180,7 +1173,7 @@ function BugReportChatModal({ report, adminName, adminId, isRTL, onClose }: {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('bug_report_chats').select('*').eq('bug_report_id', report.id).order('created_at', { ascending: true });
+      const { data } = await supabase.from('bug_report_chats').select('id,bug_report_id,sender_id,sender_role,message,created_at').eq('bug_report_id', report.id).order('created_at', { ascending: true });
       setMessages((data as BugReportChat[]) || []);
       setLoading(false);
     })();
@@ -1251,7 +1244,7 @@ function UserDetailModal({ user, auditLogs, dataReports, reviews, onClose, isRTL
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      const { data } = await supabase.from('profiles').select('id,display_name,email,phone,role,unique_id').eq('id', user.id).maybeSingle();
       if (!cancelled && data) setFreshUser(data as Profile);
     })();
     return () => { cancelled = true; };

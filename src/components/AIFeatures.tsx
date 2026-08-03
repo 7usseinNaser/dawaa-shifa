@@ -1,8 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  AlertOctagon, Clock, Pill, Loader2, Sparkles, Search, ArrowRight, X,
-} from 'lucide-react';
+import { OctagonAlert as AlertOctagon, Clock, Pill, Loader as Loader2, Sparkles, Search, ArrowRight, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type Medicine, type Pharmacy, type ChronicMedicine } from '@/lib/supabase';
@@ -150,7 +148,7 @@ export function GenericFinder({ medicineName, activeIngredient }: { medicineName
     try {
       const { data } = await supabase
         .from('medicines')
-        .select('*')
+        .select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,is_incomplete')
         .ilike('generic_name', `%${activeIngredient || medicineName}%`)
         .neq('medicine_name', medicineName)
         .limit(5);

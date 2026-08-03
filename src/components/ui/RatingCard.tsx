@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, Loader2, ShieldCheck } from 'lucide-react';
+import { Star, Loader as Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -9,6 +9,7 @@ import { showToast } from '@/components/ui/Toast';
 export interface Review {
   id: string;
   target_id: string;
+  user_id: string;
   user_name: string;
   rating: number;
   text: string;
@@ -36,6 +37,9 @@ export default function RatingCard({ targetId, targetType, targetName }: RatingC
   const [hoverRating, setHoverRating] = useState(0);
   const [selectedRating, setSelectedRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [showReviewerModal, setShowReviewerModal] = useState(false);
+  const [reviewerInfo, setReviewerInfo] = useState<{ name: string; email: string; phone: string; role: string } | null>(null);
+  const [loadingReviewer, setLoadingReviewer] = useState(false);
   const [showCommentBox, setShowCommentBox] = useState(false);
 
   const avg = reviews.length
@@ -47,7 +51,7 @@ export default function RatingCard({ targetId, targetType, targetName }: RatingC
       try {
         const { data, error } = await supabase
           .from('reviews')
-          .select('*')
+          .select('id,target_id,target_type,user_id,user_name,rating,text,anon,ts,reply')
           .eq('target_id', targetId)
           .order('ts', { ascending: false });
 
@@ -60,6 +64,29 @@ export default function RatingCard({ targetId, targetType, targetName }: RatingC
       }
     })();
   }, [targetId]);
+
+  const fetchReviewer = async (userId: string) => {
+    setLoadingReviewer(true);
+    setShowReviewerModal(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name, email, phone, role')
+        .eq('id', userId)
+        .single();
+      if (error) throw error;
+      setReviewerInfo({
+        name: data?.display_name || '—',
+        email: data?.email || '—',
+        phone: data?.phone || '—',
+        role: data?.role || '—',
+      });
+    } catch {
+      setReviewerInfo({ name: '—', email: '—', phone: '—', role: '—' });
+    } finally {
+      setLoadingReviewer(false);
+    }
+  };
 
   const submit = async () => {
     if (!user) {
@@ -84,7 +111,7 @@ export default function RatingCard({ targetId, targetType, targetName }: RatingC
           text: cleanComment,
           anon: false,
         })
-        .select('*')
+        .select('id,target_id,target_type,user_id,user_name,rating,text,anon,ts,reply')
         .single();
 
       if (error) throw error;
@@ -214,7 +241,13 @@ export default function RatingCard({ targetId, targetType, targetName }: RatingC
           {reviews.slice(0, 5).map((r) => (
             <div key={r.id} className="space-y-1">
               <div className="flex items-center justify-between">
-                <span className="font-cairo font-bold text-sm flex items-center gap-1">
+                <span
+                  className="font-cairo font-bold text-sm flex items-center gap-1 cursor-pointer hover:text-brand-green-light transition-colors"
+                  onClick={() => !r.anon && r.user_id ? fetchReviewer(r.user_id) : undefined}
+                  role={r.anon ? undefined : 'button'}
+                  tabIndex={r.anon ? -1 : 0}
+                  onKeyDown={(e) => { if (!r.anon && r.user_id && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fetchReviewer(r.user_id); } }}
+                >
                   {r.anon ? (lang === 'ar' ? 'مجهول' : 'Anonymous') : r.user_name}
                 </span>
                 <div className="flex items-center gap-0.5">
@@ -244,6 +277,49 @@ export default function RatingCard({ targetId, targetType, targetName }: RatingC
           )}
         </div>
       )}
+
+      {/* Reviewer Info Modal */}
+      <AnimatePresence>
+        {showReviewerModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowReviewerModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-card p-6 max-w-sm w-full space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-brand-green-light" />
+                <h3 className="font-cairo font-bold text-lg">
+                  {lang === 'ar' ? 'معلومات المُقيِّم' : 'Reviewer Info'}
+                </h3>
+              </div>
+              {loadingReviewer ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-green-light" />
+                </div>
+              ) : reviewerInfo ? (
+                <div className="space-y-2 text-sm font-tajawal">
+                  <div className="flex justify-between"><span className="text-[var(--text-muted)]">{lang === 'ar' ? 'الاسم' : 'Name'}</span><span className="font-cairo font-bold">{reviewerInfo.name}</span></div>
+                  <div className="flex justify-between"><span className="text-[var(--text-muted)]">{lang === 'ar' ? 'البريد' : 'Email'}</span><span>{reviewerInfo.email}</span></div>
+                  <div className="flex justify-between"><span className="text-[var(--text-muted)]">{lang === 'ar' ? 'الهاتف' : 'Phone'}</span><span>{reviewerInfo.phone}</span></div>
+                  <div className="flex justify-between"><span className="text-[var(--text-muted)]">{lang === 'ar' ? 'النوع' : 'Role'}</span><span>{reviewerInfo.role}</span></div>
+                </div>
+              ) : null}
+              <button onClick={() => setShowReviewerModal(false)} className="w-full btn-secondary text-sm">
+                {lang === 'ar' ? 'إغلاق' : 'Close'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

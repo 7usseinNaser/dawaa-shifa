@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Users, Plus, Pill, Clock, Trash2, Loader2, X, Heart, Baby, User, Pencil, Check,
-} from 'lucide-react';
+import { Users, Plus, Pill, Clock, Trash2, Loader as Loader2, X, Heart, Baby, User, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type FamilyMember, type ChronicMedicine } from '@/lib/supabase';
@@ -33,8 +31,8 @@ export function FamilyCabinet() {
     (async () => {
       try {
         const [memRes, medRes] = await Promise.all([
-          supabase.from('family_cabinet').select('*').eq('owner_id', user.id).order('created_at', { ascending: true }),
-          supabase.from('chronic_medicines').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+          supabase.from('family_cabinet').select('id,owner_id,member_name,member_age,member_relation,created_at').eq('owner_id', user.id).order('created_at', { ascending: true }),
+          supabase.from('chronic_medicines').select('id,user_id,member_id,name,dosage,times,pills_left,pills_per_day,created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
         ]);
         setMembers((memRes.data || []) as FamilyMember[]);
         setMeds((medRes.data || []) as ChronicMedicine[]);
