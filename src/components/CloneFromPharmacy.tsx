@@ -10,11 +10,13 @@ export function CloneFromPharmacy({
   onClose,
   onDone,
   isRTL,
+  allowReference = false,
 }: {
   targetPharmacyId: string;
   onClose: () => void;
   onDone: () => void;
   isRTL: boolean;
+  allowReference?: boolean;
 }) {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [selectedPharmId, setSelectedPharmId] = useState<string | null>(null);
@@ -25,12 +27,16 @@ export function CloneFromPharmacy({
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      let query = supabase
         .from('pharmacies')
         .select('id,name,area,is_reference,deleted_at,owner_id')
-        .or('is_reference.eq.true,and(owner_id.neq.null,deleted_at.is.null)')
-        .order('is_reference', { ascending: false })
         .order('name', { ascending: true });
+      if (allowReference) {
+        query = query.or('is_reference.eq.true,and(owner_id.neq.null,deleted_at.is.null)');
+      } else {
+        query = query.eq('is_reference', false).not('owner_id', 'is', null).is('deleted_at', null);
+      }
+      const { data } = await query;
       if (data) setPharmacies(data as Pharmacy[]);
       setLoading(false);
     })();
@@ -64,6 +70,7 @@ export function CloneFromPharmacy({
       price: m.price,
       quantity: m.quantity,
       expiry_date: m.expiry_date || null,
+      category: m.category || null,
       is_available: true,
       is_restricted: false,
       last_updated: new Date().toISOString(),
@@ -186,6 +193,11 @@ export function CloneFromPharmacy({
                       <p className="text-xs text-[var(--text-muted)]">
                         {m.generic_name} · {m.price} ₪ · {isRTL ? 'الكمية' : 'Qty'}: {m.quantity}
                       </p>
+                      {m.category && (
+                        <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-brand-green/15 text-brand-green-light">
+                          {m.category}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))

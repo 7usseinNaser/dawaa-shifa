@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Building2, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, OctagonAlert as AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader as Loader2, Send } from 'lucide-react';
+import { Bell, Building2, ChevronDown, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, OctagonAlert as AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader as Loader2, Send } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -1986,12 +1986,35 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
   onBack: () => void; onToggleFav: () => void; onReport: () => void;
 }) {
   const { t, lang } = useLang();
+  const isRTL = lang === 'ar';
   const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState<string>('');
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
 
   const filtered = medicines.filter((m) =>
     m.medicine_name.toLowerCase().includes(search.toLowerCase()) ||
     m.generic_name.toLowerCase().includes(search.toLowerCase()),
-  );
+  ).filter((m) => !catFilter || m.category === catFilter);
+
+  const categories = Array.from(new Set(medicines.map((m) => m.category).filter(Boolean))) as string[];
+  const grouped = categories
+    .filter((c) => !catFilter || c === catFilter)
+    .sort()
+    .map((cat) => ({
+      category: cat,
+      items: filtered.filter((m) => m.category === cat),
+    }))
+    .filter((g) => g.items.length > 0);
+  const uncategorized = filtered.filter((m) => !m.category);
+
+  function toggleCat(cat: string) {
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-screen pb-20 bg-[var(--bg-dark)]">
@@ -2079,36 +2102,118 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
           />
         </div>
 
-        {/* Medicine list */}
+        {/* Medicine list - accordion by category */}
         <div>
           <h3 className="font-cairo font-bold text-lg mb-3">{t('dash.medList')}</h3>
+
+          {categories.length > 0 && (
+            <div className="mb-3">
+              <select
+                value={catFilter}
+                onChange={(e) => setCatFilter(e.target.value)}
+                className="w-full glass rounded-2xl px-4 py-2.5 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
+              >
+                <option value="" className="bg-[var(--bg-dark)]">{isRTL ? 'كل التصنيفات' : 'All categories'}</option>
+                {categories.sort().map((cat) => (
+                  <option key={cat} value={cat} className="bg-[var(--bg-dark)]">{cat}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="space-y-2">
-            {filtered.map((m, i) => {
-              const badge = stockBadge(m, t);
-              return (
-                <div key={m.id}>
-                  <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0, transition: { delay: i * 0.05 } }} className="glass-card p-3 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-green/20 flex items-center justify-center shrink-0">
-                      <Pill className="w-5 h-5 text-brand-green-light" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-cairo font-bold text-sm">{m.medicine_name}</div>
-                      <div className="text-xs text-[var(--text-muted)] font-tajawal">{m.generic_name}</div>
-                      <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">
-                        {t('dash.lastUpdate')}: {timeAgo(m.last_updated, lang)}
-                      </div>
-                    </div>
-                    <div className="text-left">
-                      <div className="font-inter font-bold text-brand-green-light">{m.price} ₪</div>
-                      <div className={`text-xs font-bold ${badge.cls}`}>{badge.text}</div>
-                    </div>
-                  </motion.div>
-                  <div className="px-2 pb-2">
-                    <GenericFinder medicineName={m.medicine_name} activeIngredient={m.generic_name} />
+            {grouped.map((group) => (
+              <div key={group.category} className="glass-card overflow-hidden">
+                <button
+                  onClick={() => toggleCat(group.category)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                >
+                  <span className="font-cairo font-bold text-sm flex items-center gap-2">
+                    <Pill className="w-4 h-4 text-brand-green-light" />
+                    {group.category}
+                    <span className="text-xs text-[var(--text-muted)] font-tajawal">({group.items.length})</span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${openCats.has(group.category) ? 'rotate-180' : ''}`} />
+                </button>
+                {openCats.has(group.category) && (
+                  <div className="px-2 pb-2 space-y-1.5">
+                    {group.items.map((m, i) => {
+                      const badge = stockBadge(m, t);
+                      return (
+                        <div key={m.id}>
+                          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0, transition: { delay: i * 0.03 } }} className="glass-card p-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-brand-green/20 flex items-center justify-center shrink-0">
+                              <Pill className="w-5 h-5 text-brand-green-light" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-cairo font-bold text-sm">{m.medicine_name}</div>
+                              <div className="text-xs text-[var(--text-muted)] font-tajawal">{m.generic_name}</div>
+                              <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">
+                                {t('dash.lastUpdate')}: {timeAgo(m.last_updated, lang)}
+                              </div>
+                            </div>
+                            <div className="text-left">
+                              <div className="font-inter font-bold text-brand-green-light">{m.price} ₪</div>
+                              <div className={`text-xs font-bold ${badge.cls}`}>{badge.text}</div>
+                            </div>
+                          </motion.div>
+                          <div className="px-2 pb-2">
+                            <GenericFinder medicineName={m.medicine_name} activeIngredient={m.generic_name} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
+
+            {uncategorized.length > 0 && (
+              <div className="glass-card overflow-hidden">
+                <button
+                  onClick={() => toggleCat('__uncategorized')}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                >
+                  <span className="font-cairo font-bold text-sm flex items-center gap-2">
+                    <Pill className="w-4 h-4 text-brand-green-light" />
+                    {isRTL ? 'غير مصنّف' : 'Uncategorized'}
+                    <span className="text-xs text-[var(--text-muted)] font-tajawal">({uncategorized.length})</span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${openCats.has('__uncategorized') ? 'rotate-180' : ''}`} />
+                </button>
+                {openCats.has('__uncategorized') && (
+                  <div className="px-2 pb-2 space-y-1.5">
+                    {uncategorized.map((m, i) => {
+                      const badge = stockBadge(m, t);
+                      return (
+                        <div key={m.id}>
+                          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0, transition: { delay: i * 0.03 } }} className="glass-card p-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-brand-green/20 flex items-center justify-center shrink-0">
+                              <Pill className="w-5 h-5 text-brand-green-light" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-cairo font-bold text-sm">{m.medicine_name}</div>
+                              <div className="text-xs text-[var(--text-muted)] font-tajawal">{m.generic_name}</div>
+                              <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">
+                                {t('dash.lastUpdate')}: {timeAgo(m.last_updated, lang)}
+                              </div>
+                            </div>
+                            <div className="text-left">
+                              <div className="font-inter font-bold text-brand-green-light">{m.price} ₪</div>
+                              <div className={`text-xs font-bold ${badge.cls}`}>{badge.text}</div>
+                            </div>
+                          </motion.div>
+                          <div className="px-2 pb-2">
+                            <GenericFinder medicineName={m.medicine_name} activeIngredient={m.generic_name} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {filtered.length === 0 && (
               <div className="glass-card p-6 text-center">
                 <p className="font-tajawal text-[var(--text-muted)]">{t('dash.noResults')}</p>
