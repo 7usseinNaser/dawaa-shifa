@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Pill, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { OccupancyBar, StatusBadge } from '@/components/ui/DashboardParts';
 import { DonationModal } from '@/components/DonationModal';
+import { FacilityPharmacy } from '@/components/FacilityPharmacy';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
-type Tab = 'home' | 'departments' | 'info' | 'settings';
+type Tab = 'home' | 'departments' | 'pharmacy' | 'info' | 'settings';
 type FacilityStatus = 'open' | 'busy' | 'emergency' | 'closed';
 type FacilityType = 'hospital' | 'clinic' | 'medical_point';
 
@@ -546,6 +547,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
   const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'departments', label: t('fac.departments'), icon: LayoutGrid },
+    { id: 'pharmacy', label: isRTL ? 'الصيدلية' : 'Pharmacy', icon: Pill },
     { id: 'info', label: t('fac.info'), icon: Info },
     { id: 'settings', label: isRTL ? 'الإعدادات' : 'Settings', icon: Settings },
   ];
@@ -1012,6 +1014,26 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                       {saving ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : t('pharm.save')}
                     </button>
                   </div>
+                </motion.div>
+              )}
+
+              {tab === 'pharmacy' && (
+                <motion.div
+                  key="pharmacy"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                  className="space-y-5"
+                >
+                  <FacilityPharmacy
+                    facilityId={facility.id}
+                    facilityName={facility.name}
+                    facilityPhone={facility.phone}
+                    facilityArea={facility.area}
+                    facilityAddress={facility.address}
+                    isRTL={isRTL}
+                  />
                 </motion.div>
               )}
 

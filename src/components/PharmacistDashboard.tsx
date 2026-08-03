@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Heart, Chrome as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Copy, Heart, Chrome as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { BulkImport } from '@/components/BulkImport';
 import { DonationModal } from '@/components/DonationModal';
+import { CloneFromPharmacy } from '@/components/CloneFromPharmacy';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -54,6 +55,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const [search, setSearch] = useState('');
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showDonationModal, setShowDonationModal] = useState(false);
+  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [showClone, setShowClone] = useState(false);
 
   // Status toggle
   const [statusSaving, setStatusSaving] = useState(false);
@@ -68,7 +71,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       setLoading(true);
       const { data: pharmData } = await supabase
         .from('pharmacies')
-        .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at')
+        .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id')
         .eq('owner_id', user.id)
         .maybeSingle();
 
@@ -217,7 +220,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         lat: 0,
         lng: 0,
       })
-      .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at')
+      .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id')
       .single();
     setSaving(false);
     if (error) {
@@ -818,7 +821,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                         <span className="hidden sm:inline">{isRTL ? 'تصدير' : 'Export'}</span>
                       </button>
                       <button
-                        onClick={openAddModal}
+                        onClick={() => setShowAddChoice(true)}
                         className="btn-primary flex items-center gap-2 !py-2.5 !px-4 text-sm"
                       >
                         <Plus className="w-4 h-4" />
@@ -1067,6 +1070,85 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           </main>
         </div>
       </div>
+
+      {/* Add Medicine Choice Modal */}
+      <AnimatePresence>
+        {showAddChoice && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowAddChoice(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.25, ease: EASE }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card p-6 w-full max-w-sm"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-xl font-bold">{isRTL ? 'إضافة دواء' : 'Add Medicine'}</h2>
+                <button onClick={() => setShowAddChoice(false)} className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setShowAddChoice(false); openAddModal(); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl glass hover:border-brand-green transition-all text-start"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center shrink-0">
+                    <Pencil className="w-5 h-5 text-brand-green" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">{isRTL ? 'إضافة يدوية' : 'Manual add'}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{isRTL ? 'أدخل بيانات الدواء بنفسك' : 'Enter medicine details yourself'}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setShowAddChoice(false); setShowClone(true); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl glass hover:border-brand-green transition-all text-start"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-brand-blue/15 flex items-center justify-center shrink-0">
+                    <Copy className="w-5 h-5 text-brand-blue-light" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">{isRTL ? 'استيراد من صيدلية أخرى' : 'Import from another pharmacy'}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{isRTL ? 'انسخ قائمة الأدوية من صيدلية مرجعية' : 'Clone medicine list from a reference pharmacy'}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setShowAddChoice(false); setShowBulkImport(true); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl glass hover:border-brand-green transition-all text-start"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <Upload className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">{isRTL ? 'استيراد مجمّع (Excel)' : 'Bulk import (Excel)'}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{isRTL ? 'ارفع ملف Excel ببيانات الأدوية' : 'Upload an Excel file with medicines'}</p>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Clone from pharmacy modal */}
+      <AnimatePresence>
+        {showClone && pharmacy && (
+          <CloneFromPharmacy
+            targetPharmacyId={pharmacy.id}
+            onClose={() => setShowClone(false)}
+            onDone={() => { setShowClone(false); loadMedicines(pharmacy.id); showToast(isRTL ? 'تم استنساخ الأدوية بنجاح' : 'Medicines cloned successfully'); }}
+            isRTL={isRTL}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Bulk Import Modal */}
       <AnimatePresence>

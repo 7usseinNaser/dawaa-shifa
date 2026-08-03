@@ -102,7 +102,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
   useEffect(() => {
     (async () => {
       const [ph, meds, facs, depts] = await Promise.all([
-        supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
+        supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved').eq('is_reference', false),
         supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at').is('deleted_at', null),
         supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
         supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated'),
@@ -186,7 +186,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
       // Periodic background refetch every 2 minutes
       const refetchInterval = setInterval(async () => {
         const [ph, meds, facs, depts] = await Promise.all([
-          supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
+          supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved').eq('is_reference', false),
           supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at').is('deleted_at', null),
           supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
           supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated'),

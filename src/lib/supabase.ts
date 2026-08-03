@@ -96,6 +96,8 @@ export interface Pharmacy {
   last_updated_at: string | null;
   approval_status: 'pending' | 'approved' | 'rejected';
   rejection_reason: string | null;
+  is_reference?: boolean;
+  facility_id?: string | null;
 }
 
 export interface Medicine {
