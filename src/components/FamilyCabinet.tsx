@@ -4,7 +4,7 @@ import { Users, Plus, Pill, Clock, Trash2, Loader as Loader2, X, Heart, Baby, Us
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type FamilyMember, type ChronicMedicine } from '@/lib/supabase';
-import { requestNotificationPermission, rescheduleMedicineReminders, cancelMedicineReminders } from '@/lib/notifications';
+import { requestNotificationPermission, rescheduleMedicineReminders, cancelMedicineReminders, checkDueDoses } from '@/lib/notifications';
 import { showToast } from '@/components/ui/Toast';
 import { DrugInteractionChecker, RefillPredictor } from '@/components/AIFeatures';
 
@@ -43,6 +43,17 @@ export function FamilyCabinet() {
       }
     })();
   }, [user]);
+
+  // Check for due doses on mount + schedule reminders
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      await checkDueDoses(user.id, isRTL);
+      for (const med of meds) {
+        rescheduleMedicineReminders(med.id, med.name, med.dosage || '', med.times || '', isRTL);
+      }
+    })();
+  }, [user, meds, isRTL]);
 
   useEffect(() => {
     requestNotificationPermission();

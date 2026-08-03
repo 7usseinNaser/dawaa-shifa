@@ -113,16 +113,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         const msg = error.message.toLowerCase();
-        // Supabase returns "Invalid login credentials" for both unknown email and wrong password.
-        // To give a clearer message, we probe with resetPasswordForEmail which doesn't leak
-        // existence but we can detect the specific case.
         if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-          // Try to determine if the email exists by sending a reset link (rate-limited, doesn't send if disabled)
-          // Since Supabase doesn't expose this, we provide a combined clear message
           return { error: 'البريد الإلكتروني غير مسجل أو كلمة المرور غير صحيحة. تحقق من بياناتك.' };
         }
         return { error: translateAuthError(error.message, 'ar') };
       }
+      // Send welcome notification on first login
+      (async () => {
+        try {
+          const { data: { user: signedInUser } } = await supabase.auth.getUser();
+          if (!signedInUser) return;
+          // Check if welcome notification already sent
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('welcome_notification_sent,display_name')
+            .eq('id', signedInUser.id)
+            .maybeSingle();
+          if (profile?.welcome_notification_sent) return;
+          const displayName = profile?.display_name || signedInUser.email?.split('@')[0] || '';
+          const { data: existing } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', signedInUser.id)
+            .eq('type', 'welcome')
+            .maybeSingle();
+          if (!existing) {
+            await supabase.from('notifications').insert({
+              user_id: signedInUser.id,
+              type: 'welcome',
+              title: `أهلاً ${displayName}!`,
+              body: 'منصة "دواء وشفاء" تساعدك في البحث عن الأدوية القريبة ومعرفة ازدحام المستشفيات قبل التوجه إليها.',
+              is_active: true,
+              unread: true,
+            });
+          }
+          await supabase.from('profiles').update({ welcome_notification_sent: true }).eq('id', signedInUser.id);
+        } catch (err) {
+          console.error('[welcomeNotification] Error:', err);
+        }
+      })();
       return { error: null };
     } catch {
       return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };

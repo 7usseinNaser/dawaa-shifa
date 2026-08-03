@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Heart, Chrome as Home, Info, LogOut, Moon, Package, Pencil, Pill, Plus, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Heart, Chrome as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
@@ -88,6 +88,40 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         await loadActivity(user.id);
       }
       setLoading(false);
+
+      // Real-time subscription for medicines changes
+      const medChannel = supabase
+        .channel('pharmacist_meds_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines', filter: `pharmacy_id=eq.${(pharmData as Pharmacy)?.id}` },
+          (payload) => {
+            if (payload.eventType === 'INSERT') setMedicines((prev) => [...prev, payload.new as Medicine]);
+            else if (payload.eventType === 'UPDATE') setMedicines((prev) => prev.map((m) => m.id === (payload.new as Medicine).id ? payload.new as Medicine : m));
+            else if (payload.eventType === 'DELETE') setMedicines((prev) => prev.filter((m) => m.id !== (payload.old as Medicine).id));
+          }
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicine_reservations', filter: `pharmacy_id=eq.${(pharmData as Pharmacy)?.id}` },
+          (payload) => {
+            if (payload.eventType === 'INSERT') setReservations((prev) => [payload.new as MedicineReservation, ...prev]);
+            else if (payload.eventType === 'UPDATE') setReservations((prev) => prev.map((r) => r.id === (payload.new as MedicineReservation).id ? payload.new as MedicineReservation : r));
+            else if (payload.eventType === 'DELETE') setReservations((prev) => prev.filter((r) => r.id !== (payload.old as MedicineReservation).id));
+          }
+        )
+        .subscribe();
+
+      // Periodic background refetch every 2 minutes
+      const refetchInterval = setInterval(() => {
+        const pid = (pharmData as Pharmacy)?.id;
+        if (pid) {
+          loadMedicines(pid);
+          loadReservations(pid);
+        }
+      }, 120000);
+
+      return () => {
+        cancelled = true;
+        supabase.removeChannel(medChannel);
+        clearInterval(refetchInterval);
+      };
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,7 +169,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     if (status === 'cancelled' || status === 'expired' || status === 'no_show') updates.cancelled_at = new Date().toISOString();
     const { error } = await supabase.from('medicine_reservations').update(updates).eq('id', id);
     if (error) {
-      showToast(isRTL ? 'فشل تحديث الحجز' : 'Failed to update reservation', 'error');
+      console.error('[updateReservation] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل تحديث الحجز: ${error.message}` : `Failed to update reservation: ${error.message}`, 'error');
       return;
     }
     if (restoreStock && medId) {
@@ -186,7 +221,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       .single();
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل إنشاء الصيدلية' : 'Failed to create pharmacy', 'error');
+      console.error('[createPharmacy] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل إنشاء الصيدلية: ${error.message}` : `Failed to create pharmacy: ${error.message}`, 'error');
       return;
     }
     const p = data as Pharmacy;
@@ -212,12 +248,32 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       .eq('id', pharmacy.id);
     setStatusSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status', 'error');
+      console.error('[toggleStatus] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل تحديث الحالة: ${error.message}` : `Failed to update status: ${error.message}`, 'error');
       return;
     }
     setPharmacy({ ...pharmacy, is_open: open, status: open ? 'open' : 'closed' });
     showToast(open ? (isRTL ? 'الصيدلية مفتوحة الآن' : 'Pharmacy is now open') : (isRTL ? 'الصيدلية مغلقة الآن' : 'Pharmacy is now closed'));
     await logActivity(open ? 'status_open' : 'status_closed', pharmacy.name);
+  }
+
+  // ---- Update pharmacy timestamp ----
+  async function updatePharmacyTimestamp() {
+    if (!pharmacy) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('pharmacies')
+      .update({ last_updated_at: new Date().toISOString() })
+      .eq('id', pharmacy.id);
+    setSaving(false);
+    if (error) {
+      console.error('[updatePharmacyTimestamp] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل التحديث: ${error.message}` : `Failed to update: ${error.message}`, 'error');
+      return;
+    }
+    setPharmacy({ ...pharmacy, last_updated_at: new Date().toISOString() });
+    showToast(isRTL ? 'تم تحديث وقت آخر تحديث — يعرف المستخدمون أن الأدوية محدّثة' : 'Last updated time refreshed — users can see medicines are current');
+    await logActivity('update_timestamp', pharmacy.name);
   }
 
   // ---- Info save ----
@@ -240,7 +296,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       .eq('id', pharmacy.id);
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل حفظ المعلومات' : 'Failed to save info', 'error');
+      console.error('[saveInfo] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل حفظ المعلومات: ${error.message}` : `Failed to save info: ${error.message}`, 'error');
       return;
     }
     setPharmacy({ ...pharmacy, ...infoForm });
@@ -295,7 +352,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         .eq('id', editingMed.id);
       setSaving(false);
       if (error) {
-        showToast(isRTL ? 'فشل تحديث الدواء' : 'Failed to update medicine', 'error');
+        console.error('[saveMed/update] Supabase error:', error.code, error.message, error.details, error.hint);
+        showToast(isRTL ? `فشل تحديث الدواء: ${error.message}` : `Failed to update medicine: ${error.message}`, 'error');
         return;
       }
       showToast(isRTL ? 'تم تحديث الدواء' : 'Medicine updated');
@@ -315,7 +373,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         });
       setSaving(false);
       if (error) {
-        showToast(isRTL ? 'فشل إضافة الدواء' : 'Failed to add medicine', 'error');
+        console.error('[saveMed/insert] Supabase error:', error.code, error.message, error.details, error.hint);
+        showToast(isRTL ? `فشل إضافة الدواء: ${error.message}` : `Failed to add medicine: ${error.message}`, 'error');
         return;
       }
       showToast(isRTL ? 'تم إضافة الدواء' : 'Medicine added');
@@ -331,7 +390,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     const { error } = await supabase.from('medicines').delete().eq('id', deleteTarget.id);
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل الحذف' : 'Failed to delete', 'error');
+      console.error('[confirmDelete] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل الحذف: ${error.message}` : `Failed to delete: ${error.message}`, 'error');
       return;
     }
     showToast(isRTL ? 'تم حذف الدواء' : 'Medicine deleted');
@@ -641,6 +701,33 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                           {t('pharm.closedNow')}
                         </button>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Update Pharmacy timestamp card */}
+                  <div className="glass-card p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <RefreshCw className="w-5 h-5 text-brand-green" />
+                        <div>
+                          <p className="font-bold">
+                            {isRTL ? 'تحديث الصيدلية' : 'Update Pharmacy'}
+                          </p>
+                          <p className="text-sm text-[var(--text-muted)] mt-0.5">
+                            {isRTL
+                              ? 'يحدّث وقت "آخر تحديث" الظاهر للمستخدمين ليعرفوا أن الأدوية والأسعار محدّثة وموثوقة'
+                              : 'Refreshes the "last updated" time shown to users so they know medicines & prices are current'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={updatePharmacyTimestamp}
+                        disabled={saving}
+                        className="btn-primary flex items-center gap-2 !py-2.5 !px-5 text-sm disabled:opacity-50"
+                      >
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        {isRTL ? 'تحديث الآن' : 'Update Now'}
+                      </button>
                     </div>
                   </div>
 

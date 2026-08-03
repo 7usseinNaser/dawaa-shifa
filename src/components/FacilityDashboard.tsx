@@ -121,28 +121,38 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         await loadActivity(user.id);
       }
       setLoading(false);
-    })();
 
-    // Real-time subscription for department changes
-    const channel = supabase
-      .channel('departments_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setDepartments((prev) => [...prev, payload.new as Department]);
-          } else if (payload.eventType === 'UPDATE') {
-            setDepartments((prev) => prev.map((d) => d.id === (payload.new as Department).id ? payload.new as Department : d));
-          } else if (payload.eventType === 'DELETE') {
-            setDepartments((prev) => prev.filter((d) => d.id !== (payload.old as Department).id));
+      // Real-time subscription for department changes
+      const channel = supabase
+        .channel('departments_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              setDepartments((prev) => [...prev, payload.new as Department]);
+            } else if (payload.eventType === 'UPDATE') {
+              setDepartments((prev) => prev.map((d) => d.id === (payload.new as Department).id ? payload.new as Department : d));
+            } else if (payload.eventType === 'DELETE') {
+              setDepartments((prev) => prev.filter((d) => d.id !== (payload.old as Department).id));
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
 
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-    };
+      // Periodic background refetch every 2 minutes
+      const refetchInterval = setInterval(() => {
+        const fid = (facData as Facility)?.id;
+        if (fid) {
+          loadDepartments(fid);
+        }
+      }, 120000);
+
+      return () => {
+        cancelled = true;
+        supabase.removeChannel(channel);
+        clearInterval(refetchInterval);
+      };
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -209,7 +219,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       .single();
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل إنشاء المرفق' : 'Failed to create facility', 'error');
+      console.error('[createFacility] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل إنشاء المرفق: ${error.message}` : `Failed to create facility: ${error.message}`, 'error');
       return;
     }
     const f = data as Facility;
@@ -237,7 +248,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       .eq('id', facility.id);
     setStatusSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status', 'error');
+      console.error('[updateOverallStatus] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل تحديث الحالة: ${error.message}` : `Failed to update status: ${error.message}`, 'error');
       return;
     }
     setFacility({ ...facility, overall_status: status });
@@ -269,7 +281,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       .eq('id', facility.id);
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل إعادة الإرسال' : 'Failed to resubmit', 'error');
+      console.error('[resubmitForReview] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل إعادة الإرسال: ${error.message}` : `Failed to resubmit: ${error.message}`, 'error');
       return;
     }
     setFacility({ ...facility, approval_status: 'pending', rejection_reason: null });
@@ -312,7 +325,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       .eq('id', facility.id);
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل حفظ المعلومات' : 'Failed to save info', 'error');
+      console.error('[saveInfo] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل حفظ المعلومات: ${error.message}` : `Failed to save info: ${error.message}`, 'error');
       return;
     }
     setFacility({
@@ -377,7 +391,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         .eq('id', editingDept.id);
       setSaving(false);
       if (error) {
-        showToast(isRTL ? 'فشل تحديث القسم' : 'Failed to update department', 'error');
+        console.error('[saveDept/update] Supabase error:', error.code, error.message, error.details, error.hint);
+        showToast(isRTL ? `فشل تحديث القسم: ${error.message}` : `Failed to update department: ${error.message}`, 'error');
         return;
       }
       showToast(isRTL ? 'تم تحديث القسم' : 'Department updated');
@@ -399,7 +414,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       });
       setSaving(false);
       if (error) {
-        showToast(isRTL ? 'فشل إضافة القسم' : 'Failed to add department', 'error');
+        console.error('[saveDept/insert] Supabase error:', error.code, error.message, error.details, error.hint);
+        showToast(isRTL ? `فشل إضافة القسم: ${error.message}` : `Failed to add department: ${error.message}`, 'error');
         return;
       }
       showToast(isRTL ? 'تم إضافة القسم' : 'Department added');
@@ -415,7 +431,8 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     const { error } = await supabase.from('departments').delete().eq('id', deleteTarget.id);
     setSaving(false);
     if (error) {
-      showToast(isRTL ? 'فشل الحذف' : 'Failed to delete', 'error');
+      console.error('[confirmDelete] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل الحذف: ${error.message}` : `Failed to delete: ${error.message}`, 'error');
       return;
     }
     showToast(isRTL ? 'تم حذف القسم' : 'Department deleted');

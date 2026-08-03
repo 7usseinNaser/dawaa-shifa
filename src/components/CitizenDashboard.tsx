@@ -24,7 +24,7 @@ import { EmergencyMedicalID } from '@/components/EmergencyMedicalID';
 import { DonationHub } from '@/components/DonationHub';
 import { DonationModal, type DonationType } from '@/components/DonationModal';
 import type { EmergencyBroadcast } from '@/lib/supabase';
-import { to12Hour, autoCloseStatus } from '@/lib/timeUtils';
+import { to12Hour, autoCloseStatus, formatOpenHours } from '@/lib/timeUtils';
 import { Camera, Gift, Radio, ScanLine, MoonStar } from 'lucide-react';
 
 type Tab = 'home' | 'search' | 'map' | 'meds' | 'profile' | 'discover' | 'donate';
@@ -127,6 +127,84 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
         setDepartments(map);
       }
       setLoading(false);
+
+      // Real-time subscriptions for live data updates
+      const channel = supabase
+        .channel('citizen_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              const updated = payload.new as Pharmacy;
+              setPharmacies((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+            }
+          }
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              const updated = payload.new as Facility;
+              setFacilities((prev) => prev.map((f) => f.id === updated.id ? updated : f));
+            }
+          }
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              const updated = payload.new as Medicine;
+              setMedicines((prev) => {
+                const map = { ...prev };
+                for (const [pid, list] of Object.entries(map)) {
+                  map[pid] = list.map((m) => m.id === updated.id ? updated : m);
+                }
+                return map;
+              });
+            }
+          }
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              const updated = payload.new as Department;
+              setDepartments((prev) => {
+                const map = { ...prev };
+                for (const [fid, list] of Object.entries(map)) {
+                  map[fid] = list.map((d) => d.id === updated.id ? updated : d);
+                }
+                return map;
+              });
+            }
+          }
+        )
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
+          (payload) => {
+            const newNotif = payload.new as Notification;
+            setNotifications((prev) => [newNotif, ...prev]);
+          }
+        )
+        .subscribe();
+
+      // Periodic background refetch every 2 minutes
+      const refetchInterval = setInterval(async () => {
+        const [ph, meds, facs, depts] = await Promise.all([
+          supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
+          supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at').is('deleted_at', null),
+          supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at').eq('verified', true).is('deleted_at', null).eq('approval_status', 'approved'),
+          supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated'),
+        ]);
+        if (ph.data) setPharmacies(ph.data as Pharmacy[]);
+        if (facs.data) setFacilities(facs.data as Facility[]);
+        if (depts.data) {
+          const facIds = new Set((facs.data as Facility[] || []).map((f) => f.id));
+          const map: Record<string, Department[]> = {};
+          (depts.data as Department[]).forEach((d) => { if (facIds.has(d.facility_id)) (map[d.facility_id] ||= []).push(d); });
+          setDepartments(map);
+        }
+      }, 120000);
+
+      return () => {
+        supabase.removeChannel(channel);
+        clearInterval(refetchInterval);
+      };
     })();
   }, []);
 
@@ -1944,7 +2022,7 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
                   <MapPin className="w-3 h-3" /> {pharmacy.address || pharmacy.area}
                 </p>
                 <p className="text-sm text-[var(--text-muted)] font-tajawal flex items-center gap-1 mt-1">
-                  <Clock className="w-3 h-3" /> {pharmacy.open_hours || '—'}
+                  <Clock className="w-3 h-3" /> {formatOpenHours(pharmacy.open_hours, lang === 'ar')}
                 </p>
                 <p className="text-sm text-[var(--text-muted)] font-tajawal flex items-center gap-1 mt-1">
                   <Phone className="w-3 h-3" /> {pharmacy.phone || '—'}

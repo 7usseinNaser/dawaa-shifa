@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
+import { formatOpenHours } from '@/lib/timeUtils';
 import {
   supabase,
   type Pharmacy, type Facility, type Medicine, type Review, type Department,
@@ -2555,7 +2556,7 @@ function PendingPreviewModal({ data, type, medicines, departments, onClose, onAp
               {isPharmacy ? (
                 <>
                   <div>📍 {p.address || p.area}</div>
-                  <div>⏰ {p.open_hours || '—'}</div>
+                  <div>⏰ {formatOpenHours(p.open_hours, isRTL)}</div>
                   <div>📞 {p.phone || '—'}</div>
                   <div>⭐ {p.rating} · {p.status}</div>
                 </>
