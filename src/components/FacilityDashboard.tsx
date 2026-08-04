@@ -278,7 +278,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     setSaving(true);
     const { error } = await supabase
       .from('facilities')
-      .update({ approval_status: 'pending', rejection_reason: null })
+      .update({ approval_status: 'pending' })
       .eq('id', facility.id);
     setSaving(false);
     if (error) {
@@ -286,7 +286,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       showToast(isRTL ? `فشل إعادة الإرسال: ${error.message}` : `Failed to resubmit: ${error.message}`, 'error');
       return;
     }
-    setFacility({ ...facility, approval_status: 'pending', rejection_reason: null });
+    setFacility({ ...facility, approval_status: 'pending' });
     showToast(isRTL ? 'تم إعادة إرسال المرفق للمراجعة' : 'Facility resubmitted for review');
     await logActivity('resubmit_facility', facility.name);
     // Notify admin

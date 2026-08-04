@@ -327,6 +327,25 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     await logActivity('update_info', infoForm.name);
   }
 
+  // ---- Resubmit after rejection ----
+  async function resubmitForReview() {
+    if (!pharmacy) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('pharmacies')
+      .update({ approval_status: 'pending' })
+      .eq('id', pharmacy.id);
+    setSaving(false);
+    if (error) {
+      console.error('[resubmitForReview] Supabase error:', error.code, error.message, error.details, error.hint);
+      showToast(isRTL ? `فشل إعادة الإرسال: ${error.message}` : `Failed to resubmit: ${error.message}`, 'error');
+      return;
+    }
+    setPharmacy({ ...pharmacy, approval_status: 'pending' });
+    showToast(isRTL ? 'تم إعادة إرسال الصيدلية للمراجعة' : 'Pharmacy resubmitted for review');
+    await logActivity('resubmit_pharmacy', pharmacy.name);
+  }
+
   // ---- Medicine modal ----
   function openAddModal() {
     setEditingMed(null);
@@ -1044,6 +1063,22 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     >
                       {saving ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : t('pharm.save')}
                     </button>
+
+                    {pharmacy.approval_status === 'rejected' && (
+                      <div className="mt-4 glass-card p-4 border border-status-emergency/30 bg-status-emergency/5">
+                        <p className="text-xs text-status-emergency font-tajawal mb-2">
+                          {isRTL ? 'سبب الرفض:' : 'Rejection reason:'} {pharmacy.rejection_reason || '—'}
+                        </p>
+                        <button
+                          onClick={resubmitForReview}
+                          disabled={saving}
+                          className="btn-primary w-full text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          {isRTL ? 'إعادة تقديم للمراجعة' : 'Resubmit for Review'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}
