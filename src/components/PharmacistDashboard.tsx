@@ -14,21 +14,21 @@ const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 type Tab = 'home' | 'medicines' | 'reservations' | 'info' | 'settings';
 
 const MEDICINE_CATEGORIES = [
-  'مسكنات وخافضات حرارة',
+  'مسكنات',
   'مضادات حيوية',
-  'مزمنة - قلب وضغط',
-  'مزمنة - سكري',
-  'الجهاز الهضمي',
-  'الجهاز التنفسي والحساسية',
-  'فيتامينات ومكملات',
-  'أدوية جلدية',
+  'مزمنة-قلب وضغط',
+  'مزمنة-سكري',
+  'هضمي',
+  'تنفسي وحساسية',
+  'فيتامينات',
+  'جلدية',
   'عيون وأذن',
-  'نسائية وحمل',
-  'أدوية أطفال',
-  'مضادات التهاب ومفاصل',
-  'مطهرات ومستلزمات طبية',
-  'الغدة الدرقية والهرمونات',
-  'مضادات فطريات وطفيليات',
+  'نسائية',
+  'أطفال',
+  'مفاصل',
+  'مطهرات',
+  'غدة درقية',
+  'فطريات',
 ] as const;
 
 interface MedForm {
@@ -394,6 +394,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           expiry_date: medForm.expiry_date || null,
           category: medForm.category || null,
           alternative_medicine_id: altId,
+          is_available: quantity > 0,
           last_updated: new Date().toISOString(),
         });
       setSaving(false);
@@ -1168,6 +1169,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
             onClose={() => setShowClone(false)}
             onDone={() => { setShowClone(false); loadMedicines(pharmacy.id); showToast(isRTL ? 'تم استنساخ الأدوية بنجاح' : 'Medicines cloned successfully'); }}
             isRTL={isRTL}
+            allowReference={true}
           />
         )}
       </AnimatePresence>
