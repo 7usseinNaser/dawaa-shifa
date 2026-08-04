@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import LanguageToggle from './LanguageToggle';
 import { DonationModal } from '@/components/DonationModal';
+import { ReportsButton, ConversationsButton } from '@/components/ReportsAndSuggestions';
 
 interface Props {
   theme: 'dark' | 'light';
@@ -76,6 +77,13 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
               <Heart className="w-4 h-4 text-brand-green-light" />
               <span className="hidden sm:inline font-bold">{lang === 'ar' ? 'تبرّع' : 'Donate'}</span>
             </button>
+
+            {user && profile && (profile.role === 'pharmacist' || profile.role === 'facility_owner') && (
+              <>
+                <ReportsButton isRTL={lang === 'ar'} />
+                <ConversationsButton isRTL={lang === 'ar'} />
+              </>
+            )}
 
             {user && profile ? (
               <a href="#/dashboard" className="hidden sm:inline-flex btn-primary text-sm items-center gap-1.5 group">

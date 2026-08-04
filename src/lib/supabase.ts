@@ -370,3 +370,39 @@ export interface MedicineReservation {
   cancelled_at: string | null;
   created_at: string;
 }
+
+export interface Suggestion {
+  id: string;
+  user_id: string | null;
+  user_name: string;
+  user_role: string;
+  entity_name: string;
+  title: string;
+  description: string;
+  status: 'open' | 'reviewing' | 'implemented' | 'rejected';
+  admin_notes: string | null;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: string;
+  report_id: string | null;
+  user_id: string | null;
+  admin_id: string | null;
+  subject: string;
+  status: string;
+  created_at: string;
+  closed_at: string | null;
+  closed_by: string | null;
+  entity_name: string | null;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  sender_name: string;
+  sender_role: string;
+  message: string;
+  created_at: string;
+}

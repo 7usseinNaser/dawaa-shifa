@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Building2, ChevronDown, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, OctagonAlert as AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader as Loader2, Send } from 'lucide-react';
+import { Bell, Building2, ChevronDown, ChevronLeft, Clock, Heart, Hop as Home, LogOut, MapPin, Mic, Moon, Navigation, Phone, Pill, Search, Shield, Star, Sun, TrendingUp, User, Users, Volume2, Flag, OctagonAlert as AlertOctagon, Zap, ExternalLink, LayoutGrid, Bug, Loader as Loader2, Send, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import {
@@ -1764,6 +1764,9 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
       {/* Report a Bug */}
       <ReportBugButton isRTL={isRTL} />
 
+      {/* Submit a Suggestion */}
+      <SuggestionButton isRTL={isRTL} />
+
       {/* Logout */}
       <button onClick={onSignOut} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-status-emergency">
         <LogOut className="w-4 h-4" /> {t('profile.logout')}
@@ -1819,6 +1822,71 @@ function ReportBugButton({ isRTL }: { isRTL: boolean }) {
             <option value="other">{isRTL ? 'أخرى' : 'Other'}</option>
           </select>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder={isRTL ? 'صف المشكلة...' : 'Describe the issue...'} className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-amber-500 resize-none" />
+          <button onClick={submit} disabled={submitting || !description.trim()} className="btn-primary w-full text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isRTL ? 'إرسال' : 'Submit'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===================== CITIZEN SUGGESTION BUTTON ===================== */
+function SuggestionButton({ isRTL }: { isRTL: boolean }) {
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { user } = useAuth();
+
+  const submit = async () => {
+    if (!description.trim() || !user) return;
+    setSubmitting(true);
+    try {
+      const { data: profile } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+      const { error } = await supabase.from('suggestions').insert({
+        user_id: user.id,
+        user_name: (profile as { display_name?: string } | null)?.display_name || user.email || '',
+        user_role: 'citizen',
+        entity_name: '',
+        title: title.trim(),
+        description: description.trim(),
+      });
+      if (error) throw error;
+      showToast(isRTL ? 'تم إرسال اقتراحك. شكراً!' : 'Suggestion sent. Thank you!');
+      setTitle('');
+      setDescription('');
+      setShowForm(false);
+    } catch {
+      showToast(isRTL ? 'فشل الإرسال' : 'Failed to submit', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={() => setShowForm(!showForm)} className="w-full glass-card p-3 flex items-center gap-2 text-sm font-cairo font-bold text-brand-green-light hover:bg-brand-green/10 transition-colors">
+        <Lightbulb className="w-4 h-4" />
+        {isRTL ? 'اقتراحات لتطوير المنصة' : 'Suggest a Platform Improvement'}
+      </button>
+      {showForm && (
+        <div className="mt-2 space-y-2">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={isRTL ? 'مثال: إضافة قسم الدعم النفسي في المنصة' : 'e.g. Add a mental health support section'}
+            className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-brand-green"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder={isRTL ? 'مثال: أقترح إضافة قسم الدعم النفسي في المنصة' : 'e.g. I suggest adding a mental health support section'}
+            className="w-full glass-card p-2.5 text-sm font-tajawal rounded-xl focus:outline-none focus:border-brand-green resize-none"
+          />
           <button onClick={submit} disabled={submitting || !description.trim()} className="btn-primary w-full text-sm flex items-center justify-center gap-1.5 disabled:opacity-50">
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {isRTL ? 'إرسال' : 'Submit'}

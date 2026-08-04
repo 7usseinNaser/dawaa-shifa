@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone } from 'lucide-react';
+import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { formatOpenHours } from '@/lib/timeUtils';
@@ -11,11 +11,12 @@ import {
   type MedExchangeRequest, type DataReport, type BatchRecall,
   type AuditLog, type FacilityWarning, type SearchLog, type EmergencyBroadcast,
   type MedicineDonation, type BugReport, type BugReportChat,
+  type Suggestion, type Conversation, type ConversationMessage,
 } from '@/lib/supabase';
 import { showToast } from '@/components/ui/Toast';
 const BulkImport = lazy(() => import('@/components/BulkImport').then(m => ({ default: m.BulkImport })));
 
-type Tab = 'pending' | 'pharmacies' | 'facilities' | 'medicines' | 'reviews' | 'users' | 'trash' | 'alerts' | 'exchange' | 'reports' | 'recalls' | 'audit' | 'warnings' | 'heatmap' | 'broadcasts' | 'donations' | 'bugs';
+type Tab = 'pending' | 'pharmacies' | 'facilities' | 'medicines' | 'reviews' | 'users' | 'trash' | 'alerts' | 'exchange' | 'reports' | 'recalls' | 'audit' | 'warnings' | 'heatmap' | 'broadcasts' | 'donations' | 'bugs' | 'suggestions' | 'conversations';
 
 function sanitize(str: string): string {
   return String(str || '').replace(/[<>]/g, '').trim().slice(0, 500);
@@ -111,6 +112,8 @@ export default function AdminPanel() {
   const [showBroadcastForm, setShowBroadcastForm] = useState(false);
   const [donations, setDonations] = useState<MedicineDonation[]>([]);
   const [bugReports, setBugReports] = useState<BugReport[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [roleConfirm, setRoleConfirm] = useState<{ id: string; name: string; newRole: string; oldRole: string } | null>(null);
   const [freezeModal, setFreezeModal] = useState<{ id: string; name: string; current: boolean } | null>(null);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
@@ -119,6 +122,7 @@ export default function AdminPanel() {
   const [rollbackConfirm, setRollbackConfirm] = useState<AuditLog | null>(null);
   const [freezeReason, setFreezeReason] = useState('');
   const [chatBugReport, setChatBugReport] = useState<BugReport | null>(null);
+  const [activeAdminConv, setActiveAdminConv] = useState<Conversation | null>(null);
   const [rejectPending, setRejectPending] = useState<{ table: string; id: string; name: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [auditDetail, setAuditDetail] = useState<AuditLog | null>(null);
@@ -126,6 +130,8 @@ export default function AdminPanel() {
   // Filters
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
   const [medicinePharmFilter, setMedicinePharmFilter] = useState<string>('all');
+  const [suggestionRoleFilter, setSuggestionRoleFilter] = useState<string>('all');
+  const [suggestionDateFilter, setSuggestionDateFilter] = useState<string>('all');
 
   const [stats, setStats] = useState({ totalPharmacies: 0, totalFacilities: 0, verified: 0, pending: 0, totalUsers: 0, totalMedicines: 0, totalReviews: 0, trashed: 0, restricted: 0, pendingExchange: 0, openReports: 0, activeRecalls: 0 });
 
@@ -177,6 +183,10 @@ export default function AdminPanel() {
       setDonations((don.data || []) as MedicineDonation[]);
       const bugs = await supabase.from('bug_reports').select('id,reporter_id,reporter_name,bug_type,category,description,status,resolved_at,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
       setBugReports((bugs.data || []) as BugReport[]);
+      const sugs = await supabase.from('suggestions').select('id,user_id,user_name,user_role,entity_name,title,description,status,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
+      setSuggestions((sugs.data || []) as Suggestion[]);
+      const convs = await supabase.from('conversations').select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name').order('created_at', { ascending: false }).limit(200);
+      setConversations((convs.data || []) as Conversation[]);
       const deptData = (dept.data || []) as Department[];
       const deptMap: Record<string, Department[]> = {};
       for (const d of deptData) {
@@ -692,6 +702,37 @@ export default function AdminPanel() {
     }
   }
 
+  async function updateSuggestionStatus(id: string, status: 'reviewing' | 'implemented' | 'rejected') {
+    setActionLoading(id);
+    try {
+      const { error } = await supabase.from('suggestions').update({ status }).eq('id', id);
+      if (error) throw error;
+      await logAction(`suggestion_${status}`, id);
+      showToast(isRTL ? 'تم تحديث حالة الاقتراح' : 'Suggestion status updated');
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function closeConversation(id: string) {
+    setActionLoading(id);
+    try {
+      const { error } = await supabase.from('conversations').update({ status: 'closed', closed_at: new Date().toISOString(), closed_by: user?.id || null }).eq('id', id);
+      if (error) throw error;
+      await logAction('conversation_closed', id);
+      showToast(isRTL ? 'تم إغلاق المحادثة' : 'Conversation closed');
+      setActiveAdminConv(null);
+      loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   async function confirmRoleChange() {
     if (!roleConfirm) return;
     setActionLoading(roleConfirm.id);
@@ -763,6 +804,8 @@ export default function AdminPanel() {
     { key: 'broadcasts', label: isRTL ? 'بث طارئ' : 'Broadcasts', icon: Megaphone, count: broadcasts.length },
     { key: 'donations', label: isRTL ? 'طلبات التبرع' : 'Donations', icon: Gift, count: donations.filter((d) => d.status === 'pending').length },
     { key: 'bugs', label: isRTL ? 'أخطاء تقنية' : 'Bug Reports', icon: Bug, count: bugReports.filter((b) => b.status === 'open').length },
+    { key: 'suggestions', label: isRTL ? 'اقتراحات' : 'Suggestions', icon: Lightbulb, count: suggestions.filter((s) => s.status === 'open').length },
+    { key: 'conversations', label: isRTL ? 'محادثات' : 'Conversations', icon: MessageCircle, count: conversations.filter((c) => c.status === 'active').length },
   ];
 
   const showExportButtons = ['pharmacies', 'facilities', 'medicines', 'users', 'reviews'].includes(tab);
@@ -986,6 +1029,12 @@ export default function AdminPanel() {
               {tab === 'bugs' && (
                 <BugReportsList reports={bugReports} onResolve={(id) => resolveBugReport(id, 'resolved')} onDismiss={(id) => resolveBugReport(id, 'dismissed')} onDelete={(id) => permanentDelete('bug_reports', id, id.slice(0, 8))} onChat={(r) => setChatBugReport(r)} actionLoading={actionLoading} isRTL={isRTL} />
               )}
+              {tab === 'suggestions' && (
+                <SuggestionsList suggestions={suggestions} roleFilter={suggestionRoleFilter} setRoleFilter={setSuggestionRoleFilter} dateFilter={suggestionDateFilter} setDateFilter={setSuggestionDateFilter} onStatusChange={updateSuggestionStatus} onDelete={(id) => permanentDelete('suggestions', id, id.slice(0, 8))} actionLoading={actionLoading} isRTL={isRTL} />
+              )}
+              {tab === 'conversations' && (
+                <AdminConversationsList conversations={conversations} onOpen={(c) => setActiveAdminConv(c)} onClose={async (id) => { await closeConversation(id); }} actionLoading={actionLoading} isRTL={isRTL} />
+              )}
             </>
           )}
         </div>
@@ -1109,6 +1158,11 @@ export default function AdminPanel() {
       {/* Chat Modal for Bug Reports */}
       {chatBugReport && (
         <BugReportChatModal report={chatBugReport} adminName={profile?.display_name || 'Admin'} adminId={user?.id || null} isRTL={isRTL} onClose={() => setChatBugReport(null)} />
+      )}
+
+      {/* Chat Modal for Conversations */}
+      {activeAdminConv && (
+        <AdminConversationChat conv={activeAdminConv} adminName={profile?.display_name || 'Admin'} adminId={user?.id || null} isRTL={isRTL} onClose={() => setActiveAdminConv(null)} onCloseConv={(id) => closeConversation(id)} actionLoading={actionLoading} />
       )}
 
       {/* Rejection Reason Modal */}
@@ -2849,6 +2903,279 @@ function BroadcastForm({ onClose, onSend, actionLoading, isRTL }: {
           </button>
           <button onClick={onClose} className="btn-secondary text-sm px-4">{isRTL ? 'إلغاء' : 'Cancel'}</button>
         </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ===================== SUGGESTIONS LIST ===================== */
+function SuggestionsList({ suggestions, roleFilter, setRoleFilter, dateFilter, setDateFilter, onStatusChange, onDelete, actionLoading, isRTL }: {
+  suggestions: Suggestion[];
+  roleFilter: string; setRoleFilter: (v: string) => void;
+  dateFilter: string; setDateFilter: (v: string) => void;
+  onStatusChange: (id: string, status: 'reviewing' | 'implemented' | 'rejected') => void;
+  onDelete: (id: string) => void;
+  actionLoading: string | null;
+  isRTL: boolean;
+}) {
+  const roleLabels: Record<string, string> = {
+    citizen: isRTL ? 'مواطن' : 'Citizen',
+    pharmacist: isRTL ? 'صيدلي' : 'Pharmacist',
+    facility_owner: isRTL ? 'مدير مرفق' : 'Facility Owner',
+    facility_admin: isRTL ? 'مدير مرفق' : 'Facility Admin',
+    admin: isRTL ? 'أدمن' : 'Admin',
+  };
+  const statusColors: Record<string, string> = {
+    open: 'bg-status-open/20 text-status-open',
+    reviewing: 'bg-amber-400/20 text-amber-400',
+    implemented: 'bg-brand-blue/20 text-brand-blue-light',
+    rejected: 'bg-status-emergency/20 text-status-emergency',
+  };
+
+  const now = Date.now();
+  const filtered = suggestions.filter((s) => {
+    if (roleFilter !== 'all' && s.user_role !== roleFilter) return false;
+    if (dateFilter !== 'all') {
+      const created = new Date(s.created_at).getTime();
+      const days = (now - created) / (1000 * 60 * 60 * 24);
+      if (dateFilter === 'today' && days > 1) return false;
+      if (dateFilter === 'week' && days > 7) return false;
+      if (dateFilter === 'month' && days > 30) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="glass-card p-2 text-xs font-tajawal rounded-xl">
+          <option value="all">{isRTL ? 'كل المرسلين' : 'All Senders'}</option>
+          <option value="citizen">{isRTL ? 'مواطن' : 'Citizen'}</option>
+          <option value="pharmacist">{isRTL ? 'صيدلي' : 'Pharmacist'}</option>
+          <option value="facility_owner">{isRTL ? 'مدير مرفق' : 'Facility Owner'}</option>
+          <option value="facility_admin">{isRTL ? 'مدير مرفق' : 'Facility Admin'}</option>
+        </select>
+        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="glass-card p-2 text-xs font-tajawal rounded-xl">
+          <option value="all">{isRTL ? 'كل التواريخ' : 'All Dates'}</option>
+          <option value="today">{isRTL ? 'اليوم' : 'Today'}</option>
+          <option value="week">{isRTL ? 'هذا الأسبوع' : 'This Week'}</option>
+          <option value="month">{isRTL ? 'هذا الشهر' : 'This Month'}</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="glass-card p-8 text-center">
+          <Lightbulb className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" />
+          <p className="font-tajawal text-[var(--text-soft)]">{isRTL ? 'لا توجد اقتراحات' : 'No suggestions'}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((s) => (
+            <div key={s.id} className="glass-card p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${statusColors[s.status] || statusColors.open}`}>
+                      {s.status === 'open' ? (isRTL ? 'مفتوح' : 'Open') : s.status === 'reviewing' ? (isRTL ? 'قيد المراجعة' : 'Reviewing') : s.status === 'implemented' ? (isRTL ? 'تم التنفيذ' : 'Implemented') : (isRTL ? 'مرفوض' : 'Rejected')}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-green-light font-bold">{roleLabels[s.user_role] || s.user_role}</span>
+                    {s.entity_name && <span className="text-[10px] text-[var(--text-muted)] font-tajawal">· {s.entity_name}</span>}
+                  </div>
+                  <h4 className="font-cairo font-bold text-sm">{s.title || (isRTL ? '(بدون عنوان)' : '(Untitled)')}</h4>
+                  <p className="text-xs font-tajawal text-[var(--text-soft)] mt-1 leading-relaxed">{s.description}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] font-tajawal mt-1">{s.user_name} · {new Date(s.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {s.status === 'open' && (
+                  <button onClick={() => onStatusChange(s.id, 'reviewing')} disabled={actionLoading === s.id} className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-400 text-[10px] font-bold hover:bg-amber-500/25 transition-colors disabled:opacity-50">
+                    {isRTL ? 'مراجعة' : 'Review'}
+                  </button>
+                )}
+                {s.status !== 'implemented' && (
+                  <button onClick={() => onStatusChange(s.id, 'implemented')} disabled={actionLoading === s.id} className="px-2.5 py-1 rounded-lg bg-brand-blue/15 text-brand-blue-light text-[10px] font-bold hover:bg-brand-blue/25 transition-colors disabled:opacity-50">
+                    {isRTL ? 'تنفيذ' : 'Implement'}
+                  </button>
+                )}
+                {s.status !== 'rejected' && (
+                  <button onClick={() => onStatusChange(s.id, 'rejected')} disabled={actionLoading === s.id} className="px-2.5 py-1 rounded-lg bg-status-emergency/15 text-status-emergency text-[10px] font-bold hover:bg-status-emergency/25 transition-colors disabled:opacity-50">
+                    {isRTL ? 'رفض' : 'Reject'}
+                  </button>
+                )}
+                <button onClick={() => onDelete(s.id)} disabled={actionLoading === s.id} className="px-2.5 py-1 rounded-lg glass text-[var(--text-muted)] text-[10px] font-bold hover:text-status-emergency transition-colors disabled:opacity-50 flex items-center gap-1">
+                  <Trash2 className="w-3 h-3" /> {isRTL ? 'حذف' : 'Delete'}
+                </button>
+                {actionLoading === s.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-green-light" />}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===================== ADMIN CONVERSATIONS LIST ===================== */
+function AdminConversationsList({ conversations, onOpen, onClose, actionLoading, isRTL }: {
+  conversations: Conversation[];
+  onOpen: (c: Conversation) => void;
+  onClose: (id: string) => void;
+  actionLoading: string | null;
+  isRTL: boolean;
+}) {
+  const active = conversations.filter((c) => c.status === 'active');
+  const closed = conversations.filter((c) => c.status !== 'active');
+
+  const renderItem = (c: Conversation) => (
+    <div key={c.id} className="glass-card p-3 flex items-center justify-between hover:border-brand-blue/40 transition-colors">
+      <button onClick={() => onOpen(c)} className="flex-1 text-right min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${c.status === 'active' ? 'bg-status-open/20 text-status-open' : 'bg-[var(--border-subtle)] text-[var(--text-muted)]'}`}>
+            {c.status === 'active' ? (isRTL ? 'مفتوحة' : 'Active') : (isRTL ? 'مغلقة' : 'Closed')}
+          </span>
+          {c.entity_name && <span className="text-[10px] text-brand-green-light font-bold">{c.entity_name}</span>}
+        </div>
+        <span className="font-cairo font-bold text-sm truncate block">{c.subject}</span>
+        <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{new Date(c.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</p>
+      </button>
+      {c.status === 'active' && (
+        <button onClick={() => onClose(c.id)} disabled={actionLoading === c.id} className="px-2.5 py-1 rounded-lg glass text-[var(--text-muted)] text-[10px] font-bold hover:text-status-emergency transition-colors disabled:opacity-50 shrink-0">
+          {actionLoading === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : (isRTL ? 'إغلاق' : 'Close')}
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="font-cairo font-bold text-sm mb-2 flex items-center gap-2">
+          <MessageCircle className="w-4 h-4 text-status-open" />
+          {isRTL ? 'محادثات مفتوحة' : 'Active Conversations'} ({active.length})
+        </h4>
+        {active.length === 0 ? (
+          <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-4">{isRTL ? 'لا توجد محادثات مفتوحة' : 'No active conversations'}</p>
+        ) : (
+          <div className="space-y-2">{active.map(renderItem)}</div>
+        )}
+      </div>
+      {closed.length > 0 && (
+        <div>
+          <h4 className="font-cairo font-bold text-sm mb-2 text-[var(--text-muted)]">{isRTL ? 'محادثات مغلقة' : 'Closed Conversations'} ({closed.length})</h4>
+          <div className="space-y-2">{closed.slice(0, 10).map(renderItem)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===================== ADMIN CONVERSATION CHAT MODAL ===================== */
+function AdminConversationChat({ conv, adminName, adminId, isRTL, onClose, onCloseConv, actionLoading }: {
+  conv: Conversation;
+  adminName: string;
+  adminId: string | null;
+  isRTL: boolean;
+  onClose: () => void;
+  onCloseConv: (id: string) => void;
+  actionLoading: string | null;
+}) {
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from('conversation_messages')
+        .select('id,conversation_id,sender_id,sender_name,sender_role,message,created_at')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: true });
+      setMessages((data as ConversationMessage[]) || []);
+      setLoading(false);
+    })();
+
+    const channel = supabase
+      .channel(`admin_conv_${conv.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_messages', filter: `conversation_id=eq.${conv.id}` },
+        (payload) => { setMessages((prev) => [...prev, payload.new as ConversationMessage]); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [conv.id]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || !adminId || sending) return;
+    setSending(true);
+    const msg = input.trim();
+    setInput('');
+    try {
+      const { data } = await supabase.from('conversation_messages').insert({
+        conversation_id: conv.id,
+        sender_id: adminId,
+        sender_name: adminName,
+        sender_role: 'admin',
+        message: msg,
+      }).select().single();
+      if (data) setMessages((prev) => [...prev, data as ConversationMessage]);
+    } catch {
+      showToast(isRTL ? 'فشل الإرسال' : 'Failed to send', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-card p-0 w-full max-w-md h-[75vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)]">
+          <div className="min-w-0">
+            <h3 className="font-cairo font-bold text-sm flex items-center gap-2"><MessageCircle className="w-5 h-5 text-brand-blue-light" /> {conv.subject}</h3>
+            {conv.entity_name && <p className="text-[10px] text-brand-green-light font-bold mt-0.5">{conv.entity_name}</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {conv.status === 'active' && (
+              <button onClick={() => onCloseConv(conv.id)} disabled={actionLoading === conv.id} className="px-2.5 py-1 rounded-lg glass text-[10px] font-bold hover:text-status-emergency transition-colors disabled:opacity-50">
+                {actionLoading === conv.id ? <Loader2 className="w-3 h-3 animate-spin" /> : (isRTL ? 'إغلاق' : 'Close')}
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded-lg glass"><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+          {loading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-brand-blue-light" /></div>
+          ) : messages.length === 0 ? (
+            <p className="text-center text-sm font-tajawal text-[var(--text-muted)] mt-8">{isRTL ? 'لا توجد رسائل' : 'No messages'}</p>
+          ) : (
+            messages.map((m) => {
+              const isAdmin = m.sender_role === 'admin';
+              return (
+                <div key={m.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[75%] rounded-xl p-2.5 ${isAdmin ? 'bg-brand-blue/20 text-[var(--text-bright)]' : 'glass text-[var(--text-soft)]'}`}>
+                    {!isAdmin && <span className="text-[10px] font-bold text-brand-green-light block mb-0.5">{m.sender_name}</span>}
+                    <p className="text-xs font-tajawal">{m.message}</p>
+                    <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{new Date(m.created_at).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {conv.status === 'active' ? (
+          <div className="p-3 border-t border-[var(--border-subtle)] flex gap-2">
+            <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} className="flex-1 glass rounded-xl px-3 py-2 text-sm font-tajawal focus:outline-none focus:border-brand-blue" placeholder={isRTL ? 'اكتب رد...' : 'Type a reply...'} />
+            <button onClick={sendMessage} disabled={sending || !input.trim()} className="btn-primary px-4 py-2 disabled:opacity-50"><Send className="w-4 h-4" /></button>
+          </div>
+        ) : (
+          <div className="p-3 border-t border-[var(--border-subtle)] text-center text-xs font-tajawal text-[var(--text-muted)]">{isRTL ? 'المحادثة مغلقة' : 'Conversation is closed'}</div>
+        )}
       </motion.div>
     </motion.div>
   );
