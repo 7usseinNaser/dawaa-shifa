@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Pill, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Flag, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Pill, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
@@ -11,7 +11,7 @@ import { FacilityPharmacy } from '@/components/FacilityPharmacy';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
-type Tab = 'home' | 'departments' | 'pharmacy' | 'info' | 'settings';
+type Tab = 'home' | 'departments' | 'pharmacy' | 'reports' | 'info' | 'settings';
 type FacilityStatus = 'open' | 'busy' | 'emergency' | 'closed';
 type FacilityType = 'hospital' | 'clinic' | 'medical_point';
 
@@ -90,6 +90,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
   const [deptForm, setDeptForm] = useState<DeptForm>(emptyDeptForm);
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
   const [showDonationModal, setShowDonationModal] = useState(false);
+  const [myReports, setMyReports] = useState<Array<{ id: string; type: 'bug' | 'suggestion'; title: string; status: string; created_at: string; admin_notes: string | null }>>([]);
 
   const isRTL = lang === 'ar';
 
@@ -120,6 +121,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
         });
         await loadDepartments(f.id);
         await loadActivity(user.id);
+        await loadMyReports(user.id);
       }
       setLoading(false);
 
@@ -174,6 +176,18 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       .order('ts', { ascending: false })
       .limit(10);
     if (data) setActivity(data as ActivityLogEntry[]);
+  }
+
+  async function loadMyReports(userId: string) {
+    const [bugs, sugs] = await Promise.all([
+      supabase.from('bug_reports').select('id,reporter_id,description,status,admin_notes,created_at').eq('reporter_id', userId).order('created_at', { ascending: false }),
+      supabase.from('suggestions').select('id,user_id,title,description,status,admin_notes,created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+    ]);
+    const reports: Array<{ id: string; type: 'bug' | 'suggestion'; title: string; status: string; created_at: string; admin_notes: string | null }> = [];
+    if (bugs.data) bugs.data.forEach((b: { id: string; description: string; status: string; admin_notes: string | null; created_at: string }) => reports.push({ id: b.id, type: 'bug', title: b.description, status: b.status, created_at: b.created_at, admin_notes: b.admin_notes }));
+    if (sugs.data) sugs.data.forEach((s: { id: string; title: string; status: string; admin_notes: string | null; created_at: string }) => reports.push({ id: s.id, type: 'suggestion', title: s.title, status: s.status, created_at: s.created_at, admin_notes: s.admin_notes }));
+    reports.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setMyReports(reports);
   }
 
   async function logActivity(action: string, item: string) {
@@ -278,7 +292,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     setSaving(true);
     const { error } = await supabase
       .from('facilities')
-      .update({ approval_status: 'pending', rejection_reason: null })
+      .update({ approval_status: 'pending', resubmitted: true, resubmitted_at: new Date().toISOString() })
       .eq('id', facility.id);
     setSaving(false);
     if (error) {
@@ -286,7 +300,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       showToast(isRTL ? `فشل إعادة الإرسال: ${error.message}` : `Failed to resubmit: ${error.message}`, 'error');
       return;
     }
-    setFacility({ ...facility, approval_status: 'pending', rejection_reason: null });
+    setFacility({ ...facility, approval_status: 'pending', resubmitted: true });
     showToast(isRTL ? 'تم إعادة إرسال المرفق للمراجعة' : 'Facility resubmitted for review');
     await logActivity('resubmit_facility', facility.name);
     // Notify admin
@@ -548,6 +562,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'departments', label: t('fac.departments'), icon: LayoutGrid },
     { id: 'pharmacy', label: isRTL ? 'الصيدلية' : 'Pharmacy', icon: Pill },
+    { id: 'reports', label: isRTL ? 'بلاغاتي' : 'My Reports', icon: Flag },
     { id: 'info', label: t('fac.info'), icon: Info },
     { id: 'settings', label: isRTL ? 'الإعدادات' : 'Settings', icon: Settings },
   ];
@@ -948,6 +963,52 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                             </button>
                           </div>
                         </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {tab === 'reports' && (
+                <motion.div key="reports" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.35, ease: EASE }} className="space-y-3">
+                  <h1 className="text-2xl font-bold text-gradient-blue">{isRTL ? 'بلاغاتي' : 'My Reports'}</h1>
+                  {myReports.length === 0 ? (
+                    <div className="glass-card p-8 text-center">
+                      <Flag className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
+                      <p className="text-sm text-[var(--text-muted)] font-tajawal">{isRTL ? 'لم ترسل أي بلاغات أو اقتراحات بعد' : 'You have not submitted any reports or suggestions yet'}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {myReports.map((r) => (
+                        <div key={`${r.type}-${r.id}`} className="glass-card p-4">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.type === 'bug' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                {r.type === 'bug' ? (isRTL ? 'بلاغ' : 'Bug') : (isRTL ? 'اقتراح' : 'Suggestion')}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                r.status === 'open' ? 'bg-blue-500/20 text-blue-400' :
+                                r.status === 'resolved' || r.status === 'implemented' ? 'bg-green-500/20 text-green-400' :
+                                r.status === 'dismissed' || r.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                                'bg-amber-500/20 text-amber-400'
+                              }`}>
+                                {r.status === 'open' ? (isRTL ? 'مفتوح' : 'Open') :
+                                 r.status === 'resolved' ? (isRTL ? 'تم الحل' : 'Resolved') :
+                                 r.status === 'implemented' ? (isRTL ? 'تم التنفيذ' : 'Implemented') :
+                                 r.status === 'reviewing' ? (isRTL ? 'قيد المراجعة' : 'Reviewing') :
+                                 r.status === 'dismissed' ? (isRTL ? 'تم رفضه' : 'Dismissed') :
+                                 r.status === 'rejected' ? (isRTL ? 'مرفوض' : 'Rejected') : r.status}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-[var(--text-muted)]">{new Date(r.created_at).toLocaleDateString(isRTL ? 'ar' : 'en')}</span>
+                          </div>
+                          <p className="text-sm font-tajawal text-[var(--text-soft)] line-clamp-2">{r.title}</p>
+                          {r.admin_notes && (
+                            <p className="text-xs text-[var(--text-muted)] mt-2 p-2 rounded-lg bg-white/5">
+                              <span className="font-bold">{isRTL ? 'ملاحظة الأدمن: ' : 'Admin note: '}</span>{r.admin_notes}
+                            </p>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}

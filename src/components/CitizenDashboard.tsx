@@ -11,6 +11,7 @@ import {
 import { searchMedicines, searchFacilities, autocompleteSuggestions, normalizeAr } from '@/lib/search';
 import { OccupancyBar, StatusBadge, StatCard, FreshnessBadge } from '@/components/ui/DashboardParts';
 import { GAZA_GOVERNORATES, governorateLabel, subDistrictLabel } from '@/data/regions';
+import { MEDICINE_CATEGORIES, MEDICINE_CATEGORIES_EN } from '@/data/categories';
 import { ToastContainer, showToast, useToast } from '@/components/ui/Toast';
 import RatingCard from '@/components/ui/RatingCard';
 import ChronicMedicines from '@/components/ChronicMedicines';
@@ -1306,6 +1307,7 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
   const [subFilter, setSubFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const [selectedMed, setSelectedMed] = useState<string | null>(null);
+  const [medCatFilter, setMedCatFilter] = useState<string>('');
   const [substituteMed, setSubstituteMed] = useState<Medicine | null>(null);
 
   // Deduplicate facilities and pharmacies by id
@@ -1481,18 +1483,56 @@ function DiscoverTab({ pharmacies, facilities, medicines, departments, onPharmac
         <div className="space-y-3">
           {!selectedMed ? (
             <>
-              <p className="text-xs font-tajawal text-[var(--text-muted)]">{isRTL ? `اضغط على دواء لمعرفة أين يتوفر (${uniqueMedNames.length})` : `Tap a medicine to see where it's available (${uniqueMedNames.length})`}</p>
-              <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
-                {uniqueMedNames.map((name, i) => {
-                  const count = allMeds.filter((m) => m.medicine_name === name).length;
+              {/* Category tabs - always show all 15 */}
+              <div className="flex gap-1.5 flex-wrap">
+                <button onClick={() => setMedCatFilter('')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${medCatFilter === '' ? 'bg-brand-green text-white' : 'glass text-[var(--text-soft)]'}`}>
+                  {isRTL ? 'الكل' : 'All'}
+                </button>
+                {MEDICINE_CATEGORIES.map((cat) => {
+                  const count = dedupMeds.filter((m) => m.category === cat).length;
                   return (
-                    <motion.button key={name} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0, transition: { delay: i * 0.02 } }} onClick={() => setSelectedMed(name)} className="glass-card p-2.5 w-full flex items-center justify-between hover:border-brand-green/40 transition-colors">
-                      <span className="font-cairo font-bold text-sm flex items-center gap-2"><Pill className="w-3.5 h-3.5 text-brand-green-light" /> {name}</span>
-                      <span className="text-[10px] text-[var(--text-muted)] font-bold">{count} {isRTL ? 'صيدلية' : 'pharmacies'}</span>
-                    </motion.button>
+                    <button key={cat} onClick={() => setMedCatFilter(cat)} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 ${medCatFilter === cat ? 'bg-brand-green text-white' : 'glass text-[var(--text-soft)]'}`}>
+                      {isRTL ? cat : (MEDICINE_CATEGORIES_EN[cat] || cat)}
+                      {count > 0 && <span className={`px-1 rounded-full text-[9px] ${medCatFilter === cat ? 'bg-white/20' : 'bg-[var(--border-subtle)]'}`}>{count}</span>}
+                    </button>
                   );
                 })}
               </div>
+
+              {(() => {
+                const filtered = medCatFilter
+                  ? dedupMeds.filter((m) => m.category === medCatFilter)
+                  : dedupMeds;
+                const names = Array.from(new Set(filtered.map((m) => m.medicine_name))).sort();
+
+                if (names.length === 0) {
+                  return (
+                    <div className="glass-card p-8 text-center">
+                      <Pill className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
+                      <p className="text-sm font-tajawal text-[var(--text-muted)]">
+                        {isRTL ? 'لا توجد أدوية بهذا التصنيف حالياً' : 'No medicines in this category yet'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <p className="text-xs font-tajawal text-[var(--text-muted)]">{isRTL ? `اضغط على دواء لمعرفة أين يتوفر (${names.length})` : `Tap a medicine to see where it's available (${names.length})`}</p>
+                    <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
+                      {names.map((name, i) => {
+                        const count = allMeds.filter((m) => m.medicine_name === name).length;
+                        return (
+                          <motion.button key={name} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0, transition: { delay: i * 0.02 } }} onClick={() => setSelectedMed(name)} className="glass-card p-2.5 w-full flex items-center justify-between hover:border-brand-green/40 transition-colors">
+                            <span className="font-cairo font-bold text-sm flex items-center gap-2"><Pill className="w-3.5 h-3.5 text-brand-green-light" /> {name}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] font-bold">{count} {isRTL ? 'صيدلية' : 'pharmacies'}</span>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </>
           ) : (
             <>

@@ -7,23 +7,7 @@ import { showToast } from '@/components/ui/Toast';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
-const MEDICINE_CATEGORIES = [
-  'مسكنات وخافضات حرارة',
-  'مضادات حيوية',
-  'مزمنة - قلب وضغط',
-  'مزمنة - سكري',
-  'الجهاز الهضمي',
-  'الجهاز التنفسي والحساسية',
-  'فيتامينات ومكملات',
-  'أدوية جلدية',
-  'عيون وأذن',
-  'نسائية وحمل',
-  'أدوية أطفال',
-  'مضادات التهاب ومفاصل',
-  'مطهرات ومستلزمات طبية',
-  'الغدة الدرقية والهرمونات',
-  'مضادات فطريات وطفيليات',
-] as const;
+import { MEDICINE_CATEGORIES } from '@/data/categories';
 
 interface MedForm {
   medicine_name: string;

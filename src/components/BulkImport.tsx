@@ -1,9 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Upload, FileSpreadsheet, FileJson, Loader2, CheckCircle, XCircle,
-  AlertTriangle, X, Download, ArrowRight,
-} from 'lucide-react';
+import { Upload, FileSpreadsheet, FileJson, Loader as Loader2, CircleCheck as CheckCircle, Circle as XCircle, TriangleAlert as AlertTriangle, X, Download, ArrowRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useLang } from '@/lib/i18n';

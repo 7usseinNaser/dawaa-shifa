@@ -98,6 +98,8 @@ export interface Pharmacy {
   rejection_reason: string | null;
   is_reference?: boolean;
   facility_id?: string | null;
+  resubmitted?: boolean;
+  resubmitted_at?: string | null;
 }
 
 export interface Medicine {
@@ -141,6 +143,8 @@ export interface Facility {
   last_updated_at: string | null;
   approval_status: 'pending' | 'approved' | 'rejected';
   rejection_reason: string | null;
+  resubmitted?: boolean;
+  resubmitted_at?: string | null;
 }
 
 export interface Department {
