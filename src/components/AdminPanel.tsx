@@ -138,7 +138,7 @@ export default function AdminPanel() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast, dept, don] = await Promise.all([
+      const results = await Promise.allSettled([
         supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id'),
         supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at'),
         supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at'),
@@ -156,13 +156,14 @@ export default function AdminPanel() {
         supabase.from('departments').select('id,facility_id,name,doctor_name,status,waiting_count,estimated_clear_time,avg_service_time_minutes,department_capacity,current_queue_count,open_time,close_time,last_updated'),
         supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false }).limit(200),
       ]);
-      const phData = (ph.data || []) as Pharmacy[];
-      const facData = (fac.data || []) as Facility[];
-      const medData = (med.data || []) as Medicine[];
-      const revData = (rev.data || []) as Review[];
-      const usrData = (usr.data || []) as Profile[];
-      const verData = (ver.data || []) as EntityVersion[];
-      const alrData = (alr.data || []) as AdminAlert[];
+      const [ph, fac, med, rev, usr, ver, alr, exch, reps, rcl, aud, wrn, slog, bcast, dept, don] = results;
+      const phData = (ph.status === 'fulfilled' ? (ph.value.data || []) : []) as Pharmacy[];
+      const facData = (fac.status === 'fulfilled' ? (fac.value.data || []) : []) as Facility[];
+      const medData = (med.status === 'fulfilled' ? (med.value.data || []) : []) as Medicine[];
+      const revData = (rev.status === 'fulfilled' ? (rev.value.data || []) : []) as Review[];
+      const usrData = (usr.status === 'fulfilled' ? (usr.value.data || []) : []) as Profile[];
+      const verData = (ver.status === 'fulfilled' ? (ver.value.data || []) : []) as EntityVersion[];
+      const alrData = (alr.status === 'fulfilled' ? (alr.value.data || []) : []) as AdminAlert[];
       setPharmacies(phData);
       setFacilities(facData);
       setMedicines(medData);
@@ -170,17 +171,17 @@ export default function AdminPanel() {
       setUsers(usrData);
       setVersions(verData);
       setAlerts(alrData);
-      const exchData = (exch.data || []) as MedExchangeRequest[];
-      const repsData = (reps.data || []) as DataReport[];
-      const rclData = (rcl.data || []) as BatchRecall[];
+      const exchData = (exch.status === 'fulfilled' ? (exch.value.data || []) : []) as MedExchangeRequest[];
+      const repsData = (reps.status === 'fulfilled' ? (reps.value.data || []) : []) as DataReport[];
+      const rclData = (rcl.status === 'fulfilled' ? (rcl.value.data || []) : []) as BatchRecall[];
       setExchangeReqs(exchData);
       setDataReports(repsData);
       setRecalls(rclData);
-      setAuditLogs((aud.data || []) as AuditLog[]);
-      setWarnings((wrn.data || []) as FacilityWarning[]);
-      setSearchLogs((slog.data || []) as SearchLog[]);
-      setBroadcasts((bcast.data || []) as EmergencyBroadcast[]);
-      setDonations((don.data || []) as MedicineDonation[]);
+      setAuditLogs((aud.status === 'fulfilled' ? (aud.value.data || []) : []) as AuditLog[]);
+      setWarnings((wrn.status === 'fulfilled' ? (wrn.value.data || []) : []) as FacilityWarning[]);
+      setSearchLogs((slog.status === 'fulfilled' ? (slog.value.data || []) : []) as SearchLog[]);
+      setBroadcasts((bcast.status === 'fulfilled' ? (bcast.value.data || []) : []) as EmergencyBroadcast[]);
+      setDonations((don.status === 'fulfilled' ? (don.value.data || []) : []) as MedicineDonation[]);
       const bugs = await supabase.from('bug_reports').select('id,reporter_id,reporter_name,bug_type,category,description,status,resolved_at,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
       const bugsData = (bugs.data || []) as BugReport[];
       for (const b of bugsData) {
@@ -201,7 +202,7 @@ export default function AdminPanel() {
       setSuggestions(sugsData);
       const convs = await supabase.from('conversations').select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name').order('created_at', { ascending: false }).limit(200);
       setConversations((convs.data || []) as Conversation[]);
-      const deptData = (dept.data || []) as Department[];
+      const deptData = (dept.status === 'fulfilled' ? (dept.value.data || []) : []) as Department[];
       const deptMap: Record<string, Department[]> = {};
       for (const d of deptData) {
         if (!deptMap[d.facility_id]) deptMap[d.facility_id] = [];
@@ -289,7 +290,7 @@ export default function AdminPanel() {
   async function restoreItem(table: string, id: string, name: string) {
     setActionLoading(id);
     try {
-      const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
+      const { error } = await supabase.from(table).update({ deleted_at: null, approval_status: 'pending' }).eq('id', id);
       if (error) throw error;
       await logAction(`restore_${table}`, name);
       showToast(isRTL ? `تم استعادة: ${name}` : `Restored: ${name}`);
@@ -609,7 +610,7 @@ export default function AdminPanel() {
   async function approveEntity(table: 'pharmacies' | 'facilities', id: string, name: string) {
     setActionLoading(id);
     try {
-      const { error } = await supabase.from(table).update({ approval_status: 'approved', verified: true, rejection_reason: null }).eq('id', id);
+      const { error } = await supabase.from(table).update({ approval_status: 'approved', verified: true, rejection_reason: null, deleted_at: null }).eq('id', id);
       if (error) throw error;
       await logAction(`approve_${table}`, name);
       showToast(isRTL ? `تمت الموافقة على: ${name}` : `Approved: ${name}`);
@@ -624,7 +625,7 @@ export default function AdminPanel() {
   async function rejectEntity(table: 'pharmacies' | 'facilities', id: string, name: string, reason: string) {
     setActionLoading(id);
     try {
-      const { error } = await supabase.from(table).update({ approval_status: 'rejected', verified: false, rejection_reason: sanitize(reason) }).eq('id', id);
+      const { error } = await supabase.from(table).update({ approval_status: 'rejected', verified: false, rejection_reason: sanitize(reason), deleted_at: new Date().toISOString() }).eq('id', id);
       if (error) throw error;
       await logAction(`reject_${table}`, name, null, { reason: sanitize(reason) });
       const { data: entity } = await supabase.from(table).select('owner_id').eq('id', id).maybeSingle();
@@ -1080,7 +1081,7 @@ export default function AdminPanel() {
                   onRoleChange={(id, role, name) => changeRole(id, name, role)}
                   onSoftDelete={(id, name) => softDelete('profiles', id, name)}
                   onUserClick={(u) => setSelectedUser(u)}
-                  actionLoading={actionLoading} isRTL={isRTL} />
+                  actionLoading={actionLoading} isRTL={isRTL} adminEmail={user?.email || ''} />
               )}
 
               {tab === 'trash' && (
@@ -1678,8 +1679,8 @@ function PendingList({ pharmacies, facilities, medicines, departments, onApprove
 }) {
   const [preview, setPreview] = useState<{ type: 'pharmacy' | 'facility'; data: Pharmacy | Facility } | null>(null);
   const pending = [
-    ...pharmacies.filter((p) => p.approval_status === 'pending' && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone })),
-    ...facilities.filter((f) => f.approval_status === 'pending' && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone })),
+    ...pharmacies.filter((p) => p.approval_status === 'pending' && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone, rejection_reason: p.rejection_reason })),
+    ...facilities.filter((f) => f.approval_status === 'pending' && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone, rejection_reason: f.rejection_reason })),
   ];
   if (pending.length === 0) return (<div className="text-center py-8"><CheckCircle className="w-10 h-10 mx-auto mb-3 text-status-open" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد تسجيلات معلّقة' : 'No pending registrations'}</p></div>);
   return (
@@ -1698,6 +1699,9 @@ function PendingList({ pharmacies, facilities, medicines, departments, onApprove
             <div className="min-w-0">
               <div className="font-cairo font-bold text-sm truncate">{item.name}</div>
               <div className="text-xs text-[var(--text-muted)] font-tajawal">{item.type === 'pharmacy' ? (isRTL ? 'صيدلية' : 'Pharmacy') : (isRTL ? 'مرفق' : 'Facility')} · {item.area} · {item.phone}</div>
+              {item.rejection_reason && (
+                <div className="text-[10px] text-status-emergency font-tajawal mt-0.5">{isRTL ? 'سبب الرفض السابق: ' : 'Previous rejection: '}{item.rejection_reason}</div>
+              )}
             </div>
           </div>
           <div className="flex gap-2 shrink-0">
@@ -1888,7 +1892,7 @@ function ReviewsList({ reviews, pharmacies, facilities, users, auditLogs, dataRe
 }
 
 // ============ Users List ============
-function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleBan, onToggleFreeze, onRoleChange, onSoftDelete, onUserClick, actionLoading, isRTL }: {
+function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleBan, onToggleFreeze, onRoleChange, onSoftDelete, onUserClick, actionLoading, isRTL, adminEmail }: {
   users: Profile[]; roleFilter: string; setRoleFilter: (v: string) => void;
   onToggleVerify: (id: string, current: boolean, name: string) => void;
   onToggleBan: (id: string, current: boolean, name: string) => void;
@@ -1896,8 +1900,10 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
   onRoleChange: (id: string, role: string, name: string) => void;
   onSoftDelete: (id: string, name: string) => void;
   onUserClick: (u: Profile) => void;
-  actionLoading: string | null; isRTL: boolean;
+  actionLoading: string | null; isRTL: boolean; adminEmail: string;
 }) {
+  const AUTHORIZED_ADMIN = 'hussein7.7naser@gmail.com';
+  const canPromoteAdmin = adminEmail === AUTHORIZED_ADMIN;
   const [search, setSearch] = useState('');
   const roleLabels: Record<string, string> = { all: isRTL ? 'الكل' : 'All', citizen: isRTL ? 'مواطن' : 'Citizen', pharmacist: isRTL ? 'صيدلي' : 'Pharmacist', facility_owner: isRTL ? 'صاحب مرفق' : 'Facility Owner', admin: isRTL ? 'أدمن' : 'Admin' };
   const q = search.trim().toLowerCase();
@@ -1957,7 +1963,7 @@ function UsersList({ users, roleFilter, setRoleFilter, onToggleVerify, onToggleB
                   <option value="citizen">{isRTL ? 'مواطن' : 'Citizen'}</option>
                   <option value="pharmacist">{isRTL ? 'صيدلي' : 'Pharmacist'}</option>
                   <option value="facility_owner">{isRTL ? 'صاحب مرفق' : 'Facility Owner'}</option>
-                  <option value="admin">{isRTL ? 'أدمن' : 'Admin'}</option>
+                  <option value="admin" disabled={!canPromoteAdmin}>{isRTL ? 'أدمن' : 'Admin'}</option>
                 </select>
                 <button onClick={() => onToggleBan(u.id, u.banned, u.display_name)} disabled={actionLoading === u.id} title={u.banned ? (isRTL ? 'إلغاء الحظر' : 'Unban') : (isRTL ? 'حظر' : 'Ban')} className="p-2 rounded-lg glass hover:bg-status-emergency/15 transition-colors disabled:opacity-50"><Ban className={`w-3.5 h-3.5 ${u.banned ? 'text-status-emergency' : 'text-[var(--text-muted)]'}`} /></button>
                 <button onClick={() => onToggleFreeze(u.id, u.frozen || false, u.display_name)} disabled={actionLoading === u.id} title={u.frozen ? (isRTL ? 'إلغاء التجميد' : 'Unfreeze') : (isRTL ? 'تجميد الحساب' : 'Freeze Account')} className="p-2 rounded-lg glass hover:bg-brand-blue/15 transition-colors disabled:opacity-50"><Snowflake className={`w-3.5 h-3.5 ${u.frozen ? 'text-brand-blue-light' : 'text-[var(--text-muted)]'}`} /></button>

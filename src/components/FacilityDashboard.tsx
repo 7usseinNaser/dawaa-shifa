@@ -293,7 +293,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     setSaving(true);
     const { error } = await supabase
       .from('facilities')
-      .update({ approval_status: 'pending', resubmitted: true, resubmitted_at: new Date().toISOString() })
+      .update({ approval_status: 'pending', resubmitted: true, resubmitted_at: new Date().toISOString(), deleted_at: null })
       .eq('id', facility.id);
     setSaving(false);
     if (error) {

@@ -329,7 +329,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     setSaving(true);
     const { error } = await supabase
       .from('pharmacies')
-      .update({ approval_status: 'pending', resubmitted: true, resubmitted_at: new Date().toISOString() })
+      .update({ approval_status: 'pending', resubmitted: true, resubmitted_at: new Date().toISOString(), deleted_at: null })
       .eq('id', pharmacy.id);
     setSaving(false);
     if (error) {
