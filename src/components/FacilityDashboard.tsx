@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Flag, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Pill, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Flag, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, Loader as Loader2, LogOut, Minus, Moon, Pencil, Pill, Plus, RotateCcw, Settings, Stethoscope, Sun, Trash2, Users, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
@@ -663,6 +663,61 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                   transition={{ duration: 0.35, ease: EASE }}
                   className="space-y-6"
                 >
+                  {/* Rejection banner */}
+                  {facility.approval_status === 'rejected' && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="glass-card p-5 border border-red-500/40 bg-red-500/10"
+                    >
+                      <div className="flex items-start gap-3">
+                        <XCircle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-red-300">
+                            {isRTL ? 'تم رفض مرفقك' : 'Your facility was rejected'}
+                          </p>
+                          {facility.rejection_reason && (
+                            <p className="text-sm text-red-200/80 mt-1">
+                              {isRTL ? 'سبب الرفض: ' : 'Reason: '}{facility.rejection_reason}
+                            </p>
+                          )}
+                          <p className="text-xs text-red-200/60 mt-2">
+                            {isRTL ? 'عدّل المعلومات ثم أعد التقديم للمراجعة' : 'Edit your info then resubmit for review'}
+                          </p>
+                          <button
+                            onClick={resubmitForReview}
+                            disabled={saving}
+                            className="mt-3 px-5 py-2.5 rounded-2xl font-bold bg-brand-green text-white hover:bg-brand-green-dark transition-all disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                            {isRTL ? 'إعادة التقديم للمراجعة' : 'Resubmit for Review'}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Pending banner */}
+                  {facility.approval_status === 'pending' && !facility.verified && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="glass-card p-5 border border-amber-500/40 bg-amber-500/10"
+                    >
+                      <div className="flex items-start gap-3">
+                        <Clock className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="font-bold text-amber-300">
+                            {isRTL ? 'مرفقك قيد المراجعة' : 'Your facility is pending review'}
+                          </p>
+                          <p className="text-sm text-amber-200/80 mt-1">
+                            {isRTL ? 'سيظهر للمواطنين بعد موافقة الأدمن' : 'It will be visible to citizens after admin approval'}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* Welcome banner */}
                   <div className="glass-card p-6 border-glow">
                     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1163,6 +1218,11 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                     <Download className="w-4 h-4" /> {isRTL ? 'تصدير نسخة احتياطية (JSON)' : 'Export Backup (JSON)'}
                   </button>
 
+                  {/* Back to site */}
+                  <button onClick={() => { window.location.hash = ''; }} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-brand-green">
+                    <Home className="w-4 h-4" /> {isRTL ? 'العودة إلى الموقع' : 'Back to Site'}
+                  </button>
+
                   {/* Logout */}
                   <button onClick={signOut} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-status-emergency">
                     <LogOut className="w-4 h-4" /> {t('nav.logout')}
@@ -1218,11 +1278,6 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                 />
                 <SelectField
                   label={t('fac.deptStatus')}
-                  {/* Back to site */}
-                  <button onClick={() => { window.location.hash = ''; }} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-brand-green">
-                    <Home className="w-4 h-4" /> {isRTL ? 'العودة إلى الموقع' : 'Back to Site'}
-                  </button>
-
                   value={deptForm.status}
                   onChange={(v) => setDeptForm({ ...deptForm, status: v as FacilityStatus })}
                   options={STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabel(s) }))}
