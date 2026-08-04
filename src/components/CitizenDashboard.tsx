@@ -11,6 +11,7 @@ import {
 import { searchMedicines, searchFacilities, autocompleteSuggestions, normalizeAr } from '@/lib/search';
 import { OccupancyBar, StatusBadge, StatCard, FreshnessBadge } from '@/components/ui/DashboardParts';
 import { GAZA_GOVERNORATES, governorateLabel, subDistrictLabel } from '@/data/regions';
+import { MEDICINE_CATEGORIES } from '@/data/categories';
 import { ToastContainer, showToast, useToast } from '@/components/ui/Toast';
 import RatingCard from '@/components/ui/RatingCard';
 import ChronicMedicines from '@/components/ChronicMedicines';
@@ -2064,16 +2065,12 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
     m.generic_name.toLowerCase().includes(search.toLowerCase()),
   ).filter((m) => !catFilter || m.category === catFilter);
 
-  const categories = Array.from(new Set(medicines.map((m) => m.category).filter(Boolean))) as string[];
-  const grouped = categories
-    .filter((c) => !catFilter || c === catFilter)
-    .sort()
-    .map((cat) => ({
-      category: cat,
-      items: filtered.filter((m) => m.category === cat),
-    }))
-    .filter((g) => g.items.length > 0);
-  const uncategorized = filtered.filter((m) => !m.category);
+  // Always show all 15 categories as fixed tabs
+  const grouped = MEDICINE_CATEGORIES.map((cat) => ({
+    category: cat,
+    items: filtered.filter((m) => m.category === cat),
+  }));
+  const uncategorized = filtered.filter((m) => !m.category || !MEDICINE_CATEGORIES.includes(m.category as any));
 
   function toggleCat(cat: string) {
     setOpenCats((prev) => {
@@ -2174,20 +2171,18 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
         <div>
           <h3 className="font-cairo font-bold text-lg mb-3">{t('dash.medList')}</h3>
 
-          {categories.length > 0 && (
-            <div className="mb-3">
-              <select
-                value={catFilter}
-                onChange={(e) => setCatFilter(e.target.value)}
-                className="w-full glass rounded-2xl px-4 py-2.5 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
-              >
-                <option value="" className="bg-[var(--bg-dark)]">{isRTL ? 'كل التصنيفات' : 'All categories'}</option>
-                {categories.sort().map((cat) => (
-                  <option key={cat} value={cat} className="bg-[var(--bg-dark)]">{cat}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="mb-3">
+            <select
+              value={catFilter}
+              onChange={(e) => setCatFilter(e.target.value)}
+              className="w-full glass rounded-2xl px-4 py-2.5 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
+            >
+              <option value="" className="bg-[var(--bg-dark)]">{isRTL ? 'كل التصنيفات' : 'All categories'}</option>
+              {MEDICINE_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat} className="bg-[var(--bg-dark)]">{cat}</option>
+              ))}
+            </select>
+          </div>
 
           <div className="space-y-2">
             {grouped.map((group) => (
@@ -2205,7 +2200,11 @@ function PharmacyDetail({ pharmacy, medicines, isFav, onBack, onToggleFav, onRep
                 </button>
                 {openCats.has(group.category) && (
                   <div className="px-2 pb-2 space-y-1.5">
-                    {group.items.map((m, i) => {
+                    {group.items.length === 0 ? (
+                      <div className="p-4 text-center">
+                        <p className="font-tajawal text-sm text-[var(--text-muted)]">{isRTL ? 'لا توجد أدوية بهذا التصنيف حالياً' : 'No medicines in this category yet'}</p>
+                      </div>
+                    ) : group.items.map((m, i) => {
                       const badge = stockBadge(m, t);
                       return (
                         <div key={m.id}>

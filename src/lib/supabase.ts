@@ -395,6 +395,8 @@ export interface Conversation {
   closed_at: string | null;
   closed_by: string | null;
   entity_name: string | null;
+  suggestion_id: string | null;
+  bug_report_id: string | null;
 }
 
 export interface ConversationMessage {

@@ -5,25 +5,9 @@ import { supabase, type Medicine, type Pharmacy } from '@/lib/supabase';
 import { CloneFromPharmacy } from '@/components/CloneFromPharmacy';
 import { showToast } from '@/components/ui/Toast';
 
-const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
+import { MEDICINE_CATEGORIES } from '@/data/categories';
 
-const MEDICINE_CATEGORIES = [
-  'مسكنات وخافضات حرارة',
-  'مضادات حيوية',
-  'مزمنة - قلب وضغط',
-  'مزمنة - سكري',
-  'الجهاز الهضمي',
-  'الجهاز التنفسي والحساسية',
-  'فيتامينات ومكملات',
-  'أدوية جلدية',
-  'عيون وأذن',
-  'نسائية وحمل',
-  'أدوية أطفال',
-  'مضادات التهاب ومفاصل',
-  'مطهرات ومستلزمات طبية',
-  'الغدة الدرقية والهرمونات',
-  'مضادات فطريات وطفيليات',
-] as const;
+const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
 interface MedForm {
   medicine_name: string;
@@ -212,10 +196,11 @@ export function FacilityPharmacy({
 
   const filteredMeds = search.trim()
     ? medicines.filter((m) =>
-        m.medicine_name.toLowerCase().includes(search.toLowerCase()) ||
-        (m.generic_name || '').toLowerCase().includes(search.toLowerCase())
+        !m.is_incomplete &&
+        (m.medicine_name.toLowerCase().includes(search.toLowerCase()) ||
+        (m.generic_name || '').toLowerCase().includes(search.toLowerCase()))
       )
-    : medicines;
+    : medicines.filter((m) => !m.is_incomplete);
 
   if (loading) {
     return (

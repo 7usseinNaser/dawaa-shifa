@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Pill, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Bug, Building2, Clock, Download, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, LogOut, Minus, Moon, Pencil, Pill, Plus, Settings, Stethoscope, Sun, Trash2, Users, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';
@@ -8,10 +8,11 @@ import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { OccupancyBar, StatusBadge } from '@/components/ui/DashboardParts';
 import { DonationModal } from '@/components/DonationModal';
 import { FacilityPharmacy } from '@/components/FacilityPharmacy';
+import { MyReports } from '@/components/MyReports';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
-type Tab = 'home' | 'departments' | 'pharmacy' | 'info' | 'settings';
+type Tab = 'home' | 'departments' | 'pharmacy' | 'reports' | 'info' | 'settings';
 type FacilityStatus = 'open' | 'busy' | 'emergency' | 'closed';
 type FacilityType = 'hospital' | 'clinic' | 'medical_point';
 
@@ -548,6 +549,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'departments', label: t('fac.departments'), icon: LayoutGrid },
     { id: 'pharmacy', label: isRTL ? 'الصيدلية' : 'Pharmacy', icon: Pill },
+    { id: 'reports', label: isRTL ? 'بلاغاتي' : 'My Reports', icon: Bug },
     { id: 'info', label: t('fac.info'), icon: Info },
     { id: 'settings', label: isRTL ? 'الإعدادات' : 'Settings', icon: Settings },
   ];
@@ -951,6 +953,20 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                       ))}
                     </div>
                   )}
+                </motion.div>
+              )}
+
+              {tab === 'reports' && (
+                <motion.div
+                  key="reports"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                  className="space-y-5"
+                >
+                  <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'بلاغاتي واقتراحاتي' : 'My Reports & Suggestions'}</h1>
+                  <MyReports isRTL={isRTL} />
                 </motion.div>
               )}
 

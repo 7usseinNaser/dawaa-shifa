@@ -1,9 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Upload, FileSpreadsheet, FileJson, Loader2, CheckCircle, XCircle,
-  AlertTriangle, X, Download, ArrowRight,
-} from 'lucide-react';
+import { Upload, FileSpreadsheet, FileJson, Loader as Loader2, CircleCheck as CheckCircle, Circle as XCircle, TriangleAlert as AlertTriangle, X, Download, ArrowRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useLang } from '@/lib/i18n';
@@ -144,8 +141,11 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
       }
       const requiredOk = fields.filter((f) => f.required).every((f) => String(row[f.key] ?? '').trim());
       if (!requiredOk) {
-        result.failed.push({ name, reason: isRTL ? 'حقول مطلوبة ناقصة' : 'Missing required fields' });
-        continue;
+        const hasAnyData = fields.some((f) => String(row[f.key] ?? '').trim() !== '');
+        if (!hasAnyData) {
+          result.failed.push({ name, reason: isRTL ? 'صف فارغ' : 'Empty row' });
+          continue;
+        }
       }
       if (existingNames.has(normalize(name))) {
         result.skipped.push({ name, reason: isRTL ? 'مسجل مسبقاً' : 'Already exists' });
@@ -155,6 +155,8 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
 
       // Check for missing optional fields — save with incomplete flag
       const hasMissingOptional = fields.some((f) => !f.required && (String(row[f.key] ?? '').trim() === ''));
+      const hasMissingRequired = !fields.filter((f) => f.required).every((f) => String(row[f.key] ?? '').trim());
+      const shouldMarkIncomplete = hasMissingOptional || hasMissingRequired;
 
       // Build insert row
       const record: Record<string, unknown> = { name };
@@ -172,7 +174,7 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
         record.pharmacy_id = pharmacyId;
       }
       if (entityType === 'medicines') {
-        record.is_incomplete = hasMissingOptional;
+        record.is_incomplete = shouldMarkIncomplete;
       }
       if (entityType === 'pharmacies') {
         if (!record.lat) record.lat = 31.5;
@@ -193,15 +195,16 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
       toInsert.push(record);
     }
 
-    // Batch insert
+    // Insert rows individually so partial failures don't block complete rows
     if (toInsert.length > 0) {
-      const { error: insError } = await supabase.from(entityType).insert(toInsert);
-      if (insError) {
-        setError(isRTL ? 'فشل حفظ البيانات: ' : 'Failed to save: ' + insError.message);
-        setLoading(false);
-        return;
+      for (const record of toInsert) {
+        const { error: insError } = await supabase.from(entityType).insert(record);
+        if (insError) {
+          result.failed.push({ name: String(record.name), reason: insError.message });
+        } else {
+          result.added.push(String(record.name));
+        }
       }
-      result.added = toInsert.map((r) => String(r.name));
     }
 
     setSummary(result);

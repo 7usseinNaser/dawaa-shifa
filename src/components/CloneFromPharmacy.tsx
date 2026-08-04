@@ -29,12 +29,13 @@ export function CloneFromPharmacy({
     (async () => {
       let query = supabase
         .from('pharmacies')
-        .select('id,name,area,is_reference,deleted_at,owner_id')
+        .select('id,name,area,is_reference,deleted_at,owner_id,approval_status')
+        .is('deleted_at', null)
         .order('name', { ascending: true });
       if (allowReference) {
-        query = query.or('is_reference.eq.true,and(owner_id.neq.null,deleted_at.is.null)');
+        query = query.or('is_reference.eq.true,approval_status.eq.approved');
       } else {
-        query = query.eq('is_reference', false).not('owner_id', 'is', null).is('deleted_at', null);
+        query = query.eq('is_reference', false).eq('approval_status', 'approved');
       }
       const { data } = await query;
       if (data) setPharmacies(data as Pharmacy[]);
