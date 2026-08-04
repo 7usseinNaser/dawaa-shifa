@@ -1218,6 +1218,11 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
                 />
                 <SelectField
                   label={t('fac.deptStatus')}
+                  {/* Back to site */}
+                  <button onClick={() => { window.location.hash = ''; }} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-brand-green">
+                    <Home className="w-4 h-4" /> {isRTL ? 'العودة إلى الموقع' : 'Back to Site'}
+                  </button>
+
                   value={deptForm.status}
                   onChange={(v) => setDeptForm({ ...deptForm, status: v as FacilityStatus })}
                   options={STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabel(s) }))}

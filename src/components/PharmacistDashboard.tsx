@@ -1373,6 +1373,11 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     </button>
                   </div>
 
+                  {/* Back to site */}
+                  <button onClick={() => { window.location.hash = ''; }} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-brand-green">
+                    <Home className="w-4 h-4" /> {isRTL ? 'العودة إلى الموقع' : 'Back to Site'}
+                  </button>
+
                   {/* Logout */}
                   <button onClick={signOut} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-status-emergency">
                     <LogOut className="w-4 h-4" /> {t('nav.logout')}

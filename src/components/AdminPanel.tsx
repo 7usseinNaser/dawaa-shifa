@@ -182,9 +182,23 @@ export default function AdminPanel() {
       setBroadcasts((bcast.data || []) as EmergencyBroadcast[]);
       setDonations((don.data || []) as MedicineDonation[]);
       const bugs = await supabase.from('bug_reports').select('id,reporter_id,reporter_name,bug_type,category,description,status,resolved_at,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
-      setBugReports((bugs.data || []) as BugReport[]);
+      const bugsData = (bugs.data || []) as BugReport[];
+      for (const b of bugsData) {
+        if (b.reporter_id) {
+          const u = usrData.find((p) => p.id === b.reporter_id);
+          b.reporter_email = u?.email || null;
+        }
+      }
+      setBugReports(bugsData);
       const sugs = await supabase.from('suggestions').select('id,user_id,user_name,user_role,entity_name,title,description,status,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
-      setSuggestions((sugs.data || []) as Suggestion[]);
+      const sugsData = (sugs.data || []) as Suggestion[];
+      for (const s of sugsData) {
+        if (s.user_id) {
+          const u = usrData.find((p) => p.id === s.user_id);
+          s.user_email = u?.email || null;
+        }
+      }
+      setSuggestions(sugsData);
       const convs = await supabase.from('conversations').select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name').order('created_at', { ascending: false }).limit(200);
       setConversations((convs.data || []) as Conversation[]);
       const deptData = (dept.data || []) as Department[];
@@ -705,9 +719,22 @@ export default function AdminPanel() {
   async function resolveBugReport(id: string, status: 'resolved' | 'dismissed') {
     setActionLoading(id);
     try {
+      const bug = bugReports.find((b) => b.id === id);
       const { error } = await supabase.from('bug_reports').update({ status, resolved_at: status === 'resolved' ? new Date().toISOString() : null }).eq('id', id);
       if (error) throw error;
       await logAction(`bug_${status}`, id);
+      if (bug?.reporter_id) {
+        const statusLabels: Record<string, string> = {
+          resolved: isRTL ? 'تم الحل' : 'Resolved',
+          dismissed: isRTL ? 'مرفوض' : 'Dismissed',
+        };
+        await supabase.from('notifications').insert({
+          user_id: bug.reporter_id,
+          title: isRTL ? `تم تحديث حالة بلاغك` : `Bug report status updated`,
+          body: isRTL ? `حالة بلاغك أصبحت: ${statusLabels[status]}` : `Your bug report is now: ${statusLabels[status]}`,
+          type: 'bug_status',
+        });
+      }
       showToast(isRTL ? (status === 'resolved' ? 'تم حل البلاغ' : 'تم رفض البلاغ') : (status === 'resolved' ? 'Bug resolved' : 'Bug dismissed'));
       loadAll();
     } catch {
@@ -720,11 +747,63 @@ export default function AdminPanel() {
   async function updateSuggestionStatus(id: string, status: 'reviewing' | 'implemented' | 'rejected') {
     setActionLoading(id);
     try {
+      const sug = suggestions.find((s) => s.id === id);
       const { error } = await supabase.from('suggestions').update({ status }).eq('id', id);
       if (error) throw error;
       await logAction(`suggestion_${status}`, id);
+      if (sug?.user_id) {
+        const statusLabels: Record<string, string> = {
+          reviewing: isRTL ? 'قيد المراجعة' : 'Reviewing',
+          implemented: isRTL ? 'تم التنفيذ' : 'Implemented',
+          rejected: isRTL ? 'مرفوض' : 'Rejected',
+        };
+        const title = sug.title || (isRTL ? 'اقتراحك' : 'your suggestion');
+        await supabase.from('notifications').insert({
+          user_id: sug.user_id,
+          title: isRTL ? `تم تحديث حالة اقتراحك: ${title}` : `Suggestion status updated: ${title}`,
+          body: isRTL ? `حالة اقتراحك "${title}" أصبحت: ${statusLabels[status]}` : `Your suggestion "${title}" is now: ${statusLabels[status]}`,
+          type: 'suggestion_status',
+        });
+      }
       showToast(isRTL ? 'تم تحديث حالة الاقتراح' : 'Suggestion status updated');
       loadAll();
+    } catch {
+      showToast(isRTL ? 'فشل' : 'Failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function startConversationFromSuggestion(sug: Suggestion) {
+    setActionLoading(sug.id);
+    try {
+      const subject = isRTL ? `بخصوص اقتراحك: ${sug.title || 'بدون عنوان'}` : `Regarding your suggestion: ${sug.title || 'Untitled'}`;
+      const { data: existing } = await supabase.from('conversations').select('id').eq('suggestion_id', sug.id).maybeSingle();
+      if (existing) {
+        const conv = existing as Conversation;
+        setActiveAdminConv(conv);
+        showToast(isRTL ? 'المحادثة موجودة مسبقاً' : 'Conversation already exists');
+        return;
+      }
+      const { data, error } = await supabase.from('conversations').insert({
+        user_id: sug.user_id,
+        subject,
+        status: 'active',
+        entity_name: sug.entity_name || null,
+        suggestion_id: sug.id,
+      }).select().single();
+      if (error) throw error;
+      await logAction('conversation_started_from_suggestion', sug.id);
+      if (sug.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: sug.user_id,
+          title: isRTL ? `بدأ الأدمن محادثة بخصوص اقتراحك: ${sug.title || ''}` : `Admin started a conversation about your suggestion: ${sug.title || ''}`,
+          body: isRTL ? `يمكنك الآن الرد على المحادثة من قسم المحادثات` : `You can reply from the Conversations section`,
+          type: 'conversation_started',
+        });
+      }
+      setActiveAdminConv(data as Conversation);
+      showToast(isRTL ? 'تم بدء المحادثة' : 'Conversation started');
     } catch {
       showToast(isRTL ? 'فشل' : 'Failed', 'error');
     } finally {
@@ -877,6 +956,9 @@ export default function AdminPanel() {
             )}
             <button onClick={() => downloadSQLDump({ pharmacies: pharmacies as unknown as Record<string, unknown>[], facilities: facilities as unknown as Record<string, unknown>[], medicines: medicines as unknown as Record<string, unknown>[], reviews: reviews as unknown as Record<string, unknown>[] }, `dawaa-shifaa-dump-${Date.now()}.sql`)} className="px-3 py-2 rounded-xl bg-brand-green/15 text-brand-green-light text-xs font-bold flex items-center gap-1 hover:bg-brand-green/25 transition-colors">
               <Database className="w-3.5 h-3.5" /> {isRTL ? 'تصدير SQL' : 'SQL Dump'}
+            </button>
+            <button onClick={() => { window.location.hash = ''; }} className="px-4 py-2 rounded-xl bg-brand-green/15 text-brand-green-light text-xs font-bold flex items-center gap-1.5 hover:bg-brand-green/25 transition-colors">
+              <ExternalLink className="w-4 h-4" />{isRTL ? 'العودة إلى الموقع' : 'Back to Site'}
             </button>
             <button onClick={handleLogout} className="px-4 py-2 rounded-xl bg-status-emergency/15 text-status-emergency text-xs font-bold flex items-center gap-1.5 hover:bg-status-emergency/25 transition-colors">
               <LogOut className="w-4 h-4" />{isRTL ? 'تسجيل الخروج' : 'Logout'}
@@ -1045,7 +1127,7 @@ export default function AdminPanel() {
                 <BugReportsList reports={bugReports} onResolve={(id) => resolveBugReport(id, 'resolved')} onDismiss={(id) => resolveBugReport(id, 'dismissed')} onDelete={(id) => permanentDelete('bug_reports', id, id.slice(0, 8))} onChat={(r) => setChatBugReport(r)} actionLoading={actionLoading} isRTL={isRTL} />
               )}
               {tab === 'suggestions' && (
-                <SuggestionsList suggestions={suggestions} roleFilter={suggestionRoleFilter} setRoleFilter={setSuggestionRoleFilter} dateFilter={suggestionDateFilter} setDateFilter={setSuggestionDateFilter} onStatusChange={updateSuggestionStatus} onDelete={(id) => permanentDelete('suggestions', id, id.slice(0, 8))} actionLoading={actionLoading} isRTL={isRTL} />
+                <SuggestionsList suggestions={suggestions} roleFilter={suggestionRoleFilter} setRoleFilter={setSuggestionRoleFilter} dateFilter={suggestionDateFilter} setDateFilter={setSuggestionDateFilter} onStatusChange={updateSuggestionStatus} onStartConversation={startConversationFromSuggestion} onDelete={(id) => permanentDelete('suggestions', id, id.slice(0, 8))} actionLoading={actionLoading} isRTL={isRTL} />
               )}
               {tab === 'conversations' && (
                 <AdminConversationsList conversations={conversations} onOpen={(c) => setActiveAdminConv(c)} onClose={async (id) => { await closeConversation(id); }} actionLoading={actionLoading} isRTL={isRTL} />
@@ -1517,6 +1599,7 @@ function BugReportsList({ reports, onResolve, onDismiss, onDelete, onChat, actio
                 <div>
                   <div className="font-cairo font-bold text-sm">{categoryLabels[r.category] || r.category}</div>
                   <div className="text-xs text-[var(--text-muted)] font-tajawal">{isRTL ? 'المرسل' : 'Reporter'}: {r.reporter_name || '—'}</div>
+                  {r.reporter_email && <div className="text-[10px] text-brand-blue-light/70 font-tajawal">{r.reporter_email}</div>}
                 </div>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${statusCls[r.status] || statusCls.open}`}>{statusLabel[r.status] || r.status}</span>
@@ -2924,11 +3007,12 @@ function BroadcastForm({ onClose, onSend, actionLoading, isRTL }: {
 }
 
 /* ===================== SUGGESTIONS LIST ===================== */
-function SuggestionsList({ suggestions, roleFilter, setRoleFilter, dateFilter, setDateFilter, onStatusChange, onDelete, actionLoading, isRTL }: {
+function SuggestionsList({ suggestions, roleFilter, setRoleFilter, dateFilter, setDateFilter, onStatusChange, onStartConversation, onDelete, actionLoading, isRTL }: {
   suggestions: Suggestion[];
   roleFilter: string; setRoleFilter: (v: string) => void;
   dateFilter: string; setDateFilter: (v: string) => void;
   onStatusChange: (id: string, status: 'reviewing' | 'implemented' | 'rejected') => void;
+  onStartConversation: (sug: Suggestion) => void;
   onDelete: (id: string) => void;
   actionLoading: string | null;
   isRTL: boolean;
@@ -2998,7 +3082,10 @@ function SuggestionsList({ suggestions, roleFilter, setRoleFilter, dateFilter, s
                   </div>
                   <h4 className="font-cairo font-bold text-sm">{s.title || (isRTL ? '(بدون عنوان)' : '(Untitled)')}</h4>
                   <p className="text-xs font-tajawal text-[var(--text-soft)] mt-1 leading-relaxed">{s.description}</p>
-                  <p className="text-[10px] text-[var(--text-muted)] font-tajawal mt-1">{s.user_name} · {new Date(s.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</p>
+                  <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-1 space-y-0.5">
+                    <p>{s.user_name} · {new Date(s.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</p>
+                    {s.user_email && <p className="text-brand-blue-light/70">{s.user_email}</p>}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -3017,6 +3104,9 @@ function SuggestionsList({ suggestions, roleFilter, setRoleFilter, dateFilter, s
                     {isRTL ? 'رفض' : 'Reject'}
                   </button>
                 )}
+                <button onClick={() => onStartConversation(s)} disabled={actionLoading === s.id} className="px-2.5 py-1 rounded-lg bg-brand-blue/15 text-brand-blue-light text-[10px] font-bold hover:bg-brand-blue/25 transition-colors disabled:opacity-50 flex items-center gap-1">
+                  <MessageCircle className="w-3 h-3" /> {isRTL ? 'بدء محادثة' : 'Start Chat'}
+                </button>
                 <button onClick={() => onDelete(s.id)} disabled={actionLoading === s.id} className="px-2.5 py-1 rounded-lg glass text-[var(--text-muted)] text-[10px] font-bold hover:text-status-emergency transition-colors disabled:opacity-50 flex items-center gap-1">
                   <Trash2 className="w-3 h-3" /> {isRTL ? 'حذف' : 'Delete'}
                 </button>

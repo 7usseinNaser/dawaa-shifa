@@ -279,7 +279,7 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
         message,
       });
       if (error) throw error;
-      showToast(lang === 'ar' ? 'تم إرسال البلاغ. شكراً لك!' : 'Report submitted. Thank you!');
+      showToast(lang === 'ar' ? 'تم استلام بلاغك، وسنعمل على حل المشكلة في أقرب وقت ممكن. شكراً لتنبيهك — بلاغك يساعدنا نخلي المنصة أوثق وأدق لكل المستخدمين 🙏' : 'Report received. We will work on resolving the issue as soon as possible. Thank you for alerting us 🙏');
       setShowReportForm(null);
     } catch {
       showToast(lang === 'ar' ? 'فشل إرسال البلاغ' : 'Failed to send report', 'error');
@@ -1807,6 +1807,11 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
       {/* Submit a Suggestion */}
       <SuggestionButton isRTL={isRTL} />
 
+      {/* Back to site */}
+      <button onClick={() => { window.location.hash = ''; }} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-brand-green">
+        <Home className="w-4 h-4" /> {isRTL ? 'العودة إلى الموقع' : 'Back to Site'}
+      </button>
+
       {/* Logout */}
       <button onClick={onSignOut} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-status-emergency">
         <LogOut className="w-4 h-4" /> {t('profile.logout')}
@@ -1835,7 +1840,7 @@ function ReportBugButton({ isRTL }: { isRTL: boolean }) {
         description: description.trim(),
       });
       if (error) throw error;
-      showToast(isRTL ? 'تم إرسال البلاغ. شكراً!' : 'Bug report sent. Thank you!');
+      showToast(isRTL ? 'تم استلام بلاغك، وسنعمل على حل المشكلة في أقرب وقت ممكن. شكراً لتنبيهك — بلاغك يساعدنا نخلي المنصة أوثق وأدق لكل المستخدمين 🙏' : 'Bug report received. We will work on resolving the issue as soon as possible. Thank you for alerting us 🙏');
       setDescription('');
       setCategory('ui');
       setShowForm(false);
@@ -1894,7 +1899,7 @@ function SuggestionButton({ isRTL }: { isRTL: boolean }) {
         description: description.trim(),
       });
       if (error) throw error;
-      showToast(isRTL ? 'تم إرسال اقتراحك. شكراً!' : 'Suggestion sent. Thank you!');
+      showToast(isRTL ? 'تم استلام اقتراحك بنجاح ✅ فريقنا سيراجعه بجدية ونعمل على تطوير المنصة بناءً على أفكاركم. شكراً لمساهمتك في جعل دواء وشفاء أفضل 💚' : 'Suggestion received successfully ✅ Our team will review it seriously. Thank you for contributing to making Dawaa Shifa better 💚');
       setTitle('');
       setDescription('');
       setShowForm(false);

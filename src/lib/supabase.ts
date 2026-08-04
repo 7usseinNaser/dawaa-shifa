@@ -342,12 +342,14 @@ export interface BugReport {
   id: string;
   reporter_id: string | null;
   reporter_name: string;
+  reporter_email: string | null;
   category: string;
   description: string;
   status: 'open' | 'reviewing' | 'resolved';
   created_at: string;
   resolved_at: string | null;
   admin_notes: string | null;
+  bug_type: string | null;
 }
 
 export interface BugReportChat {
@@ -379,6 +381,7 @@ export interface Suggestion {
   id: string;
   user_id: string | null;
   user_name: string;
+  user_email: string | null;
   user_role: string;
   entity_name: string;
   title: string;

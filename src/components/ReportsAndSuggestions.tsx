@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bug, Lightbulb, X, Send, Loader as Loader2, MessageCircle, ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { supabase, type Conversation, type ConversationMessage } from '@/lib/supabase';
+import { supabase, type Conversation, type ConversationMessage, type BugReportChat } from '@/lib/supabase';
 import { showToast } from '@/components/ui/Toast';
 
 type ReportMode = 'bug' | 'suggestion';
@@ -55,7 +55,7 @@ function ReportsModal({ isRTL, mode, setMode, onClose }: { isRTL: boolean; mode:
           description: description.trim(),
         });
         if (error) throw error;
-        showToast(isRTL ? 'تم إرسال البلاغ. شكراً!' : 'Bug report sent. Thank you!');
+        showToast(isRTL ? 'تم استلام بلاغك، وسنعمل على حل المشكلة في أقرب وقت ممكن. شكراً لتنبيهك — بلاغك يساعدنا نخلي المنصة أوثق وأدق لكل المستخدمين 🙏' : 'Bug report received. We will work on resolving the issue as soon as possible. Thank you for alerting us — your report helps make the platform safer and more accurate for everyone 🙏');
       } else {
         const { error } = await supabase.from('suggestions').insert({
           user_id: user.id,
@@ -66,7 +66,7 @@ function ReportsModal({ isRTL, mode, setMode, onClose }: { isRTL: boolean; mode:
           description: description.trim(),
         });
         if (error) throw error;
-        showToast(isRTL ? 'تم إرسال الاقتراح. شكراً!' : 'Suggestion sent. Thank you!');
+        showToast(isRTL ? 'تم استلام اقتراحك بنجاح ✅ فريقنا سيراجعه بجدية ونعمل على تطوير المنصة بناءً على أفكاركم. شكراً لمساهمتك في جعل دواء وشفاء أفضل 💚' : 'Suggestion received successfully ✅ Our team will review it seriously and work on developing the platform based on your ideas. Thank you for contributing to making Dawaa Shifa better 💚');
       }
       onClose();
     } catch {
@@ -193,7 +193,13 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
   const [sending, setSending] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newSubject, setNewSubject] = useState('');
+  const [myBugReports, setMyBugReports] = useState<Array<{ id: string; category: string; description: string; status: string; created_at: string }>>([]);
+  const [activeBugReport, setActiveBugReport] = useState<{ id: string; category: string; description: string } | null>(null);
+  const [bugMessages, setBugMessages] = useState<BugReportChat[]>([]);
+  const [bugInput, setBugInput] = useState('');
+  const [view, setView] = useState<'conversations' | 'bugreports'>('conversations');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bugScrollRef = useRef<HTMLDivElement>(null);
 
   const entityName = profile?.role === 'pharmacist'
     ? (isRTL ? 'صيدلية' : 'Pharmacy')
@@ -284,6 +290,65 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
     }
   };
 
+  // Load user's bug reports
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('bug_reports')
+        .select('id,category,description,status,created_at')
+        .eq('reporter_id', user.id)
+        .order('created_at', { ascending: false });
+      setMyBugReports((data as Array<{ id: string; category: string; description: string; status: string; created_at: string }>) || []);
+    })();
+  }, [user]);
+
+  // Load bug report messages when a bug report is selected
+  useEffect(() => {
+    if (!activeBugReport) return;
+    (async () => {
+      const { data } = await supabase
+        .from('bug_report_chats')
+        .select('id,bug_report_id,sender_id,sender_name,sender_role,message,created_at')
+        .eq('bug_report_id', activeBugReport.id)
+        .order('created_at', { ascending: true });
+      setBugMessages((data as BugReportChat[]) || []);
+    })();
+
+    const channel = supabase
+      .channel(`bug_${activeBugReport.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bug_report_chats', filter: `bug_report_id=eq.${activeBugReport.id}` },
+        (payload) => { setBugMessages((prev) => [...prev, payload.new as BugReportChat]); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeBugReport]);
+
+  useEffect(() => {
+    if (bugScrollRef.current) bugScrollRef.current.scrollTop = bugScrollRef.current.scrollHeight;
+  }, [bugMessages]);
+
+  const sendBugMessage = async () => {
+    if (!bugInput.trim() || !user || !activeBugReport || sending) return;
+    setSending(true);
+    const msg = bugInput.trim();
+    setBugInput('');
+    try {
+      const { data } = await supabase.from('bug_report_chats').insert({
+        bug_report_id: activeBugReport.id,
+        sender_id: user.id,
+        sender_name: profile?.display_name || user.email || '',
+        sender_role: 'user',
+        message: msg,
+      }).select().single();
+      if (data) setBugMessages((prev) => [...prev, data as BugReportChat]);
+    } catch {
+      showToast(isRTL ? 'فشل الإرسال' : 'Failed to send', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const createConversation = async () => {
     if (!user || !newSubject.trim()) return;
     setSending(true);
@@ -341,8 +406,27 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
           <button onClick={onClose} className="p-1.5 rounded-lg glass"><X className="w-4 h-4" /></button>
         </div>
 
+        {/* View toggle */}
+        <div className="flex gap-1 p-2 border-b border-[var(--border-subtle)]">
+          <button onClick={() => { setView('conversations'); setActiveConv(null); setActiveBugReport(null); }} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${view === 'conversations' ? 'bg-brand-blue/20 text-brand-blue-light' : 'glass text-[var(--text-muted)]'}`}>{isRTL ? 'محادثاتي' : 'My Chats'}</button>
+          <button onClick={() => { setView('bugreports'); setActiveConv(null); setActiveBugReport(null); }} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${view === 'bugreports' ? 'bg-amber-500/20 text-amber-400' : 'glass text-[var(--text-muted)]'}`}>{isRTL ? 'بلاغاتي التقنية' : 'My Bug Reports'}</button>
+        </div>
+
+        {/* Contextual header for conversation */}
+        {activeConv && view === 'conversations' && (
+          <div className="px-4 py-2 bg-brand-blue/10 border-b border-[var(--border-subtle)]">
+            <p className="text-xs font-tajawal text-brand-blue-light font-bold">
+              {activeConv.subject.startsWith(isRTL ? 'بخصوص اقتراحك' : 'Regarding your suggestion')
+                ? (isRTL ? `هذه المحادثة بخصوص اقتراحك: ${activeConv.subject.replace(isRTL ? 'بخصوص اقتراحك: ' : 'Regarding your suggestion: ', '')}` : `This conversation is about your suggestion: ${activeConv.subject.replace('Regarding your suggestion: ', '')}`)
+                : activeConv.subject.startsWith(isRTL ? 'بخصوص بلاغك' : 'Regarding your bug report')
+                ? (isRTL ? `هذه المحادثة بخصوص بلاغك: ${activeConv.subject.replace(isRTL ? 'بخصوص بلاغك: ' : 'Regarding your bug report: ', '')}` : `This conversation is about your bug report: ${activeConv.subject.replace('Regarding your bug report: ', '')}`)
+                : activeConv.subject}
+            </p>
+          </div>
+        )}
+
         {/* Conversation list view */}
-        {!activeConv && !showNewForm && (
+        {!activeConv && !showNewForm && view === 'conversations' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             <button
               onClick={() => setShowNewForm(true)}
@@ -375,7 +459,7 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
         )}
 
         {/* New conversation form */}
-        {!activeConv && showNewForm && (
+        {!activeConv && showNewForm && view === 'conversations' && (
           <div className="flex-1 p-4 space-y-3">
             <div>
               <label className="text-xs font-tajawal font-bold text-[var(--text-muted)] block mb-1">{isRTL ? 'موضوع المحادثة' : 'Subject'}</label>
@@ -398,7 +482,7 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
         )}
 
         {/* Chat view */}
-        {activeConv && (
+        {activeConv && view === 'conversations' && (
           <>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
               {messages.length === 0 ? (
@@ -430,6 +514,57 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
               <button onClick={sendMessage} disabled={sending || !input.trim() || activeConv.status !== 'active'} className="btn-primary px-4 py-2 disabled:opacity-50">
                 <Send className="w-4 h-4" />
               </button>
+            </div>
+          </>
+        )}
+
+        {/* Bug reports list view */}
+        {!activeBugReport && view === 'bugreports' && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {myBugReports.length === 0 ? (
+              <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-8">{isRTL ? 'لا توجد بلاغات تقنية بعد' : 'No bug reports yet'}</p>
+            ) : (
+              myBugReports.map((r) => (
+                <button key={r.id} onClick={() => setActiveBugReport({ id: r.id, category: r.category, description: r.description })} className="w-full glass-card p-3 text-right hover:border-amber-500/40 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-cairo font-bold text-sm">{r.category}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${r.status === 'open' ? 'bg-amber-500/20 text-amber-400' : r.status === 'resolved' ? 'bg-status-open/20 text-status-open' : 'bg-[var(--border-subtle)] text-[var(--text-muted)]'}`}>{r.status}</span>
+                  </div>
+                  <p className="text-xs font-tajawal text-[var(--text-soft)] mt-1 truncate">{r.description}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] font-tajawal mt-1">{new Date(r.created_at).toLocaleString(isRTL ? 'ar-EG' : 'en-US')}</p>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Bug report chat view */}
+        {activeBugReport && view === 'bugreports' && (
+          <>
+            <div className="px-4 py-2 bg-amber-500/10 border-b border-[var(--border-subtle)]">
+              <p className="text-xs font-tajawal text-amber-400 font-bold">{isRTL ? `هذه المحادثة بخصوص بلاغك: ${activeBugReport.category}` : `This conversation is about your bug report: ${activeBugReport.category}`}</p>
+            </div>
+            <div ref={bugScrollRef} className="flex-1 overflow-y-auto p-4 space-y-2">
+              {bugMessages.length === 0 ? (
+                <p className="text-center text-sm font-tajawal text-[var(--text-muted)] mt-8">{isRTL ? 'لا توجد رسائل بعد' : 'No messages yet'}</p>
+              ) : (
+                bugMessages.map((m) => {
+                  const isMine = m.sender_id === user?.id;
+                  return (
+                    <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] rounded-xl p-2.5 ${isMine ? 'bg-brand-blue/20 text-[var(--text-bright)]' : 'glass text-[var(--text-soft)]'}`}>
+                        {!isMine && <span className="text-[10px] font-bold text-brand-green-light block mb-0.5">{isRTL ? 'الإدارة' : 'Admin'}</span>}
+                        <p className="text-xs font-tajawal">{m.message}</p>
+                        <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{new Date(m.created_at).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="p-3 border-t border-[var(--border-subtle)] flex gap-2">
+              <input value={bugInput} onChange={(e) => setBugInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendBugMessage()} className="flex-1 glass rounded-xl px-3 py-2 text-sm font-tajawal focus:outline-none focus:border-amber-500" placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'} />
+              <button onClick={sendBugMessage} disabled={sending || !bugInput.trim()} className="btn-primary px-4 py-2 disabled:opacity-50"><Send className="w-4 h-4" /></button>
             </div>
           </>
         )}
