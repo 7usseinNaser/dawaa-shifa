@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Bug, Box, Check, ClipboardCopy, Clock, Copy, Heart, Chrome as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Copy, Heart, Chrome as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
-import { MyReports } from '@/components/MyReports';
 import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { BulkImport } from '@/components/BulkImport';
 import { DonationModal } from '@/components/DonationModal';
@@ -12,9 +11,25 @@ import { CloneFromPharmacy } from '@/components/CloneFromPharmacy';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
-type Tab = 'home' | 'medicines' | 'incomplete' | 'reservations' | 'reports' | 'info' | 'settings';
+type Tab = 'home' | 'medicines' | 'reservations' | 'info' | 'settings';
 
-import { MEDICINE_CATEGORIES } from '@/data/categories';
+const MEDICINE_CATEGORIES = [
+  'مسكنات وخافضات حرارة',
+  'مضادات حيوية',
+  'مزمنة - قلب وضغط',
+  'مزمنة - سكري',
+  'الجهاز الهضمي',
+  'الجهاز التنفسي والحساسية',
+  'فيتامينات ومكملات',
+  'أدوية جلدية',
+  'عيون وأذن',
+  'نسائية وحمل',
+  'أدوية أطفال',
+  'مضادات التهاب ومفاصل',
+  'مطهرات ومستلزمات طبية',
+  'الغدة الدرقية والهرمونات',
+  'مضادات فطريات وطفيليات',
+] as const;
 
 interface MedForm {
   medicine_name: string;
@@ -53,7 +68,6 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<Medicine | null>(null);
   const [medForm, setMedForm] = useState<MedForm>(emptyMedForm);
-  const [altSource, setAltSource] = useState<'system' | 'inventory' | ''>('');
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
 
   // Search
@@ -97,15 +111,22 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       }
       setLoading(false);
 
-      // Real-time subscription for medicines changes — refetch on any change to avoid race conditions
-      const pharmId = (pharmData as Pharmacy)?.id;
+      // Real-time subscription for medicines changes
       const medChannel = supabase
         .channel('pharmacist_meds_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines', filter: `pharmacy_id=eq.${pharmId}` },
-          () => { if (pharmId) loadMedicines(pharmId); }
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines', filter: `pharmacy_id=eq.${(pharmData as Pharmacy)?.id}` },
+          (payload) => {
+            if (payload.eventType === 'INSERT') setMedicines((prev) => [...prev, payload.new as Medicine]);
+            else if (payload.eventType === 'UPDATE') setMedicines((prev) => prev.map((m) => m.id === (payload.new as Medicine).id ? payload.new as Medicine : m));
+            else if (payload.eventType === 'DELETE') setMedicines((prev) => prev.filter((m) => m.id !== (payload.old as Medicine).id));
+          }
         )
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicine_reservations', filter: `pharmacy_id=eq.${pharmId}` },
-          () => { if (pharmId) loadReservations(pharmId); }
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'medicine_reservations', filter: `pharmacy_id=eq.${(pharmData as Pharmacy)?.id}` },
+          (payload) => {
+            if (payload.eventType === 'INSERT') setReservations((prev) => [payload.new as MedicineReservation, ...prev]);
+            else if (payload.eventType === 'UPDATE') setReservations((prev) => prev.map((r) => r.id === (payload.new as MedicineReservation).id ? payload.new as MedicineReservation : r));
+            else if (payload.eventType === 'DELETE') setReservations((prev) => prev.filter((r) => r.id !== (payload.old as MedicineReservation).id));
+          }
         )
         .subscribe();
 
@@ -306,36 +327,15 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     await logActivity('update_info', infoForm.name);
   }
 
-  // ---- Resubmit after rejection ----
-  async function resubmitForReview() {
-    if (!pharmacy) return;
-    setSaving(true);
-    const { error } = await supabase
-      .from('pharmacies')
-      .update({ approval_status: 'pending' })
-      .eq('id', pharmacy.id);
-    setSaving(false);
-    if (error) {
-      console.error('[resubmitForReview] Supabase error:', error.code, error.message, error.details, error.hint);
-      showToast(isRTL ? `فشل إعادة الإرسال: ${error.message}` : `Failed to resubmit: ${error.message}`, 'error');
-      return;
-    }
-    setPharmacy({ ...pharmacy, approval_status: 'pending' });
-    showToast(isRTL ? 'تم إعادة إرسال الصيدلية للمراجعة' : 'Pharmacy resubmitted for review');
-    await logActivity('resubmit_pharmacy', pharmacy.name);
-  }
-
   // ---- Medicine modal ----
   function openAddModal() {
     setEditingMed(null);
     setMedForm(emptyMedForm);
-    setAltSource('');
     setModalOpen(true);
   }
 
   function openEditModal(med: Medicine) {
     setEditingMed(med);
-    setAltSource(med.alternative_medicine_id ? 'system' : '');
     setMedForm({
       medicine_name: med.medicine_name,
       generic_name: med.generic_name,
@@ -394,7 +394,6 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
           expiry_date: medForm.expiry_date || null,
           category: medForm.category || null,
           alternative_medicine_id: altId,
-          is_available: quantity > 0,
           last_updated: new Date().toISOString(),
         });
       setSaving(false);
@@ -460,9 +459,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
 
   const filteredMeds = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const complete = medicines.filter((m) => !m.is_incomplete);
-    if (!q) return complete;
-    return complete.filter(
+    if (!q) return medicines;
+    return medicines.filter(
       (m) =>
         m.medicine_name.toLowerCase().includes(q) ||
         m.generic_name.toLowerCase().includes(q)
@@ -545,9 +543,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'medicines', label: t('pharm.medicines'), icon: Pill },
-    { id: 'incomplete', label: isRTL ? 'استيراد قيد الإكمال' : 'Pending Import', icon: AlertTriangle },
     { id: 'reservations', label: isRTL ? 'الحجوزات' : 'Reservations', icon: Clock },
-    { id: 'reports', label: isRTL ? 'بلاغاتي' : 'My Reports', icon: Bug },
     { id: 'info', label: t('pharm.info'), icon: Info },
     { id: 'settings', label: isRTL ? 'الإعدادات' : 'Settings', icon: Settings },
   ];
@@ -925,31 +921,6 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                 </motion.div>
               )}
 
-              {tab === 'incomplete' && (
-                <motion.div
-                  key="incomplete"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -16 }}
-                  transition={{ duration: 0.35, ease: EASE }}
-                  className="space-y-5"
-                >
-                  <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'استيراد قيد الإكمال' : 'Pending Import'}</h1>
-                  {medicines.filter((m) => m.is_incomplete).length === 0 ? (
-                    <div className="glass-card p-8 text-center">
-                      <Check className="w-10 h-10 text-brand-green mx-auto mb-3" />
-                      <p className="text-sm text-[var(--text-muted)] font-tajawal">{isRTL ? 'لا توجد أدوية قيد الإكمال' : 'No incomplete medicines'}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {medicines.filter((m) => m.is_incomplete).map((med) => (
-                        <IncompleteMedCard key={med.id} med={med} pharmacyId={pharmacy!.id} isRTL={isRTL} onDone={() => loadMedicines(pharmacy!.id)} />
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
               {tab === 'reservations' && (
                 <motion.div
                   key="reservations"
@@ -1026,13 +997,6 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                 </motion.div>
               )}
 
-              {tab === 'reports' && (
-                <motion.div key="reports" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.35, ease: EASE }} className="space-y-5">
-                  <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'بلاغاتي واقتراحاتي' : 'My Reports & Suggestions'}</h1>
-                  <MyReports isRTL={isRTL} />
-                </motion.div>
-              )}
-
               {tab === 'info' && (
                 <motion.div
                   key="info"
@@ -1079,22 +1043,6 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     >
                       {saving ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : t('pharm.save')}
                     </button>
-
-                    {pharmacy.approval_status === 'rejected' && (
-                      <div className="mt-4 glass-card p-4 border border-status-emergency/30 bg-status-emergency/5">
-                        <p className="text-xs text-status-emergency font-tajawal mb-2">
-                          {isRTL ? 'سبب الرفض:' : 'Rejection reason:'} {pharmacy.rejection_reason || '—'}
-                        </p>
-                        <button
-                          onClick={resubmitForReview}
-                          disabled={saving}
-                          className="btn-primary w-full text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                          {isRTL ? 'إعادة تقديم للمراجعة' : 'Resubmit for Review'}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               )}
@@ -1220,7 +1168,6 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
             onClose={() => setShowClone(false)}
             onDone={() => { setShowClone(false); loadMedicines(pharmacy.id); showToast(isRTL ? 'تم استنساخ الأدوية بنجاح' : 'Medicines cloned successfully'); }}
             isRTL={isRTL}
-            allowReference={true}
           />
         )}
       </AnimatePresence>
@@ -1334,38 +1281,29 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     </button>
                   </div>
                   {medForm.has_alternative === 'yes' && (
-                    <div className="space-y-2">
-                      {/* First dropdown: source selection */}
-                      <select
-                        value={altSource}
-                        onChange={(e) => { setAltSource(e.target.value as 'system' | 'inventory'); setMedForm({ ...medForm, alternative_medicine_id: '' }); }}
-                        className="w-full glass rounded-2xl px-4 py-3 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
-                      >
-                        <option value="" className="bg-[var(--bg-dark)]">{isRTL ? 'من أين تريد اختيار البديل؟' : 'Where to pick the alternative from?'}</option>
-                        <option value="system" className="bg-[var(--bg-dark)]">{isRTL ? 'من قاعدة النظام العامة' : 'From system database'}</option>
-                        <option value="inventory" className="bg-[var(--bg-dark)]">{isRTL ? 'من مخزون صيدليتي الحالي' : 'From my current inventory'}</option>
-                      </select>
-                      {/* Second dropdown: matching options */}
-                      {altSource && (
-                        <select
-                          value={medForm.alternative_medicine_id}
-                          onChange={(e) => setMedForm({ ...medForm, alternative_medicine_id: e.target.value })}
-                          className="w-full glass rounded-2xl px-4 py-3 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
-                        >
-                          <option value="" className="bg-[var(--bg-dark)]">{isRTL ? 'اختر دواء بديل...' : 'Select an alternative...'}</option>
-                          {altSource === 'inventory' && medicines.filter((m) => m.id !== editingMed?.id && !m.is_incomplete).map((m) => (
-                            <option key={m.id} value={m.id} className="bg-[var(--bg-dark)]">
-                              {m.medicine_name} {m.generic_name ? `(${m.generic_name})` : ''} — {m.quantity} {isRTL ? 'قطعة' : 'units'}
-                            </option>
-                          ))}
-                          {altSource === 'system' && allMedicines.filter((m) => m.id !== editingMed?.id).slice(0, 100).map((m) => (
-                            <option key={m.id} value={m.id} className="bg-[var(--bg-dark)]">
-                              {m.medicine_name} {m.generic_name ? `(${m.generic_name})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
+                    <select
+                      value={medForm.alternative_medicine_id}
+                      onChange={(e) => setMedForm({ ...medForm, alternative_medicine_id: e.target.value })}
+                      className="w-full glass rounded-2xl px-4 py-3 bg-transparent outline-none focus:border-brand-green transition-colors text-sm"
+                    >
+                      <option value="" className="bg-[var(--bg-dark)]">
+                        {isRTL ? 'اختر دواء بديل من القائمة...' : 'Select an alternative from the list...'}
+                      </option>
+                      <optgroup label={isRTL ? 'أدويتي بالمخزون' : 'My inventory'} className="bg-[var(--bg-dark)]">
+                        {medicines.filter((m) => m.id !== editingMed?.id).map((m) => (
+                          <option key={m.id} value={m.id} className="bg-[var(--bg-dark)]">
+                            {m.medicine_name} {m.generic_name ? `(${m.generic_name})` : ''} — {m.quantity} {isRTL ? 'قطعة' : 'units'}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={isRTL ? 'كل الأدوية بالنظام' : 'All medicines in system'} className="bg-[var(--bg-dark)]">
+                        {allMedicines.filter((m) => m.id !== editingMed?.id && !medicines.some((own) => own.id === m.id)).slice(0, 50).map((m) => (
+                          <option key={m.id} value={m.id} className="bg-[var(--bg-dark)]">
+                            {m.medicine_name} {m.generic_name ? `(${m.generic_name})` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
                   )}
                 </div>
               </div>
@@ -1525,140 +1463,5 @@ function StockBadge({
     <span className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold ${cls}`}>
       {label}
     </span>
-  );
-}
-
-function IncompleteMedCard({ med, pharmacyId, isRTL, onDone }: { med: Medicine; pharmacyId: string; isRTL: boolean; onDone: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    medicine_name: med.medicine_name || '',
-    generic_name: med.generic_name || '',
-    price: med.price != null ? String(med.price) : '',
-    quantity: med.quantity != null ? String(med.quantity) : '',
-    expiry_date: med.expiry_date || '',
-    category: med.category || '',
-  });
-
-  const missingFields: { key: keyof typeof form; label: string }[] = [];
-  if (!form.medicine_name.trim()) missingFields.push({ key: 'medicine_name', label: isRTL ? 'اسم الدواء' : 'Medicine name' });
-  if (!form.price) missingFields.push({ key: 'price', label: isRTL ? 'السعر' : 'Price' });
-  if (!form.quantity) missingFields.push({ key: 'quantity', label: isRTL ? 'الكمية' : 'Quantity' });
-  if (!form.expiry_date) missingFields.push({ key: 'expiry_date', label: isRTL ? 'تاريخ الصلاحية' : 'Expiry date' });
-  if (!form.category) missingFields.push({ key: 'category', label: isRTL ? 'التصنيف' : 'Category' });
-
-  async function saveComplete() {
-    if (!form.medicine_name.trim() || !form.price || !form.quantity || !form.expiry_date || !form.category) {
-      showToast(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields', 'error');
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase.from('medicines').update({
-      medicine_name: form.medicine_name.trim(),
-      generic_name: form.generic_name.trim(),
-      price: parseFloat(form.price) || 0,
-      quantity: parseInt(form.quantity) || 0,
-      expiry_date: form.expiry_date || null,
-      category: form.category.trim(),
-      is_available: (parseInt(form.quantity) || 0) > 0,
-      is_incomplete: false,
-      last_updated: new Date().toISOString(),
-    }).eq('id', med.id);
-    setSaving(false);
-    if (error) { showToast(isRTL ? `فشل الحفظ: ${error.message}` : `Failed: ${error.message}`, 'error'); return; }
-    showToast(isRTL ? 'تم إكمال الدواء ونقله للقائمة' : 'Medicine completed and moved to list');
-    onDone();
-  }
-
-  async function deleteIncomplete() {
-    const { error } = await supabase.from('medicines').update({ deleted_at: new Date().toISOString() }).eq('id', med.id);
-    if (error) { showToast(isRTL ? 'فشل الحذف' : 'Failed to delete', 'error'); return; }
-    showToast(isRTL ? 'تم الحذف' : 'Deleted');
-    onDone();
-  }
-
-  return (
-    <div className="glass-card p-4">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="min-w-0">
-          <h3 className="font-bold truncate">{med.medicine_name || (isRTL ? 'بدون اسم' : 'Unnamed')}</h3>
-          <p className="text-xs text-amber-400 mt-0.5">{isRTL ? 'بيانات ناقصة — لا يظهر للمواطنين' : 'Incomplete — hidden from citizens'}</p>
-        </div>
-        <div className="flex gap-1 shrink-0">
-          <button onClick={() => setEditing(!editing)} className="w-8 h-8 rounded-lg bg-brand-green/10 hover:bg-brand-green/20 flex items-center justify-center transition-colors">
-            <Pencil className="w-4 h-4 text-brand-green" />
-          </button>
-          <button onClick={deleteIncomplete} className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors">
-            <Trash2 className="w-4 h-4 text-red-400" />
-          </button>
-        </div>
-      </div>
-
-      {/* Show existing data as read-only */}
-      {!editing && (
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div>
-            <p className="text-[var(--text-muted)]">{isRTL ? 'السعر' : 'Price'}</p>
-            <p className="font-bold">{med.price || '—'}</p>
-          </div>
-          <div>
-            <p className="text-[var(--text-muted)]">{isRTL ? 'الكمية' : 'Qty'}</p>
-            <p className="font-bold">{med.quantity || '—'}</p>
-          </div>
-          <div>
-            <p className="text-[var(--text-muted)]">{isRTL ? 'الصلاحية' : 'Expiry'}</p>
-            <p className="font-bold truncate">{med.expiry_date || '—'}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Edit form for missing fields */}
-      {editing && (
-        <div className="space-y-3 mt-3">
-          {missingFields.length > 0 && (
-            <div className="text-xs text-amber-400 mb-2">
-              {isRTL ? 'الحقول الناقصة:' : 'Missing fields:'} {missingFields.map((f) => f.label).join(', ')}
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">{isRTL ? 'اسم الدواء' : 'Medicine name'}</label>
-              <input value={form.medicine_name} onChange={(e) => setForm({ ...form, medicine_name: e.target.value })}
-                className="w-full glass rounded-xl px-3 py-2 bg-transparent outline-none focus:border-brand-green text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">{isRTL ? 'الاسم العلمي' : 'Generic name'}</label>
-              <input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })}
-                className="w-full glass rounded-xl px-3 py-2 bg-transparent outline-none focus:border-brand-green text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">{isRTL ? 'السعر (₪)' : 'Price (₪)'}</label>
-              <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
-                className="w-full glass rounded-xl px-3 py-2 bg-transparent outline-none focus:border-brand-green text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">{isRTL ? 'الكمية' : 'Quantity'}</label>
-              <input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                className="w-full glass rounded-xl px-3 py-2 bg-transparent outline-none focus:border-brand-green text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">{isRTL ? 'تاريخ الصلاحية' : 'Expiry date'}</label>
-              <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })}
-                className="w-full glass rounded-xl px-3 py-2 bg-transparent outline-none focus:border-brand-green text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">{isRTL ? 'التصنيف' : 'Category'}</label>
-              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="w-full glass rounded-xl px-3 py-2 bg-transparent outline-none focus:border-brand-green text-sm" />
-            </div>
-          </div>
-          <button onClick={saveComplete} disabled={saving}
-            className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            {isRTL ? 'حفظ وإكمال' : 'Save & Complete'}
-          </button>
-        </div>
-      )}
-    </div>
   );
 }
