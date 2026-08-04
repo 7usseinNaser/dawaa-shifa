@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isRecovery: boolean;
   clearRecovery: () => void;
-  signUp: (email: string, password: string, role: UserRole, displayName: string, phone?: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, role: UserRole, displayName: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
@@ -17,24 +17,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTHORIZED_ADMIN_EMAIL = 'hussein7.7naser@gmail.com';
-
-function translateAuthError(msg: string, lang: 'ar' | 'en' = 'ar'): string {
+function translateAuthError(msg: string): string {
   const m = msg.toLowerCase();
-  const isRTL = lang === 'ar';
   if (m.includes('failed to fetch') || m.includes('networkrequestfailed') || m.includes('network error'))
-    return isRTL ? 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' : 'Failed to connect to the server. Check your internet connection.';
+    return 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.';
   if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
-    return isRTL ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Invalid email or password.';
+    return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
   if (m.includes('user already registered'))
-    return isRTL ? 'هذا الحساب مسجّل بالفعل. حاول تسجيل الدخول.' : 'This account is already registered. Try logging in.';
+    return 'هذا الحساب مسجّل بالفعل. حاول تسجيل الدخول.';
   if (m.includes('password should be') || m.includes('weak'))
-    return isRTL ? 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.' : 'Password is too weak. Use at least 6 characters.';
+    return 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.';
   if (m.includes('email'))
-    return isRTL ? 'البريد الإلكتروني غير صالح.' : 'Invalid email address.';
+    return 'البريد الإلكتروني غير صالح.';
   if (m.includes('rate limit') || m.includes('too many'))
-    return isRTL ? 'محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.' : 'Too many attempts. Please wait and try again.';
-  return isRTL ? 'حدث خطأ غير متوقع. حاول مرة أخرى.' : 'An unexpected error occurred. Please try again.';
+    return 'محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.';
+  return 'حدث خطأ غير متوقع. حاول مرة أخرى.';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -75,32 +72,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,display_name,email,phone,role,unique_id,verified,deleted_at,banned,frozen,freeze_reason,created_at')
+        .select('*')
         .eq('id', user.id)
         .maybeSingle();
-      if (!error && data) {
-        const profileData = data as Profile;
-        // Enforce admin restriction on the client too: only the authorized email may be admin
-        if (profileData.role === 'admin' && user.email !== AUTHORIZED_ADMIN_EMAIL) {
-          profileData.role = 'citizen';
-        }
-        setProfile(profileData);
-      }
+      if (!error && data) setProfile(data as Profile);
     })();
   }, [user]);
 
-  const signUp = async (email: string, password: string, role: UserRole, displayName: string, phone?: string) => {
+  const signUp = async (email: string, password: string, role: UserRole, displayName: string) => {
     try {
-      // Frontend guard: never allow admin role from the UI
-      const safeRole: UserRole = role === 'admin' ? 'citizen' : role;
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { role: safeRole, display_name: displayName, phone: phone || '' } },
+        options: { data: { role, display_name: displayName } },
       });
-      if (error) return { error: translateAuthError(error.message, 'ar') };
+      if (error) return { error: translateAuthError(error.message) };
       if (data.user) {
-        setProfile({ id: data.user.id, role: safeRole, display_name: displayName, phone: phone || '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null, email: data.user.email || null, created_at: new Date().toISOString() });
+        setProfile({ id: data.user.id, role, display_name: displayName, phone: '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null });
       }
       return { error: null };
     } catch {
@@ -111,47 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        const msg = error.message.toLowerCase();
-        if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-          return { error: 'البريد الإلكتروني غير مسجل أو كلمة المرور غير صحيحة. تحقق من بياناتك.' };
-        }
-        return { error: translateAuthError(error.message, 'ar') };
-      }
-      // Send welcome notification on first login
-      (async () => {
-        try {
-          const { data: { user: signedInUser } } = await supabase.auth.getUser();
-          if (!signedInUser) return;
-          // Check if welcome notification already sent
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('welcome_notification_sent,display_name')
-            .eq('id', signedInUser.id)
-            .maybeSingle();
-          if (profile?.welcome_notification_sent) return;
-          const displayName = profile?.display_name || signedInUser.email?.split('@')[0] || '';
-          const { data: existing } = await supabase
-            .from('notifications')
-            .select('id')
-            .eq('user_id', signedInUser.id)
-            .eq('type', 'welcome')
-            .maybeSingle();
-          if (!existing) {
-            await supabase.from('notifications').insert({
-              user_id: signedInUser.id,
-              type: 'welcome',
-              title: `أهلاً ${displayName}!`,
-              body: 'منصة "دواء وشفاء" تساعدك في البحث عن الأدوية القريبة ومعرفة ازدحام المستشفيات قبل التوجه إليها.',
-              is_active: true,
-              unread: true,
-            });
-          }
-          await supabase.from('profiles').update({ welcome_notification_sent: true }).eq('id', signedInUser.id);
-        } catch (err) {
-          console.error('[welcomeNotification] Error:', err);
-        }
-      })();
+      if (error) return { error: translateAuthError(error.message) };
       return { error: null };
     } catch {
       return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
@@ -161,13 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
-    // No-client-storage policy: clear any residual cached data
-    try {
-      Object.keys(localStorage).forEach((k) => { if (k.startsWith('sb-') || k.startsWith('admin')) localStorage.removeItem(k); });
-    } catch { /* ignore */ }
-    try {
-      Object.keys(sessionStorage).forEach((k) => { if (k.startsWith('sb-') || k.startsWith('admin')) sessionStorage.removeItem(k); });
-    } catch { /* ignore */ }
   };
 
   const resetPassword = async (email: string) => {
@@ -175,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin,
       });
-      if (error) return { error: translateAuthError(error.message, 'ar') };
+      if (error) return { error: translateAuthError(error.message) };
       return { error: null };
     } catch {
       return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
