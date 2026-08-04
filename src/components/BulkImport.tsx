@@ -50,12 +50,11 @@ const FIELD_MAPS: Record<EntityType, FieldMap[]> = {
   ],
   medicines: [
     { key: 'name', label: 'Name', labelAr: 'الاسم', required: true },
-    { key: 'active_ingredient', label: 'Active Ingredient', labelAr: 'المادة الفعالة', required: false },
+    { key: 'generic_name', label: 'Generic Name', labelAr: 'الاسم العلمي', required: false },
     { key: 'price', label: 'Price', labelAr: 'السعر', required: false },
     { key: 'quantity', label: 'Quantity', labelAr: 'الكمية', required: false },
     { key: 'expiry_date', label: 'Expiry Date (YYYY-MM-DD)', labelAr: 'تاريخ الصلاحية', required: false },
     { key: 'category', label: 'Category', labelAr: 'الفئة', required: false },
-    { key: 'pharmacy_id', label: 'Pharmacy ID (optional)', labelAr: 'معرف الصيدلية', required: false },
   ],
 };
 
@@ -127,8 +126,9 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
     setError('');
     const result: ImportSummary = { added: [], skipped: [], failed: [] };
 
-    const { data: existing } = await supabase.from(entityType).select('name');
-    const existingNames = new Set((existing || []).map((r: { name: string }) => normalize(r.name)));
+    const nameColumn = entityType === 'medicines' ? 'medicine_name' : 'name';
+    const { data: existing } = await supabase.from(entityType).select(nameColumn);
+    const existingNames = new Set((existing || []).map((r: Record<string, string>) => normalize(r[nameColumn])));
 
     for (const row of rows) {
       const name = String(row.name ?? '').trim();
@@ -149,7 +149,9 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
 
       const hasMissingOptional = fields.some((f) => !f.required && (String(row[f.key] ?? '').trim() === ''));
 
-      const record: Record<string, unknown> = { name };
+      const record: Record<string, unknown> = {};
+      if (entityType !== 'medicines') record.name = name;
+      else record.medicine_name = name;
       for (const f of fields) {
         if (f.key === 'name') continue;
         const val = row[f.key];

@@ -8,6 +8,7 @@ import { showToast, ToastContainer, useToast } from '@/components/ui/Toast';
 import { BulkImport } from '@/components/BulkImport';
 import { DonationModal } from '@/components/DonationModal';
 import { CloneFromPharmacy } from '@/components/CloneFromPharmacy';
+import { ReportsButton, ConversationsButton } from '@/components/ReportsAndSuggestions';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
@@ -170,6 +171,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     const { data: allData } = await supabase
       .from('medicines')
       .select('id, medicine_name, generic_name, pharmacy_id')
+      .is('deleted_at', null)
+      .neq('is_incomplete', true)
       .order('medicine_name', { ascending: true })
       .limit(200);
     if (allData) setAllMedicines(allData as Medicine[]);
@@ -1168,7 +1171,13 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
 
               {tab === 'reports' && (
                 <motion.div key="reports" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.35, ease: EASE }} className="space-y-3">
-                  <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'بلاغاتي' : 'My Reports'}</h1>
+                  <div className="flex items-center justify-between gap-2">
+                    <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'بلاغاتي' : 'My Reports'}</h1>
+                    <div className="flex gap-2">
+                      <ReportsButton isRTL={isRTL} />
+                      <ConversationsButton isRTL={isRTL} />
+                    </div>
+                  </div>
                   {myReports.length === 0 ? (
                     <div className="glass-card p-8 text-center">
                       <Flag className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />

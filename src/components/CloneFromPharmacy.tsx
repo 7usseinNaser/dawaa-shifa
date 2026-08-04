@@ -33,14 +33,15 @@ export function CloneFromPharmacy({
         .is('deleted_at', null)
         .neq('id', targetPharmacyId)
         .order('name', { ascending: true });
-      const { data } = await query;
+      const { data, error } = await query;
+      if (error) console.error('[CloneFromPharmacy] query error:', error.message);
       const filtered = (data as Pharmacy[]).filter((p) =>
         p.is_reference === true || p.approval_status === 'approved'
       );
       if (filtered) setPharmacies(filtered);
       setLoading(false);
     })();
-  }, []);
+  }, [targetPharmacyId]);
 
   async function loadPharmMeds(pharmId: string) {
     setSelectedPharmId(pharmId);
