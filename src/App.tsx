@@ -8,6 +8,7 @@ import AuthPage from '@/components/AuthPage';
 import BackToTop from '@/components/BackToTop';
 import CommunityStories from '@/components/CommunityStories';
 import Comparison from '@/components/Comparison';
+import DonatePage from '@/components/DonatePage';
 import CustomCursor from '@/components/CustomCursor';
 import ExitIntent from '@/components/ExitIntent';
 import FAQ from '@/components/FAQ';
@@ -15,6 +16,7 @@ import Footer from '@/components/Footer';
 import Hero from '@/components/Hero';
 import HowItWorks from '@/components/HowItWorks';
 import ImpactMetrics from '@/components/ImpactMetrics';
+import LandingDonation from '@/components/LandingDonation';
 import InteractiveDemo from '@/components/InteractiveDemo';
 import LiveFeed from '@/components/LiveFeed';
 import LiveMap from '@/components/LiveMap';
@@ -23,12 +25,11 @@ import Onboarding from '@/components/Onboarding';
 import ResetPasswordForm from '@/components/ResetPasswordForm';
 import PrivacySecurity from '@/components/PrivacySecurity';
 import Problem from '@/components/Problem';
-import Roadmap from '@/components/Roadmap';
+
 import ScrollProgress from '@/components/ScrollProgress';
 import SocialShare from '@/components/SocialShare';
 import Solution from '@/components/Solution';
-import StatsDashboard from '@/components/StatsDashboard';
-import TechStack from '@/components/TechStack';
+
 import Testimonials from '@/components/Testimonials';
 import UseCases from '@/components/UseCases';
 import Users from '@/components/Users';
@@ -36,6 +37,9 @@ import WaitTimeCalculator from '@/components/WaitTimeCalculator';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LanguageProvider } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SectionBoundary } from '@/components/ui/SectionBoundary';
+import NotificationBanner from '@/components/NotificationBanner';
 
 const CitizenDashboard = lazy(() => import('@/components/CitizenDashboard'));
 const PharmacistDashboard = lazy(() => import('@/components/PharmacistDashboard'));
@@ -77,8 +81,10 @@ function AppContent() {
   const { user, profile, loading, isRecovery, clearRecovery } = useAuth();
   const hash = useHashRoute();
 
-  const isAuthRoute = hash === '#/auth' || hash === '#/login' || hash === '#/register';
-  const isDashboardRoute = hash === '#/dashboard';
+  const currentRoute = hash.split('?')[0];
+  const isAuthRoute = currentRoute === '#/auth' || currentRoute === '#/login' || currentRoute === '#/register';
+  const isDashboardRoute = currentRoute === '#/dashboard';
+  const isDonateRoute = currentRoute === '#/donate' || hash.startsWith('#/donate');
 
   if (loading) {
     return (
@@ -121,8 +127,26 @@ function AppContent() {
     );
   }
 
+  if (isDonateRoute) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key="donate" variants={pageVariants} initial="initial" animate="enter" exit="exit">
+          <DonatePage />
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   if (isDashboardRoute) {
     if (!user || !profile) {
+      window.location.hash = '#/auth';
+      return null;
+    }
+    // Client-side guard: only the authorized admin email may see the AdminPanel.
+    // The DB trigger enforces this server-side; this prevents stale-cache access.
+    const AUTHORIZED_ADMIN = 'hussein7.7naser@gmail.com';
+    if (profile.role === 'admin' && user.email !== AUTHORIZED_ADMIN) {
+      // Demote locally and redirect away
       window.location.hash = '#/auth';
       return null;
     }
@@ -143,6 +167,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-[var(--bg-dark)] text-[var(--text-main)] selection:bg-brand-green/30">
       <OfflineIndicator />
+      <NotificationBanner />
       <ScrollProgress />
       <CustomCursor />
       <BackToTop />
@@ -153,26 +178,24 @@ function AppContent() {
       <Navbar theme={theme} onToggleTheme={toggle} />
 
       <main>
-        <Hero />
+        <SectionBoundary name="hero"><Hero /></SectionBoundary>
         <Problem />
         <Solution />
         <InteractiveDemo />
-        <LiveMap />
+        <SectionBoundary name="live-map"><LiveMap /></SectionBoundary>
         <HowItWorks />
         <Users />
-        <AppPreview />
+        <SectionBoundary name="app-preview"><AppPreview /></SectionBoundary>
         <Comparison />
         <UseCases />
         <WaitTimeCalculator />
-        <StatsDashboard />
-        <LiveFeed />
-        <ImpactMetrics />
+        <SectionBoundary name="live-feed"><LiveFeed /></SectionBoundary>
+        <SectionBoundary name="impact-metrics"><ImpactMetrics /></SectionBoundary>
         <Testimonials />
+        <LandingDonation />
         <CommunityStories />
         <PrivacySecurity />
-        <TechStack />
         <About />
-        <Roadmap />
         <FAQ />
       </main>
 
@@ -183,10 +206,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }
