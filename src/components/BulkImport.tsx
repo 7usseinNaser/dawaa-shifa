@@ -130,11 +130,8 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
     setError('');
     const result: ImportSummary = { added: [], skipped: [], failed: [] };
 
-    // Fetch existing names for dedup
     const { data: existing } = await supabase.from(entityType).select('name');
     const existingNames = new Set((existing || []).map((r: { name: string }) => normalize(r.name)));
-
-    const toInsert: Record<string, unknown>[] = [];
 
     for (const row of rows) {
       const name = String(row.name ?? '').trim();
@@ -153,10 +150,8 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
       }
       existingNames.add(normalize(name));
 
-      // Check for missing optional fields — save with incomplete flag
       const hasMissingOptional = fields.some((f) => !f.required && (String(row[f.key] ?? '').trim() === ''));
 
-      // Build insert row
       const record: Record<string, unknown> = { name };
       for (const f of fields) {
         if (f.key === 'name') continue;
@@ -167,7 +162,6 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
         else if (f.key === 'quantity') record[f.key] = Math.round(parseNum(val));
         else record[f.key] = String(val).trim();
       }
-      // Defaults
       if (entityType === 'medicines' && pharmacyId) {
         record.pharmacy_id = pharmacyId;
       }
@@ -190,18 +184,13 @@ export function BulkImport({ entityType, pharmacyId, onClose, onDone, isRTL }: {
         if (!record.verified) record.verified = false;
         if (!record.occupancy_rate) record.occupancy_rate = 0;
       }
-      toInsert.push(record);
-    }
 
-    // Batch insert
-    if (toInsert.length > 0) {
-      const { error: insError } = await supabase.from(entityType).insert(toInsert);
+      const { error: insError } = await supabase.from(entityType).insert(record);
       if (insError) {
-        setError(isRTL ? 'فشل حفظ البيانات: ' : 'Failed to save: ' + insError.message);
-        setLoading(false);
-        return;
+        result.failed.push({ name, reason: insError.message });
+      } else {
+        result.added.push(name);
       }
-      result.added = toInsert.map((r) => String(r.name));
     }
 
     setSummary(result);

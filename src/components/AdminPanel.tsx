@@ -202,7 +202,7 @@ export default function AdminPanel() {
         totalPharmacies: phData.filter((p) => !p.deleted_at).length,
         totalFacilities: facData.filter((f) => !f.deleted_at).length,
         verified: phData.filter((p) => p.verified && !p.deleted_at).length + facData.filter((f) => f.verified && !f.deleted_at).length,
-        pending: phData.filter((p) => !p.verified && !p.deleted_at).length + facData.filter((f) => !f.verified && !f.deleted_at).length,
+        pending: phData.filter((p) => p.approval_status === 'pending' && !p.deleted_at).length + facData.filter((f) => f.approval_status === 'pending' && !f.deleted_at).length,
         totalUsers: usrData.filter((u) => !u.deleted_at).length,
         totalMedicines: medData.filter((m) => !m.deleted_at).length,
         totalReviews: revData.length,
@@ -221,6 +221,21 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (isAdmin) loadAll();
+  }, [isAdmin, loadAll]);
+
+  // Realtime: refresh when bug_reports or suggestions change
+  useEffect(() => {
+    if (!isAdmin) return;
+    const channel = supabase
+      .channel('admin_bug_suggestion_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bug_reports' }, () => loadAll())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, () => loadAll())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pharmacies' }, () => loadAll())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pharmacies' }, () => loadAll())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'facilities' }, () => loadAll())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'facilities' }, () => loadAll())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [isAdmin, loadAll]);
 
   async function logAction(action: string, item: string, beforeState?: Record<string, unknown> | null, afterState?: Record<string, unknown> | null, extraDetails?: Record<string, unknown>) {
@@ -1580,8 +1595,8 @@ function PendingList({ pharmacies, facilities, medicines, departments, onApprove
 }) {
   const [preview, setPreview] = useState<{ type: 'pharmacy' | 'facility'; data: Pharmacy | Facility } | null>(null);
   const pending = [
-    ...pharmacies.filter((p) => !p.verified && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone })),
-    ...facilities.filter((f) => !f.verified && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone })),
+    ...pharmacies.filter((p) => p.approval_status === 'pending' && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone })),
+    ...facilities.filter((f) => f.approval_status === 'pending' && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone })),
   ];
   if (pending.length === 0) return (<div className="text-center py-8"><CheckCircle className="w-10 h-10 mx-auto mb-3 text-status-open" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد تسجيلات معلّقة' : 'No pending registrations'}</p></div>);
   return (

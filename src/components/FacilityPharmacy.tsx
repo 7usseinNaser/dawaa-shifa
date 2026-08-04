@@ -132,6 +132,7 @@ export function FacilityPharmacy({
       .select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at')
       .eq('pharmacy_id', pharmId)
       .is('deleted_at', null)
+      .neq('is_incomplete', true)
       .order('medicine_name', { ascending: true });
     if (data) setMedicines(data as Medicine[]);
   }

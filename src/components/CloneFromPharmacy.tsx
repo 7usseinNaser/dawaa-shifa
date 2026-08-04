@@ -27,17 +27,17 @@ export function CloneFromPharmacy({
 
   useEffect(() => {
     (async () => {
-      let query = supabase
+      const query = supabase
         .from('pharmacies')
-        .select('id,name,area,is_reference,deleted_at,owner_id')
+        .select('id,name,area,is_reference,deleted_at,owner_id,approval_status')
+        .is('deleted_at', null)
+        .neq('id', targetPharmacyId)
         .order('name', { ascending: true });
-      if (allowReference) {
-        query = query.or('is_reference.eq.true,and(owner_id.neq.null,deleted_at.is.null)');
-      } else {
-        query = query.eq('is_reference', false).not('owner_id', 'is', null).is('deleted_at', null);
-      }
       const { data } = await query;
-      if (data) setPharmacies(data as Pharmacy[]);
+      const filtered = (data as Pharmacy[]).filter((p) =>
+        p.is_reference === true || p.approval_status === 'approved'
+      );
+      if (filtered) setPharmacies(filtered);
       setLoading(false);
     })();
   }, []);
