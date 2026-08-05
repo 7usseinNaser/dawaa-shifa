@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Flag, Heart, Chrome as Home, Info, LayoutGrid, Lightbulb, Loader as Loader2, LogOut, Minus, Moon, Pencil, Pill, Plus, RotateCcw, Settings, Stethoscope, Sun, Trash2, Users, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Building2, Clock, Download, Flag, Heart, Hop as Home, Info, LayoutGrid, Lightbulb, Loader as Loader2, LogOut, Minus, Moon, Pencil, Pill, Plus, RotateCcw, Settings, Stethoscope, Sun, Trash2, Users, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Department, type Facility, type FacilityWarning } from '@/lib/supabase';

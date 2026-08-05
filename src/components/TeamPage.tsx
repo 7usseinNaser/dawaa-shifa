@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Code as Code2, Smartphone, Trophy, Cpu, Linkedin, Instagram, Mail, Globe, Heart, Users, Target, Sparkles } from 'lucide-react';
+import { Code as Code2, Smartphone, Trophy, Cpu, Link2, Camera, Mail, Globe, Heart, Users, Target, Sparkles } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
 import Navbar from '@/components/Navbar';
@@ -180,10 +180,10 @@ export default function TeamPage() {
                     <Globe className="w-4 h-4" /> 7ussein.com
                   </a>
                   <a href="https://www.linkedin.com/in/hussein-naser-098a533a8" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#0A66C2]/20 hover:bg-[#0A66C2]/35 transition-colors">
-                    <Linkedin className="w-5 h-5 text-[#0A66C2]" />
+                    <Link2 className="w-5 h-5 text-[#0A66C2]" />
                   </a>
                   <a href="https://www.instagram.com/7ussein.naser" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="inline-flex items-center justify-center w-10 h-10 rounded-xl glass hover:scale-110 transition-transform">
-                    <Instagram className="w-5 h-5 text-brand-green-light" />
+                    <Camera className="w-5 h-5 text-brand-green-light" />
                   </a>
                   <a href="mailto:hussein7.7naser@gmail.com" aria-label="Email" className="inline-flex items-center justify-center w-10 h-10 rounded-xl glass hover:scale-110 transition-transform">
                     <Mail className="w-5 h-5 text-brand-blue-light" />

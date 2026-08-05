@@ -1,4 +1,4 @@
-import { Instagram, MessageCircle, Mail } from 'lucide-react';
+import { Camera, MessageCircle, Mail } from 'lucide-react';
 import { getDonationWhatsappUrl } from '@/lib/config';
 import { useLang } from '@/lib/i18n';
 
@@ -25,7 +25,7 @@ export default function Footer() {
           {/* Social */}
           <div className="flex items-center gap-3">
             <a href="https://www.instagram.com/7ussein.naser" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="Instagram">
-              <Instagram className="w-4 h-4" />
+              <Camera className="w-4 h-4" />
             </a>
             <a href={getDonationWhatsappUrl()} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full glass flex items-center justify-center hover:scale-110 hover:text-brand-green-light transition-all" aria-label="WhatsApp">
               <MessageCircle className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Plus, Pill, Clock, Trash2, Loader as Loader2, X, Heart, Baby, User, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -183,7 +183,7 @@ export function FamilyCabinet() {
     }
   };
 
-  const relationIcons: Record<string, JSX.Element> = {
+  const relationIcons: Record<string, ReactElement> = {
     self: <User className="w-4 h-4 text-brand-green-light" />,
     child: <Baby className="w-4 h-4 text-brand-blue-light" />,
     parent: <Heart className="w-4 h-4 text-status-emergency" />,

@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo, type ReactElement } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, ChevronDown, Shield, Calendar, MessageCircle, MapPin, Phone, Lightbulb } from 'lucide-react';
+import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, Factory as History, ListFilter as Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, ChevronDown, Shield, Calendar, MessageCircle, MapPin, Phone, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { formatOpenHours } from '@/lib/timeUtils';
@@ -2449,7 +2449,7 @@ function RecallForm({ onClose, onSave, actionLoading, isRTL }: {
 
 // ============ Audit Logs List ============
 function AuditLogsList({ logs, onRollback, onLogClick, actionLoading, isRTL }: { logs: AuditLog[]; onRollback: (log: AuditLog) => void; onLogClick: (log: AuditLog) => void; actionLoading: string | null; isRTL: boolean }) {
-  const actionIcons: Record<string, JSX.Element> = {
+  const actionIcons: Record<string, ReactElement> = {
     create: <Plus className="w-3.5 h-3.5 text-status-open" />,
     update: <Pencil className="w-3.5 h-3.5 text-brand-blue-light" />,
     delete: <Trash2 className="w-3.5 h-3.5 text-status-emergency" />,

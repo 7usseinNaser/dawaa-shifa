@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Copy, Flag, Heart, Chrome as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, RotateCcw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Copy, Flag, Heart, Hop as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, RotateCcw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';

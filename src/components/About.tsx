@@ -1,4 +1,4 @@
-import { Code2, Smartphone, Trophy, Cpu, Linkedin } from 'lucide-react';
+import { Code as Code2, Smartphone, Trophy, Cpu, Link2 } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 import { useLang } from '@/lib/i18n';
 
@@ -112,7 +112,7 @@ export default function About() {
                 aria-label="LinkedIn"
                 className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#0A66C2]/20 hover:bg-[#0A66C2]/35 transition-colors"
               >
-                <Linkedin className="w-5 h-5 text-[#0A66C2]" />
+                <Link2 className="w-5 h-5 text-[#0A66C2]" />
               </a>
             </div>
           </div>
