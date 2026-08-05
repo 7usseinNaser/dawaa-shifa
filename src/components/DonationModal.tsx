@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Heart, Gift, MessageCircle, CircleCheck as CheckCircle, Loader as Loader2, BookOpen, Sparkles, Share2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Heart, Gift, BookOpen, Sparkles, Share2, CircleCheck as CheckCircle } from 'lucide-react';
 import { donationVerses, type DonationVerse } from '@/data/donationVerses';
 import { useLang } from '@/lib/i18n';
-import { DONATION_CONFIG } from '@/lib/config';
 
 export type DonationType = 'medicine' | 'platform';
 
@@ -43,11 +42,7 @@ export function DonationModal({ open, onClose, defaultType = 'medicine', hideMed
   }, [open, nextVerse]);
 
   const handleDonateClick = () => {
-    if (donationType === 'platform') {
-      setShowConfirm(true);
-    } else {
-      onClose();
-    }
+    setShowConfirm(true);
   };
 
   const handleShare = async () => {
@@ -65,12 +60,6 @@ export function DonationModal({ open, onClose, defaultType = 'medicine', hideMed
         setTimeout(() => setCopied(false), 2000);
       } catch { /* clipboard unavailable */ }
     }
-  };
-
-  const confirmDonation = () => {
-    window.open(DONATION_CONFIG.whatsappLink, '_blank', 'noopener,noreferrer');
-    setShowConfirm(false);
-    onClose();
   };
 
   const currentVerse: DonationVerse = donationVerses[verseIndex];
@@ -185,7 +174,7 @@ export function DonationModal({ open, onClose, defaultType = 'medicine', hideMed
                   >
                     <Heart className={`w-6 h-6 mx-auto mb-1 ${donationType === 'platform' ? 'text-brand-blue-light' : 'text-[var(--text-muted)]'}`} />
                     <div className="font-cairo font-bold text-sm">{isRTL ? 'دعم المنصة' : 'Platform Support'}</div>
- <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي للعمليات' : 'Financial support for operations'}</div>
+                    <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي للعمليات' : 'Financial support for operations'}</div>
                   </button>
                 </div>
               )}
@@ -196,8 +185,8 @@ export function DonationModal({ open, onClose, defaultType = 'medicine', hideMed
               <p className="text-xs font-tajawal text-[var(--text-soft)] leading-relaxed text-center">
                 {donationType === 'medicine'
                   ? (isRTL
-                    ? 'سيتم توجيهك عبر واتساب لتسليم أدويتك لأقرب صيدلية معتمدة حيث يتم فحصها وتوزيعها على المرضى المحتاجين.'
-                    : 'You will be guided via WhatsApp to deliver your medicines to the nearest verified pharmacy where they are inspected and distributed to patients in need.')
+                    ? 'سيتم تنسيق تسليم أدويتك لأقرب صيدلية معتمدة حيث يتم فحصها وتوزيعها على المرضى المحتاجين.'
+                    : 'Your medicines will be delivered to the nearest verified pharmacy where they are inspected and distributed to patients in need.')
                   : (isRTL
                     ? 'دعمك المالي يساعدنا في تغطية تكاليف النقل والتخزين والتحقق من الأدوية لإيصالها لمن يحتاجها.'
                     : 'Your financial support helps us cover transportation, storage, and verification costs to deliver medicines to those in need.')}
@@ -224,8 +213,8 @@ export function DonationModal({ open, onClose, defaultType = 'medicine', hideMed
                 <button onClick={handleDonateClick} className="btn-primary w-full flex items-center justify-center gap-2">
                   {donationType === 'platform' ? (
                     <>
-                      <MessageCircle className="w-5 h-5" />
-                      {isRTL ? 'تواصل عبر واتساب للتبرع' : 'Contact via WhatsApp to Donate'}
+                      <Heart className="w-5 h-5" />
+                      {isRTL ? 'دعم المنصة الآن' : 'Support Platform Now'}
                     </>
                   ) : (
                     <>
@@ -237,21 +226,24 @@ export function DonationModal({ open, onClose, defaultType = 'medicine', hideMed
               ) : (
                 <AnimatePresence>
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-                    <div className="glass-card p-3 flex items-start gap-2">
-                      <MessageCircle className="w-4 h-4 text-brand-green-light shrink-0 mt-0.5" />
-                      <p className="text-xs font-tajawal text-[var(--text-soft)]">
-                        {isRTL ? DONATION_CONFIG.confirmTextAr : DONATION_CONFIG.confirmTextEn}
-                      </p>
+                    <div className="glass-card p-4 flex items-start gap-2">
+                      <CheckCircle className="w-5 h-5 text-brand-green-light shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-cairo font-bold mb-1">
+                          {donationType === 'platform'
+                            ? (isRTL ? 'شكراً لدعمك!' : 'Thank you for your support!')
+                            : (isRTL ? 'شكراً لتبرعك!' : 'Thank you for donating!')}
+                        </p>
+                        <p className="text-xs font-tajawal text-[var(--text-soft)]">
+                          {donationType === 'platform'
+                            ? (isRTL ? 'سيتم التواصل معك قريباً لتنسيق طريقة الدعم المناسبة لك. جزاك الله خيراً.' : 'We will contact you soon to arrange your support. Thank you.')
+                            : (isRTL ? 'سيتم التواصل معك قريباً لتنسيق استلام أدويتك وتوزيعها. جزاك الله خيراً.' : 'We will contact you soon to arrange collecting your medicines for distribution. Thank you.')}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={confirmDonation} className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5">
-                        <MessageCircle className="w-4 h-4" />
-                        {isRTL ? 'متابعة إلى واتساب' : 'Continue to WhatsApp'}
-                      </button>
-                      <button onClick={() => setShowConfirm(false)} className="btn-secondary text-sm px-4">
-                        {isRTL ? 'إلغاء' : 'Cancel'}
-                      </button>
-                    </div>
+                    <button onClick={onClose} className="btn-primary w-full text-sm">
+                      {isRTL ? 'تم' : 'Done'}
+                    </button>
                   </motion.div>
                 </AnimatePresence>
               )}

@@ -142,7 +142,7 @@ export default function AdminPanel() {
         supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id'),
         supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at'),
         supabase.from('medicines').select('id,pharmacy_id,medicine_name,generic_name,price,quantity,expiry_date,deleted_at,is_restricted,alternative_medicine_id,is_incomplete,category,price_usd,is_available,restriction_note,last_updated,created_at'),
-        supabase.from('reviews').select('id,target_type,target_id,target_name,user_id,user_name,rating,text,anon,ts,reply,created_at'),
+        supabase.from('reviews').select('id,target_type,target_id,target_name,user_id,user_name,rating,text,anon,ts,reply'),
         supabase.from('profiles').select('id,display_name,email,phone,role,unique_id,banned,frozen,freeze_reason,deleted_at,created_at'),
         supabase.from('entity_versions').select('id,entity_type,entity_id,version_data,snapshot,created_by,created_at').order('created_at', { ascending: false }).limit(50),
         supabase.from('admin_alerts').select('id,severity,message,created_at').order('created_at', { ascending: false }).limit(50),
@@ -3349,6 +3349,7 @@ function AdminConversationChat({ conv, adminName, adminId, isRTL, onClose, onClo
           <div className="min-w-0">
             <h3 className="font-cairo font-bold text-sm flex items-center gap-2"><MessageCircle className="w-5 h-5 text-brand-blue-light" /> {conv.subject}</h3>
             {conv.entity_name && <p className="text-[10px] text-brand-green-light font-bold mt-0.5">{conv.entity_name}</p>}
+            {conv.user_id && <p className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">{isRTL ? 'المستخدم' : 'User'}: {conv.user_id.slice(0,8)}</p>}
           </div>
           <div className="flex items-center gap-2">
             {conv.status === 'active' && (

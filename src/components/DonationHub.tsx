@@ -113,12 +113,12 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
         {isRTL ? 'تبرع بدواء' : 'Donate Medicine'}
       </button>
 
-      {/* WhatsApp Donation CTA */}
+      {/* Donation CTA */}
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => onOpenModal?.('medicine')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
           <Gift className="w-5 h-5 mx-auto mb-1 text-brand-green-light" />
-          <div className="font-cairo font-bold text-xs">{isRTL ? 'تبرع عبر واتساب' : 'Donate via WhatsApp'}</div>
-          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'تواصل مباشر' : 'Direct contact'}</div>
+          <div className="font-cairo font-bold text-xs">{isRTL ? 'تبرع بدواء' : 'Donate Medicine'}</div>
+          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'أدوية مغلقة وغير مستعملة' : 'Sealed, unused medicines'}</div>
         </button>
         <button onClick={() => onOpenModal?.('platform')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
           <Heart className="w-5 h-5 mx-auto mb-1 text-brand-blue-light" />

@@ -14,7 +14,6 @@ import HowItWorks from '@/components/HowItWorks';
 import InteractiveDemo from '@/components/InteractiveDemo';
 import LiquidBackground from '@/components/LiquidBackground';
 import Navbar from '@/components/Navbar';
-import Onboarding from '@/components/Onboarding';
 import ResetPasswordForm from '@/components/ResetPasswordForm';
 import ScrollProgress from '@/components/ScrollProgress';
 import SocialShare from '@/components/SocialShare';
@@ -173,8 +172,6 @@ function AppContent() {
       <SocialShare />
       <AccessibilityPanel />
       <ExitIntent />
-      <Onboarding onDone={() => {}} />
-
       <Navbar theme={theme} onToggleTheme={toggle} />
 
       <main className="relative z-10">

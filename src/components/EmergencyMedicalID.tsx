@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Plus, X, Shield, Droplet, AlertCircle, Phone, Trash2, CreditCard as Edit2, Check } from 'lucide-react';
+import { Heart, Plus, X, Shield, Droplet, CircleAlert as AlertCircle, Phone, Trash2, CreditCard as Edit2, Check, ChevronDown } from 'lucide-react';
 
 interface EmergencyProfile {
   fullName: string;
@@ -21,11 +21,12 @@ const emptyProfile: EmergencyProfile = {
   medications: '', emergencyContactName: '', emergencyContactPhone: '',
 };
 
-export function EmergencyMedicalID({ isRTL }: { isRTL: boolean }) {
+export function EmergencyMedicalID({ isRTL, collapsible = false }: { isRTL: boolean; collapsible?: boolean }) {
   const [profile, setProfile] = useState<EmergencyProfile>(emptyProfile);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EmergencyProfile>(emptyProfile);
   const [showFull, setShowFull] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     try {
@@ -94,15 +95,24 @@ export function EmergencyMedicalID({ isRTL }: { isRTL: boolean }) {
     <div className="glass-card p-5 border-2 border-status-emergency/30 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-24 h-24 bg-status-emergency/10 rounded-full -translate-y-12 translate-x-12 blur-2xl" />
       <div className="flex items-center justify-between mb-4 relative">
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={collapsible ? () => setCollapsed((c) => !c) : undefined}
+          className="flex items-center gap-2 text-left"
+        >
           <div className="w-10 h-10 rounded-xl bg-status-emergency/20 flex items-center justify-center">
             <Heart className="w-5 h-5 text-status-emergency fill-status-emergency" />
           </div>
           <div>
-            <h3 className="font-cairo font-bold text-base">{isRTL ? 'هوية طبية طارئة' : 'Emergency Medical ID'}</h3>
+            <h3 className="font-cairo font-bold text-base flex items-center gap-1.5">
+              {isRTL ? 'هوية طبية طارئة' : 'Emergency Medical ID'}
+              {collapsible && (
+                <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+              )}
+            </h3>
             <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{isRTL ? 'تعمل بدون إنترنت' : 'Works offline'}</p>
           </div>
-        </div>
+        </button>
         <div className="flex gap-1">
           <button onClick={() => { setDraft(profile); setEditing(true); }} className="p-2 rounded-lg glass hover:bg-brand-green/10 transition-colors">
             <Edit2 className="w-3.5 h-3.5 text-brand-green-light" />
@@ -113,7 +123,8 @@ export function EmergencyMedicalID({ isRTL }: { isRTL: boolean }) {
         </div>
       </div>
 
-      {hasData ? (
+      {(!collapsible || !collapsed) && (
+        hasData ? (
         <div className="space-y-2.5 relative">
           {profile.fullName && (
             <InfoRow icon={<Shield className="w-3.5 h-3.5" />} label={isRTL ? 'الاسم' : 'Name'} value={profile.fullName} />
@@ -147,6 +158,7 @@ export function EmergencyMedicalID({ isRTL }: { isRTL: boolean }) {
             {isRTL ? 'إضافة بياناتي' : 'Add My Info'}
           </button>
         </div>
+      )
       )}
     </div>
   );

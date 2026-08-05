@@ -26,7 +26,7 @@ import { DonationHub } from '@/components/DonationHub';
 import { DonationModal, type DonationType } from '@/components/DonationModal';
 import type { EmergencyBroadcast } from '@/lib/supabase';
 import { to12Hour, autoCloseStatus, formatOpenHours } from '@/lib/timeUtils';
-import { Camera, Gift, Radio, ScanLine, MoonStar } from 'lucide-react';
+import { Camera, Gift, Radio, ScanLine, MoonStar, Globe } from 'lucide-react';
 
 type Tab = 'home' | 'search' | 'map' | 'meds' | 'profile' | 'discover' | 'donate';
 type SearchMode = 'medicine' | 'facility';
@@ -65,7 +65,7 @@ function timeAgo(iso: string, lang: 'ar' | 'en'): string {
 
 export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dark' | 'light'; onToggleTheme: () => void }) {
   const { profile, user, signOut } = useAuth();
-  const { t, lang } = useLang();
+  const { t, lang, toggle: toggleLang } = useLang();
   const { toasts, remove } = useToast();
 
   const [tab, setTab] = useState<Tab>('home');
@@ -526,6 +526,8 @@ export default function CitizenDashboard({ theme, onToggleTheme }: { theme: 'dar
                   onFacilityClick={(f) => setSelectedFacility(f)}
                   onSignOut={signOut} t={t}
                   isRTL={lang === 'ar'}
+                  lang={lang}
+                  onToggleLang={toggleLang}
                 />
               </motion.div>
             )}
@@ -1718,7 +1720,7 @@ function EmergencyNumbersCard({ isRTL }: { isRTL: boolean }) {
   );
 }
 
-function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, onPharmacyClick, onFacilityClick, t, isRTL }: {
+function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setDarkMode, seniorMode, setSeniorMode, theme, onToggleTheme, onToggleFav, onSignOut, onPharmacyClick, onFacilityClick, t, isRTL, lang, onToggleLang }: {
   profile: { display_name: string; role: string; phone: string } | null;
   favorites: Favorite[]; pharmacies: Pharmacy[]; facilities: Facility[];
   darkMode: boolean; setDarkMode: (v: boolean) => void;
@@ -1727,6 +1729,7 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
   onToggleFav: (id: string, type: 'pharmacy' | 'facility', name: string) => void;
   onPharmacyClick: (p: Pharmacy) => void; onFacilityClick: (f: Facility) => void;
   onSignOut: () => void; t: (k: string) => string; isRTL: boolean;
+  lang: string; onToggleLang: () => void;
 }) {
   const favPharmacies = pharmacies.filter((p) => favorites.some((f) => f.target_id === p.id && f.target_type === 'pharmacy'));
   const favFacilities = facilities.filter((f) => favorites.some((fa) => fa.target_id === f.id && fa.target_type === 'facility'));
@@ -1745,7 +1748,7 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
         </span>
       </div>
 
-      {/* Toggles */}
+      {/* Toggles — Night mode, Senior mode, Language */}
       <div className="glass-card p-4 space-y-3">
         <button onClick={onToggleTheme} className="w-full flex items-center justify-between">
           <span className="font-tajawal text-sm flex items-center gap-2">
@@ -1762,15 +1765,24 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${seniorMode ? 'left-0.5' : 'right-0.5'}`} />
           </span>
         </button>
+        <button onClick={onToggleLang} className="w-full flex items-center justify-between">
+          <span className="font-tajawal text-sm flex items-center gap-2">
+            <Globe className="w-4 h-4 text-brand-blue-light" />
+            {isRTL ? 'اللغة' : 'Language'}
+          </span>
+          <span className="px-3 py-1 rounded-lg glass font-bold text-sm text-brand-blue-light">
+            {lang === 'ar' ? 'EN' : 'ع'}
+          </span>
+        </button>
       </div>
 
-      {/* Emergency Medical ID */}
-      <EmergencyMedicalID isRTL={isRTL} />
+      {/* 1 — Report a Bug + Suggest */}
+      <div className="space-y-3">
+        <ReportBugButton isRTL={isRTL} />
+        <SuggestionButton isRTL={isRTL} />
+      </div>
 
-      {/* Emergency Numbers */}
-      <EmergencyNumbersCard isRTL={isRTL} />
-
-      {/* Favorites */}
+      {/* 2 — Favorites */}
       <div>
         <h3 className="font-cairo font-bold text-lg mb-3">{t('profile.favorites')}</h3>
         {favPharmacies.length === 0 && favFacilities.length === 0 ? (
@@ -1801,11 +1813,11 @@ function ProfileTab({ profile, favorites, pharmacies, facilities, darkMode, setD
         )}
       </div>
 
-      {/* Report a Bug */}
-      <ReportBugButton isRTL={isRTL} />
+      {/* Emergency Numbers */}
+      <EmergencyNumbersCard isRTL={isRTL} />
 
-      {/* Submit a Suggestion */}
-      <SuggestionButton isRTL={isRTL} />
+      {/* 3 — Emergency Medical ID (Collapsible, at the bottom) */}
+      <EmergencyMedicalID isRTL={isRTL} collapsible />
 
       {/* Back to site */}
       <button onClick={() => { window.location.hash = ''; }} className="w-full btn-secondary text-sm flex items-center justify-center gap-2 text-brand-green">

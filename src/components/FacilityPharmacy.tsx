@@ -243,6 +243,24 @@ export function FacilityPharmacy({
     await loadMedicines(pharmacy.id);
   }
 
+  async function bulkDelete() {
+    if (!pharmacy || selectedIds.size === 0) return;
+    setBulkLoading(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase
+      .from('medicines')
+      .delete()
+      .in('id', ids);
+    setBulkLoading(false);
+    if (error) {
+      showToast(isRTL ? `فشل حذف ${ids.length} دواء` : `Failed to delete ${ids.length} medicines`, 'error');
+      return;
+    }
+    showToast(isRTL ? `تم حذف ${ids.length} دواء` : `Deleted ${ids.length} medicines`);
+    setSelectedIds(new Set());
+    await loadMedicines(pharmacy.id);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -308,6 +326,14 @@ export function FacilityPharmacy({
             {isRTL ? `${selectedIds.size} دواء محدد` : `${selectedIds.size} medicines selected`}
           </span>
           <div className="flex gap-2">
+            <button
+              onClick={bulkDelete}
+              disabled={bulkLoading}
+              className="btn-secondary !py-2 !px-4 text-sm flex items-center gap-1.5 text-status-emergency disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isRTL ? 'حذف المحدد' : 'Delete Selected'}
+            </button>
             <button
               onClick={bulkUpdate}
               disabled={bulkLoading}
