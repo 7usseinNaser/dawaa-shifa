@@ -11,9 +11,10 @@ interface DonationModalProps {
   open: boolean;
   onClose: () => void;
   defaultType?: DonationType;
+  hideMedicineTab?: boolean;
 }
 
-export function DonationModal({ open, onClose, defaultType = 'medicine' }: DonationModalProps) {
+export function DonationModal({ open, onClose, defaultType = 'medicine', hideMedicineTab = false }: DonationModalProps) {
   const { lang } = useLang();
   const isRTL = lang === 'ar';
   const [verseIndex, setVerseIndex] = useState(0);
@@ -23,10 +24,10 @@ export function DonationModal({ open, onClose, defaultType = 'medicine' }: Donat
 
   useEffect(() => {
     if (open) {
-      setDonationType(defaultType);
+      setDonationType(hideMedicineTab ? 'platform' : defaultType);
       setShowConfirm(false);
     }
-  }, [open, defaultType]);
+  }, [open, defaultType, hideMedicineTab]);
 
   const nextVerse = useCallback(() => {
     setVerseIndex((i) => (i + 1) % donationVerses.length);
@@ -160,24 +161,34 @@ export function DonationModal({ open, onClose, defaultType = 'medicine' }: Donat
 
             {/* Donation Type Tabs */}
             <div className="px-5 pt-4">
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setDonationType('medicine')}
-                  className={`p-3 rounded-2xl text-center transition-all ${donationType === 'medicine' ? 'bg-brand-green/20 border-2 border-brand-green' : 'glass border-2 border-transparent'}`}
-                >
-                  <Gift className={`w-6 h-6 mx-auto mb-1 ${donationType === 'medicine' ? 'text-brand-green-light' : 'text-[var(--text-muted)]'}`} />
-                  <div className="font-cairo font-bold text-sm">{isRTL ? 'تبرّع بدواء' : 'Donate Medicine'}</div>
-                  <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'أدوية مغلقة وغير مستعملة تصل للمرضى مباشرة' : 'Sealed, unused medicines delivered to patients directly'}</div>
-                </button>
-                <button
-                  onClick={() => setDonationType('platform')}
-                  className={`p-3 rounded-2xl text-center transition-all ${donationType === 'platform' ? 'bg-brand-blue/20 border-2 border-brand-blue' : 'glass border-2 border-transparent'}`}
-                >
-                  <Heart className={`w-6 h-6 mx-auto mb-1 ${donationType === 'platform' ? 'text-brand-blue-light' : 'text-[var(--text-muted)]'}`} />
-                  <div className="font-cairo font-bold text-sm">{isRTL ? 'دعم المنصة' : 'Platform Support'}</div>
+              {hideMedicineTab ? (
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="p-3 rounded-2xl text-center bg-brand-blue/20 border-2 border-brand-blue">
+                    <Heart className="w-6 h-6 mx-auto mb-1 text-brand-blue-light" />
+                    <div className="font-cairo font-bold text-sm">{isRTL ? 'دعم المنصة' : 'Platform Support'}</div>
+                    <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي للعمليات' : 'Financial support for operations'}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setDonationType('medicine')}
+                    className={`p-3 rounded-2xl text-center transition-all ${donationType === 'medicine' ? 'bg-brand-green/20 border-2 border-brand-green' : 'glass border-2 border-transparent'}`}
+                  >
+                    <Gift className={`w-6 h-6 mx-auto mb-1 ${donationType === 'medicine' ? 'text-brand-green-light' : 'text-[var(--text-muted)]'}`} />
+                    <div className="font-cairo font-bold text-sm">{isRTL ? 'تبرّع بدواء' : 'Donate Medicine'}</div>
+                    <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'أدوية مغلقة وغير مستعملة تصل للمرضى مباشرة' : 'Sealed, unused medicines delivered to patients directly'}</div>
+                  </button>
+                  <button
+                    onClick={() => setDonationType('platform')}
+                    className={`p-3 rounded-2xl text-center transition-all ${donationType === 'platform' ? 'bg-brand-blue/20 border-2 border-brand-blue' : 'glass border-2 border-transparent'}`}
+                  >
+                    <Heart className={`w-6 h-6 mx-auto mb-1 ${donationType === 'platform' ? 'text-brand-blue-light' : 'text-[var(--text-muted)]'}`} />
+                    <div className="font-cairo font-bold text-sm">{isRTL ? 'دعم المنصة' : 'Platform Support'}</div>
  <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي للعمليات' : 'Financial support for operations'}</div>
-                </button>
-              </div>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Info text */}

@@ -1,39 +1,27 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import About from '@/components/About';
 import AccessibilityPanel from '@/components/AccessibilityPanel';
 import OfflineIndicator from '@/components/OfflineIndicator';
-import AppPreview from '@/components/AppPreview';
 import AuthPage from '@/components/AuthPage';
 import BackToTop from '@/components/BackToTop';
-import CommunityStories from '@/components/CommunityStories';
 import Comparison from '@/components/Comparison';
 import DonatePage from '@/components/DonatePage';
 import CustomCursor from '@/components/CustomCursor';
 import ExitIntent from '@/components/ExitIntent';
-import FAQ from '@/components/FAQ';
 import Footer from '@/components/Footer';
 import Hero from '@/components/Hero';
 import HowItWorks from '@/components/HowItWorks';
-import ImpactMetrics from '@/components/ImpactMetrics';
-import LandingDonation from '@/components/LandingDonation';
 import InteractiveDemo from '@/components/InteractiveDemo';
-import LiveFeed from '@/components/LiveFeed';
-import LiveMap from '@/components/LiveMap';
+import LiquidBackground from '@/components/LiquidBackground';
 import Navbar from '@/components/Navbar';
 import Onboarding from '@/components/Onboarding';
 import ResetPasswordForm from '@/components/ResetPasswordForm';
-import PrivacySecurity from '@/components/PrivacySecurity';
-import Problem from '@/components/Problem';
-
 import ScrollProgress from '@/components/ScrollProgress';
 import SocialShare from '@/components/SocialShare';
-import Solution from '@/components/Solution';
-
-import Testimonials from '@/components/Testimonials';
-import UseCases from '@/components/UseCases';
-import Users from '@/components/Users';
-import WaitTimeCalculator from '@/components/WaitTimeCalculator';
+import TeamPage from '@/components/TeamPage';
+import ProblemSolutionSection from '@/components/sections/ProblemSolutionSection';
+import ImpactSection from '@/components/sections/ImpactSection';
+import SupportSection from '@/components/sections/SupportSection';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LanguageProvider } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
@@ -48,7 +36,7 @@ const AdminPanel = lazy(() => import('@/components/AdminPanel'));
 
 function LazyFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-dark)]">
+    <div className="min-h-screen flex items-center justify-center">
       <motion.div
         animate={{ rotate: 360 }}
         transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
@@ -85,14 +73,16 @@ function AppContent() {
   const isAuthRoute = currentRoute === '#/auth' || currentRoute === '#/login' || currentRoute === '#/register';
   const isDashboardRoute = currentRoute === '#/dashboard';
   const isDonateRoute = currentRoute === '#/donate' || hash.startsWith('#/donate');
+  const isTeamRoute = currentRoute === '#/team';
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-dark)]">
+      <div className="min-h-screen flex items-center justify-center">
+        <LiquidBackground />
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full"
+          className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full relative z-10"
         />
       </div>
     );
@@ -137,16 +127,23 @@ function AppContent() {
     );
   }
 
+  if (isTeamRoute) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key="team" variants={pageVariants} initial="initial" animate="enter" exit="exit">
+          <TeamPage />
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   if (isDashboardRoute) {
     if (!user || !profile) {
       window.location.hash = '#/auth';
       return null;
     }
-    // Client-side guard: only the authorized admin email may see the AdminPanel.
-    // The DB trigger enforces this server-side; this prevents stale-cache access.
     const AUTHORIZED_ADMIN = 'hussein7.7naser@gmail.com';
     if (profile.role === 'admin' && user.email !== AUTHORIZED_ADMIN) {
-      // Demote locally and redirect away
       window.location.hash = '#/auth';
       return null;
     }
@@ -164,8 +161,10 @@ function AppContent() {
     );
   }
 
+  // ── Landing page: 5 merged sections ──
   return (
-    <div className="min-h-screen bg-[var(--bg-dark)] text-[var(--text-main)] selection:bg-brand-green/30">
+    <div className="min-h-screen text-[var(--text-main)] selection:bg-brand-green/30">
+      <LiquidBackground />
       <OfflineIndicator />
       <NotificationBanner />
       <ScrollProgress />
@@ -174,29 +173,29 @@ function AppContent() {
       <SocialShare />
       <AccessibilityPanel />
       <ExitIntent />
+      <Onboarding onDone={() => {}} />
 
       <Navbar theme={theme} onToggleTheme={toggle} />
 
-      <main>
+      <main className="relative z-10">
+        {/* 1 — Hero */}
         <SectionBoundary name="hero"><Hero /></SectionBoundary>
-        <Problem />
-        <Solution />
+
+        {/* 2 — Problem → Solution (merged) */}
+        <ProblemSolutionSection />
+
+        {/* How It Works — restored as standalone section */}
+        <SectionBoundary name="how"><HowItWorks /></SectionBoundary>
+
+        {/* 3 — Interactive Demo + Comparison */}
         <InteractiveDemo />
-        <SectionBoundary name="live-map"><LiveMap /></SectionBoundary>
-        <HowItWorks />
-        <Users />
-        <SectionBoundary name="app-preview"><AppPreview /></SectionBoundary>
         <Comparison />
-        <UseCases />
-        <WaitTimeCalculator />
-        <SectionBoundary name="live-feed"><LiveFeed /></SectionBoundary>
-        <SectionBoundary name="impact-metrics"><ImpactMetrics /></SectionBoundary>
-        <Testimonials />
-        <LandingDonation />
-        <CommunityStories />
-        <PrivacySecurity />
-        <About />
-        <FAQ />
+
+        {/* 4 — Impact (metrics + live feed strip + testimonials + stories + use cases + users) */}
+        <ImpactSection />
+
+        {/* 5 — Support (donation + privacy + FAQ) */}
+        <SupportSection />
       </main>
 
       <Footer />

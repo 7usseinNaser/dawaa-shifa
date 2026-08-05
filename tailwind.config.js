@@ -10,18 +10,18 @@ export default {
       },
       colors: {
         brand: {
-          green: '#1D9E75',
-          'green-dark': '#15835F',
-          'green-light': '#34D399',
-          blue: '#1D6FA4',
-          'blue-dark': '#155A87',
-          'blue-light': '#38BDF8',
+          green: '#0EA890',
+          'green-dark': '#0A7068',
+          'green-light': '#3ED6C8',
+          blue: '#0D7EA4',
+          'blue-dark': '#0A6080',
+          'blue-light': '#38D4F5',
         },
         dark: {
-          DEFAULT: '#071116',
-          card: '#0E1B22',
-          elevated: '#122734',
-          3: '#1a2e45',
+          DEFAULT: '#060C0F',
+          card: '#0C1820',
+          elevated: '#112430',
+          3: '#0A1A22',
         },
         status: {
           open: '#22C55E',
@@ -41,6 +41,8 @@ export default {
         'heartbeat': 'heartbeat 1.5s ease-in-out infinite',
         'particle': 'particle 6s ease-in-out infinite',
         'scan': 'scan 3s ease-in-out infinite',
+        'gradient-flow': 'gradientFlow 6s ease infinite',
+        'gradient-fast': 'gradientFlow 3s ease infinite',
       },
       keyframes: {
         float: {
@@ -61,8 +63,8 @@ export default {
           to: { opacity: '1' },
         },
         glow: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(29,158,117,0.3)' },
-          '50%': { boxShadow: '0 0 40px rgba(29,158,117,0.6)' },
+          '0%, 100%': { boxShadow: '0 0 20px rgba(62,214,200,0.3)' },
+          '50%': { boxShadow: '0 0 40px rgba(62,214,200,0.6)' },
         },
         heartbeat: {
           '0%, 100%': { transform: 'scale(1)' },
@@ -78,11 +80,15 @@ export default {
           '0%': { transform: 'translateY(-100%)' },
           '100%': { transform: 'translateY(100%)' },
         },
+        gradientFlow: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
       },
       backdropBlur: { xs: '2px' },
       backgroundImage: {
-        'hero-gradient': 'radial-gradient(ellipse 80% 50% at 20% 40%, rgba(29,111,164,0.25) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(29,158,117,0.20) 0%, transparent 60%)',
-        'grid-pattern': 'linear-gradient(rgba(29,111,164,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(29,111,164,0.07) 1px, transparent 1px)',
+        'hero-gradient': 'radial-gradient(ellipse 80% 50% at 20% 40%, rgba(13,126,164,0.25) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 80% 60%, rgba(14,168,144,0.20) 0%, transparent 60%)',
+        'grid-pattern': 'linear-gradient(rgba(62,214,200,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(62,214,200,0.06) 1px, transparent 1px)',
       },
     },
   },

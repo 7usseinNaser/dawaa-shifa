@@ -3,35 +3,38 @@
 @tailwind utilities;
 
 /* ============================================
-   دواء وشفاء — Global Design System
+   دواء وشفاء — Meteoric Teal Design System
    ============================================ */
 
 :root {
-  --bg-dark: #071116;
-  --bg-card: #0E1B22;
-  --bg-elevated: #122734;
-  --primary: #1D9E75;
-  --primary-dark: #15835F;
-  --primary-light: #34D399;
-  --secondary: #1D6FA4;
-  --secondary-dark: #155A87;
-  --secondary-light: #38BDF8;
-  --text-main: #F8FAFC;
-  --text-soft: #CBD5E1;
-  --text-muted: #6B96B5;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --glass: rgba(255, 255, 255, 0.04);
+  --bg-dark: #060C0F;
+  --bg-card: #0C1820;
+  --bg-elevated: #112430;
+  --primary: #0EA890;
+  --primary-dark: #0A7068;
+  --primary-light: #3ED6C8;
+  --secondary: #0D7EA4;
+  --secondary-dark: #0A6080;
+  --secondary-light: #38D4F5;
+  --aqua: #3ED6C8;
+  --aqua-glow: rgba(62, 214, 200, 0.25);
+  --metallic: #C8DCDB;
+  --text-main: #EEF5F4;
+  --text-soft: #AECBC8;
+  --text-muted: #4D8088;
+  --border-subtle: rgba(62, 214, 200, 0.08);
+  --glass: rgba(62, 214, 200, 0.04);
 }
 
 /* Light mode override */
 .light {
-  --bg-dark: #F8FBFE;
+  --bg-dark: #F4FAF8;
   --bg-card: #FFFFFF;
   --bg-elevated: #FFFFFF;
-  --text-main: #0B1929;
-  --text-soft: #2B5070;
-  --text-muted: #6B96B5;
-  --border-subtle: rgba(11, 25, 41, 0.08);
+  --text-main: #0B2424;
+  --text-soft: #2A5050;
+  --text-muted: #6B9090;
+  --border-subtle: rgba(14, 100, 90, 0.08);
   --glass: rgba(255, 255, 255, 0.7);
 }
 
@@ -57,14 +60,23 @@ body {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-dark); }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(var(--primary), var(--secondary));
+  background: linear-gradient(var(--primary-light), var(--secondary));
   border-radius: 4px;
 }
 
 /* Selection */
 ::selection {
-  background: rgba(29, 158, 117, 0.3);
+  background: rgba(62, 214, 200, 0.3);
   color: var(--text-main);
+}
+
+/* ============================================
+   Animated Gradient Flow
+   ============================================ */
+
+@keyframes gradientFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 /* ============================================
@@ -80,42 +92,44 @@ body {
   }
 
   .glass-card {
-    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+    background: linear-gradient(135deg, rgba(62,214,200,0.06) 0%, rgba(13,126,164,0.03) 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border-subtle);
+    border: 1px solid rgba(62, 214, 200, 0.1);
     border-radius: 24px;
   }
 
   .light .glass-card {
     background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
-    border: 1px solid rgba(11,25,41,0.06);
+    border: 1px solid rgba(14,100,90,0.06);
     box-shadow: 0 12px 40px rgba(13,45,80,0.08);
   }
 
   .text-gradient {
-    background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-light) 100%);
+    background: linear-gradient(135deg, #3ED6C8 0%, #38D4F5 50%, #3ED6C8 100%);
+    background-size: 200% auto;
+    animation: gradientFlow 4s ease infinite;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .text-gradient-green {
-    background: linear-gradient(135deg, #34D399 0%, #1D9E75 100%);
+    background: linear-gradient(135deg, #3ED6C8 0%, #0EA890 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .text-gradient-blue {
-    background: linear-gradient(135deg, #38BDF8 0%, #1D6FA4 100%);
+    background: linear-gradient(135deg, #38D4F5 0%, #0D7EA4 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
-  .glow-green { box-shadow: 0 0 40px rgba(29, 158, 117, 0.4); }
-  .glow-blue { box-shadow: 0 0 40px rgba(29, 111, 164, 0.4); }
+  .glow-green { box-shadow: 0 0 40px rgba(62, 214, 200, 0.3); }
+  .glow-blue { box-shadow: 0 0 40px rgba(56, 212, 245, 0.3); }
 
   .border-glow {
     position: relative;
@@ -126,7 +140,7 @@ body {
     inset: -1px;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, rgba(29,158,117,0.5), rgba(29,111,164,0.5));
+    background: linear-gradient(135deg, rgba(62,214,200,0.5), rgba(56,212,245,0.5));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -134,17 +148,20 @@ body {
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(135deg, #0A6080 0%, #3ED6C8 50%, #0EA890 100%);
+    background-size: 200% 200%;
+    animation: gradientFlow 5s ease infinite;
     color: white;
     padding: 14px 28px;
     border-radius: 999px;
     font-weight: 700;
-    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-    box-shadow: 0 8px 24px rgba(29, 158, 117, 0.3);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 8px 28px rgba(62, 214, 200, 0.25);
+    will-change: transform;
   }
   .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(29, 158, 117, 0.5);
+    box-shadow: 0 12px 40px rgba(62, 214, 200, 0.45);
   }
 
   .btn-secondary {
@@ -158,10 +175,90 @@ body {
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-secondary:hover {
-    border-color: var(--primary);
-    background: rgba(29, 158, 117, 0.08);
+    border-color: var(--aqua);
+    background: rgba(62, 214, 200, 0.08);
+    transform: translateY(-1px);
+  }
+
+  /* Gradient animated surface (for badges, headings) */
+  .surface-gradient {
+    background: linear-gradient(135deg, #0A6080 0%, #3ED6C8 50%, #0EA890 100%);
+    background-size: 200% 200%;
+    animation: gradientFlow 6s ease infinite;
   }
 }
+
+/* ============================================
+   Liquid Background (fixed behind everything)
+   ============================================ */
+
+.liquid-bg-fixed {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.liquid-blob-1 {
+  position: absolute;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(62,214,200,0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(80px);
+  top: -200px;
+  right: -200px;
+  animation: blobMove1 28s ease-in-out infinite;
+  will-change: transform;
+}
+
+.liquid-blob-2 {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(13,126,164,0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(100px);
+  bottom: 10%;
+  left: -150px;
+  animation: blobMove2 35s ease-in-out infinite;
+  will-change: transform;
+}
+
+.liquid-blob-3 {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(14,168,144,0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(90px);
+  top: 40%;
+  left: 40%;
+  transform: translate(-50%, -50%);
+  animation: blobMove3 22s ease-in-out infinite 3s;
+  will-change: transform;
+}
+
+@keyframes blobMove1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-60px, 60px) scale(1.08); }
+  66% { transform: translate(40px, -40px) scale(0.95); }
+}
+@keyframes blobMove2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40% { transform: translate(80px, -50px) scale(1.12); }
+  70% { transform: translate(-40px, 30px) scale(0.92); }
+}
+@keyframes blobMove3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.15) rotate(20deg); }
+}
+
+/* Light mode liquid adjustments */
+.light .liquid-blob-1 { background: radial-gradient(circle, rgba(62,214,200,0.12) 0%, transparent 70%); }
+.light .liquid-blob-2 { background: radial-gradient(circle, rgba(13,126,164,0.15) 0%, transparent 70%); }
+.light .liquid-blob-3 { background: radial-gradient(circle, rgba(14,168,144,0.12) 0%, transparent 70%); }
 
 /* ============================================
    Scroll Reveal Animation
@@ -202,7 +299,7 @@ body {
   position: fixed;
   width: 36px;
   height: 36px;
-  border: 1.5px solid rgba(29, 158, 117, 0.5);
+  border: 1.5px solid rgba(62, 214, 200, 0.5);
   border-radius: 50%;
   pointer-events: none;
   z-index: 9998;
@@ -250,7 +347,7 @@ body {
   width: 280px;
   height: 580px;
   border-radius: 40px;
-  background: linear-gradient(145deg, #1a2e45 0%, #0E1B22 100%);
+  background: linear-gradient(145deg, #1a2e45 0%, #0C1820 100%);
   padding: 12px;
   box-shadow: 0 30px 80px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.05);
   position: relative;
@@ -263,7 +360,7 @@ body {
   transform: translateX(-50%);
   width: 100px;
   height: 24px;
-  background: #071116;
+  background: #060C0F;
   border-radius: 999px;
   z-index: 10;
 }
@@ -272,7 +369,7 @@ body {
   height: 100%;
   border-radius: 30px;
   overflow: hidden;
-  background: #0E1B22;
+  background: #0C1820;
   position: relative;
 }
 
@@ -341,11 +438,11 @@ body {
    Light Mode Adjustments
    ============================================ */
 
-.light body { background: #F8FBFE; }
+.light body { background: #F4FAF8; }
 
 .light .glass {
   background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(11, 25, 41, 0.06);
+  border: 1px solid rgba(14, 100, 90, 0.06);
 }
 
 /* ============================================
@@ -356,7 +453,7 @@ body {
   --text-main: #FFFFFF;
   --text-soft: #F1F5F9;
   --text-muted: #94A3B8;
-  --border-subtle: rgba(255, 255, 255, 0.25);
+  --border-subtle: rgba(62, 214, 200, 0.25);
 }
 .high-contrast .glass { border-width: 2px; }
 .high-contrast .glass-card { border-width: 2px; }
@@ -369,6 +466,9 @@ body {
   animation-duration: 0.01ms !important;
   transition-duration: 0.01ms !important;
 }
+.reduce-motion .liquid-blob-1,
+.reduce-motion .liquid-blob-2,
+.reduce-motion .liquid-blob-3 { animation: none !important; }
 
 /* ============================================
    Big Touch Targets
@@ -385,6 +485,7 @@ body {
 /* ============================================
    Senior Mode — enlarged fonts + simplified UI
    ============================================ */
+
 .senior-mode .glass-card {
   padding: 1.25rem !important;
   border-width: 2px !important;
@@ -459,6 +560,7 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+  .liquid-blob-1, .liquid-blob-2, .liquid-blob-3 { animation: none !important; }
 }
 
 /* ============================================
@@ -484,7 +586,7 @@ body {
 
 .section-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+  background: linear-gradient(90deg, transparent, rgba(62,214,200,0.2), transparent);
 }
 
 /* ============================================
@@ -516,7 +618,7 @@ select:focus {
 /* Ensure option text is visible in all browsers */
 select option:checked,
 select option:hover {
-  background-color: #1D9E75;
+  background-color: #0EA890;
   color: #ffffff;
 }
 
@@ -525,19 +627,19 @@ select option:hover {
 .light select option,
 .light select optgroup {
   background-color: #ffffff;
-  color: #0B1929;
+  color: #0B2424;
 }
 
 .light select option:checked,
 .light select option:hover {
-  background-color: #34D399;
-  color: #0B1929;
+  background-color: #3ED6C8;
+  color: #0B2424;
 }
 
 /* Modal/dialog dark backgrounds */
 dialog,
 [role="dialog"] {
-  background-color: #0E1B22;
+  background-color: #0C1820;
   color: var(--text-main);
 }
 
@@ -570,7 +672,7 @@ input[type="file"]::file-selector-button {
 }
 input[type="file"]::file-selector-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(29, 158, 117, 0.4);
+  box-shadow: 0 6px 20px rgba(62, 214, 200, 0.4);
 }
 
 /* ============================================
@@ -588,9 +690,22 @@ input[type="file"]::file-selector-button:hover {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(62,214,200,0.1), transparent);
   transition: left 0.6s ease;
 }
 .light-sweep:hover::after {
   left: 100%;
+}
+
+/* ============================================
+   Focus Visible (Accessibility)
+   ============================================ */
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--aqua);
+  outline-offset: 2px;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Clock, Copy, Loader as Loader2, MapPin, Package, Pencil, Pill, Plus, Search, Store, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Clock, Copy, Loader as Loader2, MapPin, Package, Pencil, Pill, Plus, Search, Store, Trash2, X } from 'lucide-react';
 import { supabase, type Medicine, type Pharmacy } from '@/lib/supabase';
 import { CloneFromPharmacy } from '@/components/CloneFromPharmacy';
 import { showToast } from '@/components/ui/Toast';
@@ -53,6 +53,8 @@ export function FacilityPharmacy({
   const [medSaving, setMedSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -202,6 +204,45 @@ export function FacilityPharmacy({
       )
     : medicines;
 
+  const allSelected = filteredMeds.length > 0 && filteredMeds.every((m) => selectedIds.has(m.id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredMeds.map((m) => m.id)));
+    }
+  }
+
+  async function bulkUpdate() {
+    if (!pharmacy || selectedIds.size === 0) return;
+    setBulkLoading(true);
+    const ids = Array.from(selectedIds);
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('medicines')
+      .update({ last_updated: now, is_available: true })
+      .in('id', ids);
+    setBulkLoading(false);
+    if (error) {
+      showToast(isRTL ? `فشل تحديث ${ids.length} دواء` : `Failed to update ${ids.length} medicines`, 'error');
+      return;
+    }
+    showToast(isRTL ? `تم تحديث ${ids.length} دواء` : `Updated ${ids.length} medicines`);
+    setSelectedIds(new Set());
+    await loadMedicines(pharmacy.id);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -256,6 +297,32 @@ export function FacilityPharmacy({
         />
       </div>
 
+      {/* Bulk action bar */}
+      {someSelected && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-3 flex items-center justify-between gap-3"
+        >
+          <span className="text-sm font-tajawal">
+            {isRTL ? `${selectedIds.size} دواء محدد` : `${selectedIds.size} medicines selected`}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={bulkUpdate}
+              disabled={bulkLoading}
+              className="btn-primary !py-2 !px-4 text-sm flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              {isRTL ? 'تحديث الكل' : 'Update All'}
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="btn-secondary !py-2 !px-4 text-sm">
+              {isRTL ? 'إلغاء' : 'Clear'}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {filteredMeds.length === 0 ? (
         <div className="glass-card p-10 text-center">
           <Package className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
@@ -264,45 +331,54 @@ export function FacilityPharmacy({
           </p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMeds.map((med) => (
-            <motion.div
-              key={med.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: EASE }}
-              className="glass-card p-4"
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="min-w-0">
-                  <h3 className="font-bold truncate">{med.medicine_name}</h3>
-                  <p className="text-xs text-[var(--text-muted)] truncate">{med.generic_name}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={() => openEditMedModal(med)} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => setDeleteTarget(med)} className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors">
-                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div>
-                  <p className="text-[var(--text-muted)]">{isRTL ? 'السعر' : 'Price'}</p>
-                  <p className="font-bold">{med.price} ₪</p>
-                </div>
-                <div>
-                  <p className="text-[var(--text-muted)]">{isRTL ? 'الكمية' : 'Qty'}</p>
-                  <p className="font-bold">{med.quantity}</p>
-                </div>
-                <div>
-                  <p className="text-[var(--text-muted)]">{isRTL ? 'الصلاحية' : 'Expiry'}</p>
-                  <p className="font-bold truncate">{med.expiry_date || '—'}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+        <div className="glass-card overflow-hidden">
+          {/* Table header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-subtle)] bg-white/[0.02]">
+            <button onClick={toggleSelectAll} className="w-5 h-5 rounded-md border-2 border-[var(--border-subtle)] flex items-center justify-center transition-colors shrink-0 hover:border-brand-green">
+              {allSelected && <Check className="w-3.5 h-3.5 text-brand-green-light" />}
+            </button>
+            <span className="text-xs font-cairo font-bold text-[var(--text-muted)] flex-1 min-w-0">{isRTL ? 'اسم الدواء' : 'Medicine Name'}</span>
+            <span className="text-xs font-cairo font-bold text-[var(--text-muted)] w-16 text-center shrink-0 hidden sm:block">{isRTL ? 'السعر' : 'Price'}</span>
+            <span className="text-xs font-cairo font-bold text-[var(--text-muted)] w-16 text-center shrink-0 hidden sm:block">{isRTL ? 'الكمية' : 'Qty'}</span>
+            <span className="text-xs font-cairo font-bold text-[var(--text-muted)] w-24 text-center shrink-0 hidden md:block">{isRTL ? 'الصلاحية' : 'Expiry'}</span>
+            <span className="w-16 shrink-0"></span>
+          </div>
+          {/* Rows */}
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {filteredMeds.map((med) => {
+              const isSelected = selectedIds.has(med.id);
+              return (
+                <motion.div
+                  key={med.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors cursor-pointer ${isSelected ? 'bg-brand-green/5' : ''}`}
+                  onClick={() => toggleSelect(med.id)}
+                >
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'border-brand-green bg-brand-green/20' : 'border-[var(--border-subtle)]'}`}>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-brand-green-light" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm truncate">{med.medicine_name}</div>
+                    <div className="text-xs text-[var(--text-muted)] truncate sm:hidden">{med.price} ₪ · {med.quantity} {isRTL ? 'وحدة' : 'units'}</div>
+                    <p className="text-xs text-[var(--text-muted)] truncate hidden sm:block">{med.generic_name}</p>
+                  </div>
+                  <span className="font-bold text-sm w-16 text-center shrink-0 hidden sm:block">{med.price} ₪</span>
+                  <span className="font-bold text-sm w-16 text-center shrink-0 hidden sm:block">{med.quantity}</span>
+                  <span className="text-xs text-[var(--text-muted)] w-24 text-center shrink-0 hidden md:block truncate">{med.expiry_date || '—'}</span>
+                  <div className="flex gap-1 shrink-0 w-16 justify-end" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => openEditMedModal(med)} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setDeleteTarget(med)} className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center transition-colors">
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       )}
 

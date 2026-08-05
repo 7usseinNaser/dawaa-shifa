@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, Calendar, MessageCircle, MapPin, Phone, Lightbulb } from 'lucide-react';
+import { ShieldCheck, ShieldX, Loader as Loader2, Building2, Pill, CircleCheck as CheckCircle, Circle as XCircle, Download, LogOut, Plus, Pencil, Trash2, X, Star, Users, Activity, RotateCcw, Ban, TriangleAlert as AlertTriangle, Radio, FileText, History, Filter, Search, Flag, Package, OctagonAlert as AlertOctagon, ExternalLink, Upload, ScrollText, Snowflake, Send, Flame, Megaphone, Database, Gift, Bug, Clock, Eye, ChevronLeft, ChevronDown, Shield, Calendar, MessageCircle, MapPin, Phone, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { formatOpenHours } from '@/lib/timeUtils';
@@ -3137,6 +3137,31 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
   const active = conversations.filter((c) => c.status === 'active');
   const closed = conversations.filter((c) => c.status !== 'active');
 
+  // Determine entity type from conversation metadata
+  const getEntityType = (c: Conversation): 'facility' | 'pharmacy' | 'other' => {
+    const type = (c as unknown as Record<string, unknown>).entity_type as string | undefined;
+    if (type === 'facility') return 'facility';
+    if (type === 'pharmacy') return 'pharmacy';
+    // Fallback: infer from entity_name prefix
+    const name = (c.entity_name || '').toLowerCase();
+    if (name.includes('مستشف') || name.includes('مرفق') || name.includes('hosp') || name.includes('facil')) return 'facility';
+    if (name.includes('صيدل') || name.includes('pharm')) return 'pharmacy';
+    return 'other';
+  };
+
+  // Group active conversations by entity_name, then by type
+  const facilityGroups = new Map<string, Conversation[]>();
+  const pharmacyGroups = new Map<string, Conversation[]>();
+  const otherGroups = new Map<string, Conversation[]>();
+
+  active.forEach((c) => {
+    const name = c.entity_name || (isRTL ? 'بدون اسم' : 'Unnamed');
+    const type = getEntityType(c);
+    const target = type === 'facility' ? facilityGroups : type === 'pharmacy' ? pharmacyGroups : otherGroups;
+    if (!target.has(name)) target.set(name, []);
+    target.get(name)!.push(c);
+  });
+
   const renderItem = (c: Conversation) => (
     <div key={c.id} className="glass-card p-3 flex items-center justify-between hover:border-brand-blue/40 transition-colors">
       <button onClick={() => onOpen(c)} className="flex-1 text-right min-w-0">
@@ -3157,19 +3182,94 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
     </div>
   );
 
-  return (
-    <div className="space-y-4">
+  // Accordion group renderer
+  const renderGroup = (name: string, convs: Conversation[], groupIdx: number, icon: React.ReactNode, iconColor: string) => {
+    const [expanded, setExpanded] = useState(false);
+    return (
+      <div key={`${name}-${groupIdx}`} className="glass-card overflow-hidden">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full p-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-8 h-8 rounded-lg ${iconColor} flex items-center justify-center shrink-0`}>
+              {icon}
+            </div>
+            <span className="font-cairo font-bold text-sm truncate">{name}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-blue/20 text-brand-blue-light font-bold shrink-0">
+              {convs.length}
+            </span>
+          </div>
+          <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="p-2 space-y-2 border-t border-[var(--border-subtle)]">
+                {convs.map(renderItem)}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  const renderSection = (title: string, groups: Map<string, Conversation[]>, icon: React.ReactNode, iconColor: string, emptyText: string) => {
+    const total = Array.from(groups.values()).reduce((sum, convs) => sum + convs.length, 0);
+    return (
       <div>
         <h4 className="font-cairo font-bold text-sm mb-2 flex items-center gap-2">
-          <MessageCircle className="w-4 h-4 text-status-open" />
-          {isRTL ? 'محادثات مفتوحة' : 'Active Conversations'} ({active.length})
+          {icon}
+          {title} ({total})
         </h4>
-        {active.length === 0 ? (
-          <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-4">{isRTL ? 'لا توجد محادثات مفتوحة' : 'No active conversations'}</p>
+        {groups.size === 0 ? (
+          <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-4">{emptyText}</p>
         ) : (
-          <div className="space-y-2">{active.map(renderItem)}</div>
+          <div className="space-y-2">
+            {Array.from(groups.entries()).map(([name, convs], i) => renderGroup(name, convs, i, icon, iconColor))}
+          </div>
         )}
       </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Facilities section */}
+      {renderSection(
+        isRTL ? 'المرافق الطبية' : 'Medical Facilities',
+        facilityGroups,
+        <Shield className="w-4 h-4 text-brand-green-light" />,
+        'bg-brand-green/15',
+        isRTL ? 'لا توجد محادثات للمرافق' : 'No facility conversations',
+      )}
+
+      {/* Pharmacies section */}
+      {renderSection(
+        isRTL ? 'الصيدليات' : 'Pharmacies',
+        pharmacyGroups,
+        <Pill className="w-4 h-4 text-brand-blue-light" />,
+        'bg-brand-blue/15',
+        isRTL ? 'لا توجد محادثات للصيدليات' : 'No pharmacy conversations',
+      )}
+
+      {/* Other section (if any) */}
+      {otherGroups.size > 0 && renderSection(
+        isRTL ? 'أخرى' : 'Other',
+        otherGroups,
+        <MessageCircle className="w-4 h-4 text-[var(--text-muted)]" />,
+        'bg-white/5',
+        isRTL ? 'لا توجد محادثات' : 'No conversations',
+      )}
+
+      {/* Closed conversations */}
       {closed.length > 0 && (
         <div>
           <h4 className="font-cairo font-bold text-sm mb-2 text-[var(--text-muted)]">{isRTL ? 'محادثات مغلقة' : 'Closed Conversations'} ({closed.length})</h4>

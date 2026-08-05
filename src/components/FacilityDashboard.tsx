@@ -1337,7 +1337,7 @@ export default function FacilityDashboard({ theme, onToggleTheme }: { theme: 'da
       </AnimatePresence>
 
       {/* Donation Modal */}
-      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} />
+      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} hideMedicineTab />
 
       {/* Delete confirmation */}
       <AnimatePresence>

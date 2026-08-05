@@ -115,14 +115,10 @@ export default function LandingDonation() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => openModal('platform')} className="btn-primary text-sm flex items-center justify-center gap-1.5">
+            <div className="flex gap-3">
+              <button onClick={() => openModal('platform')} className="btn-primary text-sm flex-1 flex items-center justify-center gap-1.5">
                 <MessageCircle className="w-4 h-4" />
                 {isRTL ? 'تبرّع للموقع' : 'Donate to Platform'}
-              </button>
-              <button onClick={() => openModal('medicine')} className="btn-secondary text-sm flex items-center justify-center gap-1.5">
-                <Gift className="w-4 h-4" />
-                {isRTL ? 'تبرّع بدواء' : 'Donate Medicine'}
               </button>
             </div>
           </motion.div>

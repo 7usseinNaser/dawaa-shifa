@@ -275,14 +275,13 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
     const msg = input.trim();
     setInput('');
     try {
-      const { data } = await supabase.from('conversation_messages').insert({
+      await supabase.from('conversation_messages').insert({
         conversation_id: activeConv.id,
         sender_id: user.id,
         sender_name: profile?.display_name || user.email || '',
         sender_role: profile?.role || 'citizen',
         message: msg,
-      }).select().single();
-      if (data) setMessages((prev) => [...prev, data as ConversationMessage]);
+      });
     } catch {
       showToast(isRTL ? 'فشل الإرسال' : 'Failed to send', 'error');
     } finally {
@@ -334,14 +333,13 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
     const msg = bugInput.trim();
     setBugInput('');
     try {
-      const { data } = await supabase.from('bug_report_chats').insert({
+      await supabase.from('bug_report_chats').insert({
         bug_report_id: activeBugReport.id,
         sender_id: user.id,
         sender_name: profile?.display_name || user.email || '',
         sender_role: 'user',
         message: msg,
-      }).select().single();
-      if (data) setBugMessages((prev) => [...prev, data as BugReportChat]);
+      });
     } catch {
       showToast(isRTL ? 'فشل الإرسال' : 'Failed to send', 'error');
     } finally {

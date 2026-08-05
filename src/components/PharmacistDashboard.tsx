@@ -1641,7 +1641,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       </AnimatePresence>
 
       {/* Donation Modal */}
-      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} />
+      <DonationModal open={showDonationModal} onClose={() => setShowDonationModal(false)} hideMedicineTab />
 
       {/* Delete confirmation */}
       <AnimatePresence>

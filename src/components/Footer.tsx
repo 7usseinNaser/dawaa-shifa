@@ -1,10 +1,14 @@
 import { Instagram, MessageCircle, Mail } from 'lucide-react';
 import { getDonationWhatsappUrl } from '@/lib/config';
+import { useLang } from '@/lib/i18n';
 
 /**
  * Footer — brand, social links, and closing line.
  */
 export default function Footer() {
+  const { lang } = useLang();
+  const isRTL = lang === 'ar';
+
   return (
     <footer className="relative py-12 border-t border-[var(--border-subtle)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -39,6 +43,9 @@ export default function Footer() {
             <p className="font-inter text-xs text-[var(--text-muted)] mt-1">
               Dawaa & Shifa — Hussein Nasr 2026 ©
             </p>
+            <a href="#/team" className="inline-flex items-center gap-1 text-xs text-brand-green-light font-tajawal hover:underline mt-2">
+              {isRTL ? 'تعرّف على الفريق ←' : 'Meet the team ←'}
+            </a>
           </div>
         </div>
       </div>

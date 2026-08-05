@@ -27,8 +27,8 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
     { href: '#problem', label: lang === 'ar' ? 'المشكلة' : 'Problem' },
     { href: '#solution', label: lang === 'ar' ? 'الحل' : 'Solution' },
     { href: '#how', label: lang === 'ar' ? 'كيف يعمل' : 'How it works' },
-    { href: '#users', label: lang === 'ar' ? 'من يستخدمه' : 'Users' },
-    { href: '#about', label: lang === 'ar' ? 'المطور' : 'About' },
+    { href: '#users', label: lang === 'ar' ? 'المستخدمون' : 'Users' },
+    { href: '#/team', label: lang === 'ar' ? 'الفريق' : 'Team' },
   ];
 
   useEffect(() => {
