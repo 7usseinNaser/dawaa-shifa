@@ -32,13 +32,12 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
 
   const load = useCallback(async () => {
     setLoading(true);
-    const donQuery = user
-      ? supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').eq('donor_id', user.id).order('created_at', { ascending: false })
-      : supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false });
+    const donQuery = supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false }).limit(50);
     const [donRes, pharmRes] = await Promise.all([
       donQuery,
       supabase.from('pharmacies').select('id,name,area,phone,verified,deleted_at').eq('verified', true).is('deleted_at', null),
     ]);
+    console.log("donation requests:", donRes.data, "error:", donRes.error);
     if (donRes.data) setDonations(donRes.data as MedicineDonation[]);
     if (pharmRes.data) setPharmacies(pharmRes.data as Pharmacy[]);
     setLoading(false);

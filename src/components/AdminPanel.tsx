@@ -1725,9 +1725,9 @@ function PendingList({ pharmacies, facilities, medicines, departments, onApprove
 }) {
   const [preview, setPreview] = useState<{ type: 'pharmacy' | 'facility'; data: Pharmacy | Facility } | null>(null);
   const pending = [
-    ...pharmacies.filter((p) => p.approval_status === 'pending' && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone, rejection_reason: p.rejection_reason })),
-    ...facilities.filter((f) => f.approval_status === 'pending' && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone, rejection_reason: f.rejection_reason })),
-  ];
+    ...pharmacies.filter((p) => p.approval_status === 'pending' && !p.deleted_at).map((p) => ({ id: p.id, type: 'pharmacy' as const, name: p.name, area: p.area, phone: p.phone, rejection_reason: p.rejection_reason, facility_id: p.facility_id, created_at: p.created_at })),
+    ...facilities.filter((f) => f.approval_status === 'pending' && !f.deleted_at).map((f) => ({ id: f.id, type: 'facility' as const, name: f.name, area: f.area, phone: f.phone, rejection_reason: f.rejection_reason, facility_id: null, created_at: f.created_at })),
+  ];;
   if (pending.length === 0) return (<div className="text-center py-8"><CheckCircle className="w-10 h-10 mx-auto mb-3 text-status-open" /><p className="font-tajawal text-[var(--text-muted)]">{isRTL ? 'لا توجد تسجيلات معلّقة' : 'No pending registrations'}</p></div>);
   return (
     <div className="space-y-3">
@@ -1745,6 +1745,11 @@ function PendingList({ pharmacies, facilities, medicines, departments, onApprove
             <div className="min-w-0">
               <div className="font-cairo font-bold text-sm truncate">{item.name}</div>
               <div className="text-xs text-[var(--text-muted)] font-tajawal">{item.type === 'pharmacy' ? (isRTL ? 'صيدلية' : 'Pharmacy') : (isRTL ? 'مرفق' : 'Facility')} · {item.area} · {item.phone}</div>
+              {item.type === 'pharmacy' && item.facility_id && (() => {
+                const facility = facilities.find((f) => f.id === item.facility_id);
+                return facility ? <div className="text-[10px] text-brand-blue-light font-tajawal mt-0.5">{isRTL ? 'تابعة لمرفق:' : 'Belongs to facility:'} {facility.name}</div> : null;
+              })()}
+              <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">{isRTL ? 'تاريخ الإنشاء' : 'Created'}: {new Date(item.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}</div>
               {item.rejection_reason && (
                 <div className="text-[10px] text-status-emergency font-tajawal mt-0.5">{isRTL ? 'سبب الرفض السابق: ' : 'Previous rejection: '}{item.rejection_reason}</div>
               )}
