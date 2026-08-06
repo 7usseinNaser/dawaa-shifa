@@ -56,6 +56,11 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const [editingMed, setEditingMed] = useState<Medicine | null>(null);
   const [medForm, setMedForm] = useState<MedForm>(emptyMedForm);
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [incompleteSelectedIds, setIncompleteSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [incompleteBulkDeleteConfirm, setIncompleteBulkDeleteConfirm] = useState(false);
 
   // Search
   const [search, setSearch] = useState('');
@@ -535,6 +540,66 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
     [medicines]
   );
 
+  const someSelected = selectedIds.size > 0;
+  const allIncompleteSelected = incompleteMeds.length > 0 && incompleteMeds.every((m) => incompleteSelectedIds.has(m.id));
+  const someIncompleteSelected = incompleteSelectedIds.size > 0;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredMeds.map((m) => m.id)));
+  }
+  function toggleIncompleteSelect(id: string) {
+    setIncompleteSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleIncompleteSelectAll() {
+    if (allIncompleteSelected) setIncompleteSelectedIds(new Set());
+    else setIncompleteSelectedIds(new Set(incompleteMeds.map((m) => m.id)));
+  }
+  async function bulkDeleteMedicines() {
+    if (!pharmacy || selectedIds.size === 0) return;
+    setBulkLoading(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from('medicines').update({ deleted_at: new Date().toISOString() }).in('id', ids);
+    setBulkLoading(false);
+    setBulkDeleteConfirm(false);
+    if (error) {
+      showToast(isRTL ? `فشل حذف ${ids.length} دواء` : `Failed to delete ${ids.length} medicines`, 'error');
+      return;
+    }
+    showToast(isRTL ? `تم حذف ${ids.length} دواء` : `Deleted ${ids.length} medicines`);
+    setSelectedIds(new Set());
+    await loadMedicines(pharmacy.id);
+  }
+  async function bulkDeleteIncomplete() {
+    if (incompleteSelectedIds.size === 0) return;
+    setBulkLoading(true);
+    const ids = Array.from(incompleteSelectedIds);
+    const { error } = await supabase.from('medicines').update({ deleted_at: new Date().toISOString() }).in('id', ids);
+    setBulkLoading(false);
+    setIncompleteBulkDeleteConfirm(false);
+    if (error) {
+      showToast(isRTL ? `فشل حذف ${ids.length} دواء` : `Failed to delete ${ids.length} medicines`, 'error');
+      return;
+    }
+    showToast(isRTL ? `تم حذف ${ids.length} دواء` : `Deleted ${ids.length} medicines`);
+    setIncompleteSelectedIds(new Set());
+    if (pharmacy) await loadMedicines(pharmacy.id);
+    setIncompleteMeds((prev) => prev.filter((m) => !incompleteSelectedIds.has(m.id)));
+  }
+
   const filteredMeds = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return medicines;
@@ -544,6 +609,8 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         m.generic_name.toLowerCase().includes(q)
     );
   }, [medicines, search]);
+
+  const allSelected = filteredMeds.length > 0 && filteredMeds.every((m) => selectedIds.has(m.id));
 
   // ---- Loading state ----
   if (loading) {
@@ -999,6 +1066,19 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     />
                   </div>
 
+                  {/* Bulk action bar */}
+                  {someSelected && (
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-3 flex items-center justify-between gap-3">
+                      <span className="text-sm font-tajawal">{isRTL ? `${selectedIds.size} دواء محدد` : `${selectedIds.size} medicines selected`}</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setBulkDeleteConfirm(true)} disabled={bulkLoading} className="btn-secondary !py-2 !px-4 text-sm flex items-center gap-1.5 text-status-emergency disabled:opacity-50">
+                          <Trash2 className="w-4 h-4" /> {isRTL ? 'حذف المحدد' : 'Delete Selected'}
+                        </button>
+                        <button onClick={() => setSelectedIds(new Set())} className="btn-secondary !py-2 !px-4 text-sm">{isRTL ? 'إلغاء' : 'Clear'}</button>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* Medicine list */}
                   {filteredMeds.length === 0 ? (
                     <div className="glass-card p-10 text-center">
@@ -1007,17 +1087,27 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     </div>
                   ) : (
                     <div className="space-y-2">
+                      <div className="flex items-center gap-3 px-3 py-2">
+                        <button onClick={toggleSelectAll} className="w-5 h-5 rounded-md border-2 border-[var(--border-subtle)] flex items-center justify-center transition-colors shrink-0 hover:border-brand-green">
+                          {allSelected && <Check className="w-3.5 h-3.5 text-brand-green-light" />}
+                        </button>
+                        <span className="text-xs font-cairo font-bold text-[var(--text-muted)]">{isRTL ? 'تحديد الكل' : 'Select All'}</span>
+                      </div>
                       {filteredMeds.map((m, i) => {
                         const out = m.quantity <= 0;
                         const low = m.quantity > 0 && m.quantity < 5;
+                        const isSelected = selectedIds.has(m.id);
                         return (
                           <motion.div
                             key={m.id}
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.25, delay: i * 0.02, ease: EASE }}
-                            className="glass-card p-3 flex items-center gap-3"
+                            className={`glass-card p-3 flex items-center gap-3 ${isSelected ? 'border-brand-green/40' : ''}`}
                           >
+                            <button onClick={() => toggleSelect(m.id)} className="w-5 h-5 rounded-md border-2 border-[var(--border-subtle)] flex items-center justify-center transition-colors shrink-0 hover:border-brand-green">
+                              {isSelected && <Check className="w-3.5 h-3.5 text-brand-green-light" />}
+                            </button>
                             <div className="w-9 h-9 rounded-xl bg-brand-green/10 flex items-center justify-center shrink-0">
                               <Pill className="w-4 h-4 text-brand-green-light" />
                             </div>
@@ -1065,6 +1155,17 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                   className="space-y-5"
                 >
                   <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'استيراد قيد الإكمال' : 'Incomplete Import'}</h1>
+                  {someIncompleteSelected && (
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-3 flex items-center justify-between gap-3">
+                      <span className="text-sm font-tajawal">{isRTL ? `${incompleteSelectedIds.size} دواء محدد` : `${incompleteSelectedIds.size} medicines selected`}</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => setIncompleteBulkDeleteConfirm(true)} disabled={bulkLoading} className="btn-secondary !py-2 !px-4 text-sm flex items-center gap-1.5 text-status-emergency disabled:opacity-50">
+                          <Trash2 className="w-4 h-4" /> {isRTL ? 'حذف المحدد' : 'Delete Selected'}
+                        </button>
+                        <button onClick={() => setIncompleteSelectedIds(new Set())} className="btn-secondary !py-2 !px-4 text-sm">{isRTL ? 'إلغاء' : 'Clear'}</button>
+                      </div>
+                    </motion.div>
+                  )}
                   {incompleteMeds.length === 0 ? (
                     <div className="glass-card p-8 text-center">
                       <AlertTriangle className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
@@ -1072,21 +1173,32 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      <div className="flex items-center gap-3 px-3 py-2">
+                        <button onClick={toggleIncompleteSelectAll} className="w-5 h-5 rounded-md border-2 border-[var(--border-subtle)] flex items-center justify-center transition-colors shrink-0 hover:border-brand-green">
+                          {allIncompleteSelected && <Check className="w-3.5 h-3.5 text-brand-green-light" />}
+                        </button>
+                        <span className="text-xs font-cairo font-bold text-[var(--text-muted)]">{isRTL ? 'تحديد الكل' : 'Select All'}</span>
+                      </div>
                       {incompleteMeds.map((med) => (
-                        <div key={med.id} className="glass-card p-4">
+                        <div key={med.id} className={`glass-card p-4 ${incompleteSelectedIds.has(med.id) ? 'border-brand-green/40' : ''}`}>
                           <div className="flex items-start justify-between gap-3 mb-2">
-                            <div>
-                              <h3 className="font-bold">{med.medicine_name}</h3>
-                              <p className="text-xs text-[var(--text-muted)] mt-1">
-                                {isRTL ? 'الحقول المكتملة:' : 'Completed fields:'} {[
-                                  med.medicine_name && `${isRTL ? 'الاسم' : 'Name'}`,
-                                  med.generic_name && `${isRTL ? 'العلمي' : 'Generic'}`,
-                                  med.price && `${isRTL ? 'السعر' : 'Price'}`,
-                                  med.quantity && `${isRTL ? 'الكمية' : 'Qty'}`,
-                                  med.expiry_date && `${isRTL ? 'الصلاحية' : 'Expiry'}`,
-                                  med.category && `${isRTL ? 'التصنيف' : 'Category'}`,
-                                ].filter(Boolean).join(' · ') || (isRTL ? 'لا يوجد' : 'None')}
-                              </p>
+                            <div className="flex items-start gap-3">
+                              <button onClick={() => toggleIncompleteSelect(med.id)} className="w-5 h-5 rounded-md border-2 border-[var(--border-subtle)] flex items-center justify-center transition-colors shrink-0 hover:border-brand-green mt-1">
+                                {incompleteSelectedIds.has(med.id) && <Check className="w-3.5 h-3.5 text-brand-green-light" />}
+                              </button>
+                              <div>
+                                <h3 className="font-bold">{med.medicine_name}</h3>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">
+                                  {isRTL ? 'الحقول المكتملة:' : 'Completed fields:'} {[
+                                    med.medicine_name && `${isRTL ? 'الاسم' : 'Name'}`,
+                                    med.generic_name && `${isRTL ? 'العلمي' : 'Generic'}`,
+                                    med.price && `${isRTL ? 'السعر' : 'Price'}`,
+                                    med.quantity && `${isRTL ? 'الكمية' : 'Qty'}`,
+                                    med.expiry_date && `${isRTL ? 'الصلاحية' : 'Expiry'}`,
+                                    med.category && `${isRTL ? 'التصنيف' : 'Category'}`,
+                                  ].filter(Boolean).join(' · ') || (isRTL ? 'لا يوجد' : 'None')}
+                                </p>
+                              </div>
                             </div>
                             <div className="flex gap-1 shrink-0">
                               <button onClick={() => {
@@ -1814,6 +1926,80 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                   className="flex-1 px-6 py-3.5 rounded-full font-bold bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-50"
                 >
                   {saving ? (isRTL ? 'جاري...' : 'Deleting...') : t('pharm.delete')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {bulkDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setBulkDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.25, ease: EASE }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card p-6 w-full max-w-sm text-center"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-7 h-7 text-red-400" />
+              </div>
+              <p className="font-bold mb-1">{isRTL ? 'تأكيد الحذف الجماعي' : 'Confirm Bulk Delete'}</p>
+              <p className="text-sm text-[var(--text-muted)] mb-5">
+                {isRTL ? `سيتم حذف ${selectedIds.size} دواء نهائياً` : `This will permanently delete ${selectedIds.size} medicines`}
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setBulkDeleteConfirm(false)} className="btn-secondary flex-1">{t('pharm.cancel')}</button>
+                <button
+                  onClick={bulkDeleteMedicines}
+                  disabled={bulkLoading}
+                  className="flex-1 px-6 py-3.5 rounded-full font-bold bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-50"
+                >
+                  {bulkLoading ? (isRTL ? 'جاري...' : 'Deleting...') : t('pharm.delete')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {incompleteBulkDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIncompleteBulkDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.25, ease: EASE }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card p-6 w-full max-w-sm text-center"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-red-500/15 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-7 h-7 text-red-400" />
+              </div>
+              <p className="font-bold mb-1">{isRTL ? 'تأكيد الحذف الجماعي' : 'Confirm Bulk Delete'}</p>
+              <p className="text-sm text-[var(--text-muted)] mb-5">
+                {isRTL ? `سيتم حذف ${incompleteSelectedIds.size} دواء نهائياً` : `This will permanently delete ${incompleteSelectedIds.size} medicines`}
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setIncompleteBulkDeleteConfirm(false)} className="btn-secondary flex-1">{t('pharm.cancel')}</button>
+                <button
+                  onClick={bulkDeleteIncomplete}
+                  disabled={bulkLoading}
+                  className="flex-1 px-6 py-3.5 rounded-full font-bold bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-50"
+                >
+                  {bulkLoading ? (isRTL ? 'جاري...' : 'Deleting...') : t('pharm.delete')}
                 </button>
               </div>
             </motion.div>
