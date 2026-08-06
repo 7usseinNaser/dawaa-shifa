@@ -8,14 +8,11 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   isRecovery: boolean;
-  emailVerificationPending: boolean;
   clearRecovery: () => void;
-  clearEmailVerificationPending: () => void;
-  signUp: (email: string, password: string, role: UserRole, displayName: string, phone?: string) => Promise<{ error: string | null; needsVerification?: boolean }>;
+  signUp: (email: string, password: string, role: UserRole, displayName: string, phone?: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
-  resendVerification: (email: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRecovery, setIsRecovery] = useState(false);
-  const [emailVerificationPending, setEmailVerificationPending] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -73,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearRecovery = () => setIsRecovery(false);
-  const clearEmailVerificationPending = () => setEmailVerificationPending(false);
 
   useEffect(() => {
     if (!user) return;
@@ -104,15 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: { data: { role: safeRole, display_name: displayName, phone: phone || '' } },
       });
       if (error) return { error: translateAuthError(error.message, 'ar') };
-      // Do NOT set profile or session — user must verify email first.
-      // The database trigger (set_new_user_verified) already created the
-      // profiles row with role/phone/email synced from auth metadata.
       if (data.user) {
-        setEmailVerificationPending(true);
-        // Immediately sign out so no session lingers before verification
-        await supabase.auth.signOut();
+        setProfile({ id: data.user.id, role: safeRole, display_name: displayName, phone: phone || '', verified: false, deleted_at: null, banned: false, frozen: false, freeze_reason: null, email: data.user.email || null, created_at: new Date().toISOString() });
       }
-      return { error: null, needsVerification: true };
+      return { error: null };
     } catch {
       return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
     }
@@ -120,18 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         const msg = error.message.toLowerCase();
         if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
           return { error: 'البريد الإلكتروني غير مسجل أو كلمة المرور غير صحيحة. تحقق من بياناتك.' };
         }
         return { error: translateAuthError(error.message, 'ar') };
-      }
-      // Block login if email is not verified
-      if (data.user && !data.user.email_confirmed_at) {
-        await supabase.auth.signOut();
-        return { error: 'يرجى تأكيد بريدك الإلكتروني أولاً عبر الرابط المرسل إلى إيميلك' };
       }
       // Send welcome notification on first login
       (async () => {
@@ -185,16 +170,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   };
 
-  const resendVerification = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email });
-      if (error) return { error: translateAuthError(error.message, 'ar') };
-      return { error: null };
-    } catch {
-      return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
-    }
-  };
-
   const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -208,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, emailVerificationPending, clearEmailVerificationPending, signUp, signIn, signOut, resetPassword, resendVerification }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, signUp, signIn, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
