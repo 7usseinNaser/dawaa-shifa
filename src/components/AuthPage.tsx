@@ -15,7 +15,7 @@ const slideVariants = {
 };
 
 export default function AuthPage() {
-  const { signIn, signUp, profile, resetPassword } = useAuth();
+  const { signIn, signUp, profile, resetPassword, emailVerificationPending, clearEmailVerificationPending } = useAuth();
   const { t, lang } = useLang();
   const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
@@ -72,8 +72,11 @@ export default function AuthPage() {
     }
     setLoading(true);
     if (mode === 'register') {
-      const { error } = await signUp(email, password, role, name, phone.trim());
+      const { error, needsVerification } = await signUp(email, password, role, name, phone.trim());
       if (error) setError(error);
+      // If verification is needed, the auth context sets emailVerificationPending
+      // and the verification screen is shown instead of logging in.
+      if (needsVerification) { setLoading(false); return; }
     } else {
       const { error } = await signIn(email, password);
       if (error) setError(error);
@@ -134,6 +137,49 @@ export default function AuthPage() {
       window.location.hash = '#/' + redirect.replace(/^\/+/, '');
     }
   }, [profile]);
+
+  if (emailVerificationPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-hero-gradient" />
+        <div className="absolute inset-0 bg-grid-pattern bg-[size:40px_40px] opacity-30" />
+        <div className="mesh-gradient">
+          <div className="mesh-blob bg-brand-green w-[500px] h-[500px] -top-40 -right-40 animate-blob" />
+          <div className="mesh-blob bg-brand-blue w-[400px] h-[400px] -bottom-20 -left-20 animate-blob" style={{ animationDelay: '2s' }} />
+        </div>
+        <div className="relative z-10 w-full max-w-md">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="glass-card p-8 text-center">
+            <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }} className="w-20 h-20 rounded-full bg-brand-green/20 flex items-center justify-center mx-auto mb-6">
+              <Mail className="w-10 h-10 text-brand-green-light" />
+            </motion.div>
+            <h2 className="font-cairo font-bold text-xl mb-4">{isRTL ? 'تأكيد البريد الإلكتروني' : 'Email Verification'}</h2>
+            <p className="text-sm font-tajawal text-[var(--text-soft)] leading-relaxed mb-6">
+              {isRTL
+                ? 'تم إرسال رابط تأكيد إلى بريدك الإلكتروني، يرجى فتح البريد والضغط على الرابط لتفعيل حسابك'
+                : 'A confirmation link has been sent to your email. Please open your inbox and click the link to activate your account.'}
+            </p>
+            <div className="glass rounded-xl p-3 mb-6 flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-status-open shrink-0 mt-0.5" />
+              <p className="text-xs font-tajawal text-[var(--text-muted)] text-start">
+                {isRTL
+                  ? 'لن تتمكن من تسجيل الدخول حتى تقوم بتأكيد بريدك الإلكتروني. تحقق من صندوق الوارد أو مجلد الرسائل غير المرغوب فيها.'
+                  : 'You will not be able to log in until you confirm your email. Check your inbox or spam folder.'}
+              </p>
+            </div>
+            <motion.button
+              onClick={() => { clearEmailVerificationPending(); setMode('login'); setStep(1); }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full btn-primary flex items-center justify-center gap-2"
+            >
+              <span>{isRTL ? 'العودة لتسجيل الدخول' : 'Back to login'}</span>
+              <ArrowLeft className="w-5 h-5" />
+            </motion.button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (profile?.frozen) {
     return (
