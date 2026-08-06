@@ -107,15 +107,9 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
         </p>
       </div>
 
-      {/* Donate button */}
-      <button onClick={() => setShowForm(true)} className="btn-primary w-full flex items-center justify-center gap-2">
-        <Plus className="w-5 h-5" />
-        {isRTL ? 'تبرع بدواء' : 'Donate Medicine'}
-      </button>
-
       {/* Donation CTA */}
       <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => onOpenModal?.('medicine')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
+        <button onClick={() => setShowForm(true)} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
           <Gift className="w-5 h-5 mx-auto mb-1 text-brand-green-light" />
           <div className="font-cairo font-bold text-xs">{isRTL ? 'تبرع بدواء' : 'Donate Medicine'}</div>
           <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'أدوية مغلقة وغير مستعملة' : 'Sealed, unused medicines'}</div>
