@@ -402,6 +402,7 @@ export interface Conversation {
   closed_at: string | null;
   closed_by: string | null;
   entity_name: string | null;
+  entity_type: 'facility' | 'pharmacy' | 'other' | null;
 }
 
 export interface ConversationMessage {

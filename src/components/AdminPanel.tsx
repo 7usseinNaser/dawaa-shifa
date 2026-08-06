@@ -244,7 +244,7 @@ export default function AdminPanel() {
         }
       }
       setSuggestions(sugsData);
-      const convs = await supabase.from('conversations').select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name').order('created_at', { ascending: false }).limit(200);
+      const convs = await supabase.from('conversations').select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name,entity_type').order('created_at', { ascending: false }).limit(200);
       setConversations((convs.data || []) as Conversation[]);
       const deptData = (dept.status === 'fulfilled' ? (dept.value.data || []) : []) as Department[];
       const deptMap: Record<string, Department[]> = {};
@@ -830,11 +830,13 @@ export default function AdminPanel() {
         showToast(isRTL ? 'المحادثة موجودة مسبقاً' : 'Conversation already exists');
         return;
       }
+      const entityType = sug.user_role === 'pharmacist' ? 'pharmacy' : sug.user_role === 'facility_owner' ? 'facility' : 'other';
       const { data, error } = await supabase.from('conversations').insert({
         user_id: sug.user_id,
         subject,
         status: 'active',
         entity_name: sug.entity_name || null,
+        entity_type: entityType,
         suggestion_id: sug.id,
       }).select().single();
       if (error) throw error;
@@ -3183,9 +3185,8 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
 
   // Determine entity type from conversation metadata
   const getEntityType = (c: Conversation): 'facility' | 'pharmacy' | 'other' => {
-    const type = (c as unknown as Record<string, unknown>).entity_type as string | undefined;
-    if (type === 'facility') return 'facility';
-    if (type === 'pharmacy') return 'pharmacy';
+    if (c.entity_type === 'facility') return 'facility';
+    if (c.entity_type === 'pharmacy') return 'pharmacy';
     // Fallback: infer from entity_name prefix
     const name = (c.entity_name || '').toLowerCase();
     if (name.includes('مستشف') || name.includes('مرفق') || name.includes('hosp') || name.includes('facil')) return 'facility';

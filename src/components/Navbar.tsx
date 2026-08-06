@@ -138,7 +138,7 @@ export default function Navbar({ theme, onToggleTheme }: Props) {
       </AnimatePresence>
     </nav>
 
-    <DonationModal open={showDonate} onClose={() => setShowDonate(false)} />
+    <DonationModal open={showDonate} onClose={() => setShowDonate(false)} defaultType="platform" hideMedicineTab />
     </>
   );
 }

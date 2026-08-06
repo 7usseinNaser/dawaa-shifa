@@ -37,11 +37,11 @@ function ReportsModal({ isRTL, mode, setMode, onClose }: { isRTL: boolean; mode:
   const [category, setCategory] = useState('ui');
   const [submitting, setSubmitting] = useState(false);
 
-  const entityName = profile?.role === 'pharmacist'
+  const entityType = profile?.role === 'pharmacist'
     ? 'pharmacy'
     : profile?.role === 'facility_owner'
     ? 'facility'
-    : '';
+    : 'other';
 
   async function submit() {
     if (!user || !description.trim()) return;
@@ -61,7 +61,7 @@ function ReportsModal({ isRTL, mode, setMode, onClose }: { isRTL: boolean; mode:
           user_id: user.id,
           user_name: profile?.display_name || user.email || '',
           user_role: profile?.role || 'citizen',
-          entity_name: entityName,
+          entity_name: entityType,
           title: title.trim(),
           description: description.trim(),
         });
@@ -201,6 +201,11 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
   const scrollRef = useRef<HTMLDivElement>(null);
   const bugScrollRef = useRef<HTMLDivElement>(null);
 
+  const entityType = profile?.role === 'pharmacist'
+    ? 'pharmacy'
+    : profile?.role === 'facility_owner'
+    ? 'facility'
+    : 'other';
   const [entityName, setEntityName] = useState('');
 
   useEffect(() => {
@@ -224,7 +229,7 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
       setLoading(true);
       const { data } = await supabase
         .from('conversations')
-        .select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name')
+        .select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name,entity_type')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       setConversations((data as Conversation[]) || []);
@@ -242,7 +247,7 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
           (async () => {
             const { data } = await supabase
               .from('conversations')
-              .select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name')
+              .select('id,report_id,user_id,admin_id,subject,status,created_at,closed_at,closed_by,entity_name,entity_type')
               .eq('user_id', user.id)
               .order('created_at', { ascending: false });
             setConversations((data as Conversation[]) || []);
@@ -367,6 +372,7 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
         subject: newSubject.trim(),
         status: 'active',
         entity_name: entityName,
+        entity_type: entityType,
       }).select().single();
       if (error) throw error;
       if (data) {

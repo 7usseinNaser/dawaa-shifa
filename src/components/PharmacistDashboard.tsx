@@ -198,7 +198,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
       .from('medicine_reservations')
       .select('id,medicine_id,pharmacy_id,user_id,user_name,user_phone,medicine_name,status,expires_at,confirmed_at,cancelled_at,created_at')
       .eq('pharmacy_id', pharmacyId)
-      .in('status', ['pending', 'confirmed'])
+      .or(`status.in.(pending,confirmed),and(status.in.(expired,cancelled,no_show),created_at.gte.${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()})`)
       .order('created_at', { ascending: false });
     if (data) setReservations(data as MedicineReservation[]);
   }
@@ -1249,7 +1249,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                                   <UserCheck className="w-3 h-3" />
                                   {r.user_name} · {r.user_phone}
                                 </div>
-                                {isPending && (
+                                        {isPending && (
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-status-busy">
                                     <Clock className="w-3 h-3" />
                                     <span className="font-mono tabular-nums">{mm}:{ss}</span>
@@ -1257,6 +1257,15 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                                 )}
                                 {isConfirmed && (
                                   <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-open/20 text-status-open">{isRTL ? 'مؤكد' : 'Confirmed'}</span>
+                                )}
+                                {r.status === 'expired' && (
+                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--border-subtle)] text-[var(--text-muted)]">{isRTL ? 'منتهي' : 'Expired'}</span>
+                                )}
+                                {r.status === 'cancelled' && (
+                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-emergency/20 text-status-emergency">{isRTL ? 'ملغي' : 'Cancelled'}</span>
+                                )}
+                                {r.status === 'no_show' && (
+                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400">{isRTL ? 'لم يحضر' : 'No-show'}</span>
                                 )}
                               </div>
                               <div className="flex flex-col gap-1.5 shrink-0">
