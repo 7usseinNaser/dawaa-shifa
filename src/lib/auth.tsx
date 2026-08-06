@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
+  resendVerification: (email: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -184,6 +185,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   };
 
+  const resendVerification = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
+      if (error) return { error: translateAuthError(error.message, 'ar') };
+      return { error: null };
+    } catch {
+      return { error: 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' };
+    }
+  };
+
   const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -197,7 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, emailVerificationPending, clearEmailVerificationPending, signUp, signIn, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, emailVerificationPending, clearEmailVerificationPending, signUp, signIn, signOut, resetPassword, resendVerification }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Clock, Lock, Mail, MessageCircle, Phone, Pill, RefreshCw, Snowflake, TriangleAlert as AlertTriangle, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import type { UserRole } from '@/lib/supabase';
@@ -15,7 +15,7 @@ const slideVariants = {
 };
 
 export default function AuthPage() {
-  const { signIn, signUp, profile, resetPassword, emailVerificationPending, clearEmailVerificationPending } = useAuth();
+  const { signIn, signUp, profile, resetPassword, emailVerificationPending, clearEmailVerificationPending, resendVerification } = useAuth();
   const { t, lang } = useLang();
   const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
@@ -28,7 +28,55 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Resend verification state
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendToast, setResendToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  const validateEmail = (val: string) => {
+    if (!val) return;
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!re.test(val) || !val.split('@')[1].includes('.') || val.endsWith('.')) {
+      setEmailError(isRTL ? 'يرجى إدخال بريد إلكتروني صحيح وقابل للاستلام' : 'Please enter a valid, deliverable email address');
+    } else {
+      setEmailError('');
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    const { error } = await resendVerification(email);
+    setResendLoading(false);
+    if (error) {
+      setResendToast({ type: 'error', msg: error });
+    } else {
+      setResendToast({ type: 'success', msg: isRTL ? 'تم إعادة إرسال رابط التحقق بنجاح' : 'Verification link resent successfully' });
+      setResendCooldown(60);
+    }
+  };
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  useEffect(() => {
+    if (!resendToast) return;
+    const timer = setTimeout(() => setResendToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [resendToast]);
+
+  const handleEditEmail = () => {
+    clearEmailVerificationPending();
+    setMode('register');
+    setStep(1);
+    setError('');
+  };
 
   // Reset password — fully separate state
   const [view, setView] = useState<'auth' | 'reset'>('auth');
@@ -67,6 +115,11 @@ export default function AuthPage() {
         setPhoneError(isRTL
           ? 'رقم الجوال غير صحيح. يجب أن يبدأ بـ 05 أو +970 ويتكون من 10 أرقام.'
           : 'Invalid phone. Must start with 05 or +970 and be 10 digits.');
+        return;
+      }
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRe.test(email) || !email.split('@')[1].includes('.') || email.endsWith('.')) {
+        setEmailError(isRTL ? 'يرجى إدخال بريد إلكتروني صحيح وقابل للاستلام' : 'Please enter a valid, deliverable email address');
         return;
       }
     }
@@ -344,8 +397,9 @@ export default function AuthPage() {
                       <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.email')}</label>
                       <div className="relative">
                         <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
+                        <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(''); validateEmail(e.target.value); }} placeholder="email@example.com" required className={`w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none transition-colors ${emailError ? 'border-red-500' : 'focus:border-brand-green'}`} />
                       </div>
+                      {emailError && <p className="text-xs text-red-400 mt-1 font-tajawal">{emailError}</p>}
                     </div>
 
                     <div>
