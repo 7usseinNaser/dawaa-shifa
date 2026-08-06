@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Clock, Lock, Mail, MessageCircle, Phone, Pill, RefreshCw, Snowflake, TriangleAlert as AlertTriangle, User } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import type { UserRole } from '@/lib/supabase';
@@ -15,7 +15,7 @@ const slideVariants = {
 };
 
 export default function AuthPage() {
-  const { signIn, signUp, profile, resetPassword, emailVerificationPending, clearEmailVerificationPending, resendVerification } = useAuth();
+  const { signIn, signUp, profile, resetPassword } = useAuth();
   const { t, lang } = useLang();
   const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
@@ -28,55 +28,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Resend verification state
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendToast, setResendToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-
-  const validateEmail = (val: string) => {
-    if (!val) return;
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!re.test(val) || !val.split('@')[1].includes('.') || val.endsWith('.')) {
-      setEmailError(isRTL ? 'يرجى إدخال بريد إلكتروني صحيح وقابل للاستلام' : 'Please enter a valid, deliverable email address');
-    } else {
-      setEmailError('');
-    }
-  };
-
-  const handleResend = async () => {
-    if (resendCooldown > 0 || resendLoading) return;
-    setResendLoading(true);
-    const { error } = await resendVerification(email);
-    setResendLoading(false);
-    if (error) {
-      setResendToast({ type: 'error', msg: error });
-    } else {
-      setResendToast({ type: 'success', msg: isRTL ? 'تم إعادة إرسال رابط التحقق بنجاح' : 'Verification link resent successfully' });
-      setResendCooldown(60);
-    }
-  };
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
-  useEffect(() => {
-    if (!resendToast) return;
-    const timer = setTimeout(() => setResendToast(null), 4000);
-    return () => clearTimeout(timer);
-  }, [resendToast]);
-
-  const handleEditEmail = () => {
-    clearEmailVerificationPending();
-    setMode('register');
-    setStep(1);
-    setError('');
-  };
 
   // Reset password — fully separate state
   const [view, setView] = useState<'auth' | 'reset'>('auth');
@@ -117,19 +69,11 @@ export default function AuthPage() {
           : 'Invalid phone. Must start with 05 or +970 and be 10 digits.');
         return;
       }
-      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRe.test(email) || !email.split('@')[1].includes('.') || email.endsWith('.')) {
-        setEmailError(isRTL ? 'يرجى إدخال بريد إلكتروني صحيح وقابل للاستلام' : 'Please enter a valid, deliverable email address');
-        return;
-      }
     }
     setLoading(true);
     if (mode === 'register') {
-      const { error, needsVerification } = await signUp(email, password, role, name, phone.trim());
+      const { error } = await signUp(email, password, role, name, phone.trim());
       if (error) setError(error);
-      // If verification is needed, the auth context sets emailVerificationPending
-      // and the verification screen is shown instead of logging in.
-      if (needsVerification) { setLoading(false); return; }
     } else {
       const { error } = await signIn(email, password);
       if (error) setError(error);
@@ -190,49 +134,6 @@ export default function AuthPage() {
       window.location.hash = '#/' + redirect.replace(/^\/+/, '');
     }
   }, [profile]);
-
-  if (emailVerificationPending) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-hero-gradient" />
-        <div className="absolute inset-0 bg-grid-pattern bg-[size:40px_40px] opacity-30" />
-        <div className="mesh-gradient">
-          <div className="mesh-blob bg-brand-green w-[500px] h-[500px] -top-40 -right-40 animate-blob" />
-          <div className="mesh-blob bg-brand-blue w-[400px] h-[400px] -bottom-20 -left-20 animate-blob" style={{ animationDelay: '2s' }} />
-        </div>
-        <div className="relative z-10 w-full max-w-md">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="glass-card p-8 text-center">
-            <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }} className="w-20 h-20 rounded-full bg-brand-green/20 flex items-center justify-center mx-auto mb-6">
-              <Mail className="w-10 h-10 text-brand-green-light" />
-            </motion.div>
-            <h2 className="font-cairo font-bold text-xl mb-4">{isRTL ? 'تأكيد البريد الإلكتروني' : 'Email Verification'}</h2>
-            <p className="text-sm font-tajawal text-[var(--text-soft)] leading-relaxed mb-6">
-              {isRTL
-                ? 'تم إرسال رابط تأكيد إلى بريدك الإلكتروني، يرجى فتح البريد والضغط على الرابط لتفعيل حسابك'
-                : 'A confirmation link has been sent to your email. Please open your inbox and click the link to activate your account.'}
-            </p>
-            <div className="glass rounded-xl p-3 mb-6 flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-status-open shrink-0 mt-0.5" />
-              <p className="text-xs font-tajawal text-[var(--text-muted)] text-start">
-                {isRTL
-                  ? 'لن تتمكن من تسجيل الدخول حتى تقوم بتأكيد بريدك الإلكتروني. تحقق من صندوق الوارد أو مجلد الرسائل غير المرغوب فيها.'
-                  : 'You will not be able to log in until you confirm your email. Check your inbox or spam folder.'}
-              </p>
-            </div>
-            <motion.button
-              onClick={() => { clearEmailVerificationPending(); setMode('login'); setStep(1); }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full btn-primary flex items-center justify-center gap-2"
-            >
-              <span>{isRTL ? 'العودة لتسجيل الدخول' : 'Back to login'}</span>
-              <ArrowLeft className="w-5 h-5" />
-            </motion.button>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
 
   if (profile?.frozen) {
     return (
@@ -397,9 +298,8 @@ export default function AuthPage() {
                       <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.email')}</label>
                       <div className="relative">
                         <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                        <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailError(''); validateEmail(e.target.value); }} placeholder="email@example.com" required className={`w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none transition-colors ${emailError ? 'border-red-500' : 'focus:border-brand-green'}`} />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
                       </div>
-                      {emailError && <p className="text-xs text-red-400 mt-1 font-tajawal">{emailError}</p>}
                     </div>
 
                     <div>
