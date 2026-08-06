@@ -37,7 +37,7 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
       donQuery,
       supabase.from('pharmacies').select('id,name,area,phone,verified,deleted_at').eq('verified', true).is('deleted_at', null),
     ]);
-    console.log("donation requests:", donRes.data, "error:", donRes.error);
+    console.log("donations:", donRes.data, donRes.error);
     if (donRes.data) setDonations(donRes.data as MedicineDonation[]);
     if (pharmRes.data) setPharmacies(pharmRes.data as Pharmacy[]);
     setLoading(false);
