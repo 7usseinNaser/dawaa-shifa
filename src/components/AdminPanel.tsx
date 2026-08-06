@@ -75,6 +75,50 @@ function downloadHTML(title: string, rows: Record<string, unknown>[], filename: 
   downloadFile(html, filename, 'text/html');
 }
 
+function ConversationGroup({ name, convs, icon, iconColor, renderItem }: {
+  name: string;
+  convs: Conversation[];
+  icon: React.ReactNode;
+  iconColor: string;
+  renderItem: (c: Conversation) => React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="glass-card overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`w-8 h-8 rounded-lg ${iconColor} flex items-center justify-center shrink-0`}>
+            {icon}
+          </div>
+          <span className="font-cairo font-bold text-sm truncate">{name}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-blue/20 text-brand-blue-light font-bold shrink-0">
+            {convs.length}
+          </span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="p-2 space-y-2 border-t border-[var(--border-subtle)]">
+              {convs.map(renderItem)}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const { user, profile, signOut } = useAuth();
   const { lang } = useLang();
@@ -3182,45 +3226,6 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
     </div>
   );
 
-  // Accordion group renderer
-  const renderGroup = (name: string, convs: Conversation[], groupIdx: number, icon: React.ReactNode, iconColor: string) => {
-    const [expanded, setExpanded] = useState(false);
-    return (
-      <div key={`${name}-${groupIdx}`} className="glass-card overflow-hidden">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full p-3 flex items-center justify-between hover:bg-white/5 transition-colors"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-8 h-8 rounded-lg ${iconColor} flex items-center justify-center shrink-0`}>
-              {icon}
-            </div>
-            <span className="font-cairo font-bold text-sm truncate">{name}</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-blue/20 text-brand-blue-light font-bold shrink-0">
-              {convs.length}
-            </span>
-          </div>
-          <ChevronDown className={`w-4 h-4 text-[var(--text-muted)] shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        </button>
-        <AnimatePresence initial={false}>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              className="overflow-hidden"
-            >
-              <div className="p-2 space-y-2 border-t border-[var(--border-subtle)]">
-                {convs.map(renderItem)}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
-
   const renderSection = (title: string, groups: Map<string, Conversation[]>, icon: React.ReactNode, iconColor: string, emptyText: string) => {
     const total = Array.from(groups.values()).reduce((sum, convs) => sum + convs.length, 0);
     return (
@@ -3233,7 +3238,9 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
           <p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-4">{emptyText}</p>
         ) : (
           <div className="space-y-2">
-            {Array.from(groups.entries()).map(([name, convs], i) => renderGroup(name, convs, i, icon, iconColor))}
+            {Array.from(groups.entries()).map(([name, convs], i) => (
+              <ConversationGroup key={`${name}-${i}`} name={name} convs={convs} icon={icon} iconColor={iconColor} renderItem={renderItem} />
+            ))}
           </div>
         )}
       </div>

@@ -123,26 +123,19 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         )
         .on('postgres_changes', { event: '*', schema: 'public', table: 'medicine_reservations', filter: `pharmacy_id=eq.${(pharmData as Pharmacy)?.id}` },
           (payload) => {
-            if (payload.eventType === 'INSERT') setReservations((prev) => [payload.new as MedicineReservation, ...prev]);
-            else if (payload.eventType === 'UPDATE') setReservations((prev) => prev.map((r) => r.id === (payload.new as MedicineReservation).id ? payload.new as MedicineReservation : r));
+            if (payload.eventType === 'INSERT') {
+              const r = payload.new as MedicineReservation;
+              setReservations((prev) => [r, ...prev]);
+              showToast(isRTL ? `حجز جديد: ${r.medicine_name} — ${r.user_name}` : `New reservation: ${r.medicine_name} — ${r.user_name}`, 'success');
+            } else if (payload.eventType === 'UPDATE') setReservations((prev) => prev.map((r) => r.id === (payload.new as MedicineReservation).id ? payload.new as MedicineReservation : r));
             else if (payload.eventType === 'DELETE') setReservations((prev) => prev.filter((r) => r.id !== (payload.old as MedicineReservation).id));
           }
         )
         .subscribe();
 
-      // Periodic background refetch every 2 minutes
-      const refetchInterval = setInterval(() => {
-        const pid = (pharmData as Pharmacy)?.id;
-        if (pid) {
-          loadMedicines(pid);
-          loadReservations(pid);
-        }
-      }, 120000);
-
       return () => {
         cancelled = true;
         supabase.removeChannel(medChannel);
-        clearInterval(refetchInterval);
       };
     })();
     return () => { cancelled = true; };
@@ -263,6 +256,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
         status: 'open',
         lat: 0,
         lng: 0,
+        approval_status: 'pending',
       })
       .select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id')
       .single();
@@ -978,46 +972,45 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                       <p className="text-[var(--text-muted)]">{t('pharm.noMeds')}</p>
                     </div>
                   ) : (
-                    <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       {filteredMeds.map((m, i) => {
                         const out = m.quantity <= 0;
                         const low = m.quantity > 0 && m.quantity < 5;
                         return (
                           <motion.div
                             key={m.id}
-                            initial={{ opacity: 0, y: 12 }}
+                            initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: i * 0.04, ease: EASE }}
-                            className="glass-card p-5"
+                            transition={{ duration: 0.25, delay: i * 0.02, ease: EASE }}
+                            className="glass-card p-3 flex items-center gap-3"
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <h3 className="font-bold text-gradient-green truncate">{m.medicine_name}</h3>
-                                {m.generic_name && (
-                                  <p className="text-sm text-[var(--text-muted)] mt-0.5 truncate">
-                                    {m.generic_name}
-                                  </p>
-                                )}
-                                <p className="mt-2 font-bold text-brand-blue-light">
-                                  {m.price} ₪
-                                </p>
-                              </div>
-                              <StockBadge out={out} low={low} qty={m.quantity} t={t} />
+                            <div className="w-9 h-9 rounded-xl bg-brand-green/10 flex items-center justify-center shrink-0">
+                              <Pill className="w-4 h-4 text-brand-green-light" />
                             </div>
-                            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-sm text-gradient-green truncate">{m.medicine_name}</h3>
+                              {m.generic_name && (
+                                <p className="text-xs text-[var(--text-muted)] truncate">
+                                  {m.generic_name}
+                                </p>
+                              )}
+                            </div>
+                            <span className="font-bold text-sm text-brand-blue-light shrink-0">{m.price} ₪</span>
+                            <StockBadge out={out} low={low} qty={m.quantity} t={t} />
+                            <div className="flex items-center gap-1 shrink-0">
                               <button
                                 onClick={() => openEditModal(m)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-brand-green/15 text-sm font-semibold transition-colors"
+                                className="p-2 rounded-lg bg-white/5 hover:bg-brand-green/15 transition-colors"
+                                title={t('pharm.edit')}
                               >
                                 <Pencil className="w-4 h-4" />
-                                {t('pharm.edit')}
                               </button>
                               <button
                                 onClick={() => setDeleteTarget(m)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-red-500/15 text-sm font-semibold transition-colors"
+                                className="p-2 rounded-lg bg-white/5 hover:bg-red-500/15 transition-colors"
+                                title={t('pharm.delete')}
                               >
                                 <Trash2 className="w-4 h-4" />
-                                {t('pharm.delete')}
                               </button>
                             </div>
                           </motion.div>
