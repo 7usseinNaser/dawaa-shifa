@@ -282,20 +282,54 @@ export default function AdminPanel() {
     if (isAdmin) loadAll();
   }, [isAdmin, loadAll]);
 
-  // Realtime: refresh when bug_reports or suggestions change
+  // Realtime: targeted partial reloads instead of full loadAll
+  const reloadBugReports = useCallback(async () => {
+    const { data } = await supabase.from('bug_reports').select('id,reporter_id,reporter_name,bug_type,category,description,status,resolved_at,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
+    const bugsData = (data || []) as BugReport[];
+    for (const b of bugsData) {
+      if (b.reporter_id) {
+        const u = users.find((p) => p.id === b.reporter_id);
+        b.reporter_email = u?.email || null;
+      }
+    }
+    setBugReports(bugsData);
+  }, [users]);
+
+  const reloadSuggestions = useCallback(async () => {
+    const { data } = await supabase.from('suggestions').select('id,user_id,user_name,user_role,entity_name,title,description,status,admin_notes,created_at').order('created_at', { ascending: false }).limit(200);
+    const sugsData = (data || []) as Suggestion[];
+    for (const s of sugsData) {
+      if (s.user_id) {
+        const u = users.find((p) => p.id === s.user_id);
+        s.user_email = u?.email || null;
+      }
+    }
+    setSuggestions(sugsData);
+  }, [users]);
+
+  const reloadPharmacies = useCallback(async () => {
+    const { data } = await supabase.from('pharmacies').select('id,owner_id,name,area,address,phone,open_hours,is_open,status,verified,approval_status,rejection_reason,deleted_at,lat,lng,rating,reviews_count,power_status,last_updated_at,created_at,is_reference,facility_id');
+    setPharmacies((data || []) as Pharmacy[]);
+  }, []);
+
+  const reloadFacilities = useCallback(async () => {
+    const { data } = await supabase.from('facilities').select('id,owner_id,name,type,area,address,phone,overall_status,verified,approval_status,rejection_reason,deleted_at,lat,lng,is_free,pricing_type,max_capacity,facility_capacity,power_status,occupancy_rate,last_updated_at,created_at');
+    setFacilities((data || []) as Facility[]);
+  }, []);
+
   useEffect(() => {
     if (!isAdmin) return;
     const channel = supabase
-      .channel('admin_bug_suggestion_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bug_reports' }, () => loadAll())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, () => loadAll())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pharmacies' }, () => loadAll())
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pharmacies' }, () => loadAll())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'facilities' }, () => loadAll())
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'facilities' }, () => loadAll())
+      .channel('admin_realtime_partial')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bug_reports' }, reloadBugReports)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'suggestions' }, reloadSuggestions)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pharmacies' }, reloadPharmacies)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pharmacies' }, reloadPharmacies)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'facilities' }, reloadFacilities)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'facilities' }, reloadFacilities)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [isAdmin, loadAll]);
+  }, [isAdmin, reloadBugReports, reloadSuggestions, reloadPharmacies, reloadFacilities]);
 
   async function logAction(action: string, item: string, beforeState?: Record<string, unknown> | null, afterState?: Record<string, unknown> | null, extraDetails?: Record<string, unknown>) {
     if (!user) return;
@@ -1813,7 +1847,13 @@ function MedicinesList({ medicines, pharmacies, pharmFilter, setPharmFilter, onA
   onAdd: () => void; onEdit: (id: string) => void; onDelete: (id: string) => void; onToggleRestrict: (id: string) => void; onVersionHistory?: (id: string) => void;
   actionLoading: string | null; isRTL: boolean;
 }) {
-  const filtered = medicines.filter((m) => !m.deleted_at && (pharmFilter === 'all' || m.pharmacy_id === pharmFilter));
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 30;
+  const filtered = useMemo(() => medicines.filter((m) => !m.deleted_at && (pharmFilter === 'all' || m.pharmacy_id === pharmFilter)), [medicines, pharmFilter]);
+  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
+  const safePage = Math.min(page, Math.max(0, pageCount - 1));
+  const paged = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [pharmFilter]);
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1830,8 +1870,9 @@ function MedicinesList({ medicines, pharmacies, pharmFilter, setPharmFilter, onA
         </div>
       </div>
       {filtered.length === 0 ? (<p className="text-center text-sm font-tajawal text-[var(--text-muted)] py-6">{isRTL ? 'لا توجد أدوية' : 'No medicines'}</p>) : (
-        <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-          {filtered.map((m) => (
+        <>
+        <div className="space-y-2">
+          {paged.map((m) => (
             <div key={m.id} className="glass-card p-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 {m.is_restricted && <Ban className="w-4 h-4 shrink-0 text-status-emergency" />}
@@ -1850,6 +1891,14 @@ function MedicinesList({ medicines, pharmacies, pharmFilter, setPharmFilter, onA
             </div>
           ))}
         </div>
+        {pageCount > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0} className="p-1.5 rounded-lg glass disabled:opacity-30"><ChevronDown className="w-4 h-4 rotate-90" /></button>
+            <span className="text-xs font-tajawal text-[var(--text-muted)]">{safePage + 1} / {pageCount}</span>
+            <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={safePage >= pageCount - 1} className="p-1.5 rounded-lg glass disabled:opacity-30"><ChevronDown className="w-4 h-4 -rotate-90" /></button>
+          </div>
+        )}
+        </>
       )}
     </div>
   );
@@ -3185,8 +3234,13 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
   actionLoading: string | null;
   isRTL: boolean;
 }) {
+  const [closedPage, setClosedPage] = useState(0);
+  const CLOSED_PAGE_SIZE = 10;
   const active = conversations.filter((c) => c.status === 'active');
   const closed = conversations.filter((c) => c.status !== 'active');
+  const closedPageCount = Math.ceil(closed.length / CLOSED_PAGE_SIZE);
+  const safeClosedPage = Math.min(closedPage, Math.max(0, closedPageCount - 1));
+  const pagedClosed = closed.slice(safeClosedPage * CLOSED_PAGE_SIZE, safeClosedPage * CLOSED_PAGE_SIZE + CLOSED_PAGE_SIZE);
 
   // Determine entity type from conversation metadata
   const getEntityType = (c: Conversation): 'facility' | 'pharmacy' | 'other' => {
@@ -3286,7 +3340,14 @@ function AdminConversationsList({ conversations, onOpen, onClose, actionLoading,
       {closed.length > 0 && (
         <div>
           <h4 className="font-cairo font-bold text-sm mb-2 text-[var(--text-muted)]">{isRTL ? 'محادثات مغلقة' : 'Closed Conversations'} ({closed.length})</h4>
-          <div className="space-y-2">{closed.slice(0, 10).map(renderItem)}</div>
+          <div className="space-y-2">{pagedClosed.map(renderItem)}</div>
+          {closedPageCount > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button onClick={() => setClosedPage((p) => Math.max(0, p - 1))} disabled={safeClosedPage === 0} className="p-1.5 rounded-lg glass disabled:opacity-30"><ChevronDown className="w-4 h-4 rotate-90" /></button>
+              <span className="text-xs font-tajawal text-[var(--text-muted)]">{safeClosedPage + 1} / {closedPageCount}</span>
+              <button onClick={() => setClosedPage((p) => Math.min(closedPageCount - 1, p + 1))} disabled={safeClosedPage >= closedPageCount - 1} className="p-1.5 rounded-lg glass disabled:opacity-30"><ChevronDown className="w-4 h-4 -rotate-90" /></button>
+            </div>
+          )}
         </div>
       )}
     </div>
