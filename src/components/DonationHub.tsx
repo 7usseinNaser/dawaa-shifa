@@ -32,14 +32,17 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
 
   const load = useCallback(async () => {
     setLoading(true);
+    const donQuery = user
+      ? supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').eq('donor_id', user.id).order('created_at', { ascending: false })
+      : supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false });
     const [donRes, pharmRes] = await Promise.all([
-      supabase.from('medicine_donations').select('id,donor_id,donor_name,donor_phone,medicine_name,generic_name,quantity,expiry_date,condition,area,notes,status,pharmacy_id,rejection_reason,recipient_pharmacy_id,recipient_facility_id,distributed_at,created_at,updated_at').order('created_at', { ascending: false }),
+      donQuery,
       supabase.from('pharmacies').select('id,name,area,phone,verified,deleted_at').eq('verified', true).is('deleted_at', null),
     ]);
     if (donRes.data) setDonations(donRes.data as MedicineDonation[]);
     if (pharmRes.data) setPharmacies(pharmRes.data as Pharmacy[]);
     setLoading(false);
-  }, []);
+  }, [user]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -107,17 +110,25 @@ export function DonationHub({ onOpenModal }: { onOpenModal?: (type: DonationType
         </p>
       </div>
 
-      {/* Donation CTA */}
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => setShowForm(true)} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
-          <Gift className="w-5 h-5 mx-auto mb-1 text-brand-green-light" />
-          <div className="font-cairo font-bold text-xs">{isRTL ? 'تبرع بدواء' : 'Donate Medicine'}</div>
-          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'أدوية مغلقة وغير مستعملة' : 'Sealed, unused medicines'}</div>
+      {/* Donation CTA buttons */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button onClick={() => setShowForm(true)} className="w-full glass-card p-4 rounded-2xl flex items-center gap-3 hover:scale-[1.01] transition-transform">
+          <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center shrink-0">
+            <Gift className="w-5 h-5 text-brand-green-light" />
+          </div>
+          <div className="text-start">
+            <div className="font-cairo font-bold text-sm">{isRTL ? 'تبرع بدواء الآن' : 'Donate Medicine Now'}</div>
+            <div className="text-[10px] font-tajawal text-[var(--text-muted)]">{isRTL ? 'أدوية مغلقة وغير مستعملة' : 'Sealed, unused medicines'}</div>
+          </div>
         </button>
-        <button onClick={() => onOpenModal?.('platform')} className="glass-card p-3 rounded-2xl text-center hover:scale-[1.02] transition-transform">
-          <Heart className="w-5 h-5 mx-auto mb-1 text-brand-blue-light" />
-          <div className="font-cairo font-bold text-xs">{isRTL ? 'دعم المنصة' : 'Support Platform'}</div>
-          <div className="text-[10px] font-tajawal text-[var(--text-muted)] mt-0.5">{isRTL ? 'دعم مالي' : 'Financial support'}</div>
+        <button onClick={() => onOpenModal?.('platform')} className="w-full glass-card p-4 rounded-2xl flex items-center gap-3 hover:scale-[1.01] transition-transform">
+          <div className="w-10 h-10 rounded-xl bg-brand-blue/15 flex items-center justify-center shrink-0">
+            <Heart className="w-5 h-5 text-brand-blue-light" />
+          </div>
+          <div className="text-start">
+            <div className="font-cairo font-bold text-sm">{isRTL ? 'تبرع لدعم المنصة' : 'Support the Platform'}</div>
+            <div className="text-[10px] font-tajawal text-[var(--text-muted)]">{isRTL ? 'ساعدنا في الاستمرار' : 'Help us keep going'}</div>
+          </div>
         </button>
       </div>
 

@@ -201,11 +201,22 @@ function ConversationsModal({ isRTL, onClose }: { isRTL: boolean; onClose: () =>
   const scrollRef = useRef<HTMLDivElement>(null);
   const bugScrollRef = useRef<HTMLDivElement>(null);
 
-  const entityName = profile?.role === 'pharmacist'
-    ? (isRTL ? 'صيدلية' : 'Pharmacy')
-    : profile?.role === 'facility_owner'
-    ? (isRTL ? 'مستشفى/مرفق' : 'Facility')
-    : '';
+  const [entityName, setEntityName] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      if (profile?.role === 'pharmacist') {
+        const { data } = await supabase.from('pharmacies').select('name').eq('owner_id', user.id).maybeSingle();
+        setEntityName(data?.name || (isRTL ? 'صيدلية' : 'Pharmacy'));
+      } else if (profile?.role === 'facility_owner') {
+        const { data } = await supabase.from('facilities').select('name').eq('owner_id', user.id).maybeSingle();
+        setEntityName(data?.name || (isRTL ? 'مرفق طبي' : 'Medical Facility'));
+      } else {
+        setEntityName('');
+      }
+    })();
+  }, [user, profile?.role]);
 
   useEffect(() => {
     if (!user) return;
