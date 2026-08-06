@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { cachedFetch, invalidatePrefix } from '@/lib/cache';
 import type { Pharmacy, Facility, Medicine, Department } from '@/lib/supabase';
 
 export interface LiveStats {
@@ -57,6 +58,7 @@ const FALLBACK_FACILITY: FacilityPreview = {
 };
 
 async function loadStats(): Promise<LiveStats> {
+  return cachedFetch('live-stats', async () => {
   try {
     const [pharmRes, facilRes, mpRes, fStatusRes, pStatusRes, statsRes] = await Promise.all([
       supabase.from('pharmacies').select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('approval_status', 'approved'),
@@ -93,9 +95,11 @@ async function loadStats(): Promise<LiveStats> {
   } catch {
     return FALLBACK;
   }
+  }, 5000);
 }
 
 async function loadNearby(): Promise<{ facilities: NearbyEntity[]; pharmacies: NearbyEntity[] }> {
+  return cachedFetch('nearby-entities', async () => {
   try {
     const [facRes, pharmRes] = await Promise.all([
       supabase.from('facilities').select('name,overall_status,type,area').is('deleted_at', null).eq('approval_status', 'approved').order('last_updated_at', { ascending: false, nullsFirst: false }).limit(2),
@@ -118,6 +122,7 @@ async function loadNearby(): Promise<{ facilities: NearbyEntity[]; pharmacies: N
   } catch {
     return { facilities: [], pharmacies: [] };
   }
+  }, 10000);
 }
 
 export function useLiveStats(): LiveStats {
@@ -129,8 +134,8 @@ export function useLiveStats(): LiveStats {
 
     const channel = supabase
       .channel('live-stats')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' }, () => { if (active) loadStats().then((s) => setStats(s)).catch(() => {}); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, () => { if (active) loadStats().then((s) => setStats(s)).catch(() => {}); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' }, () => { invalidatePrefix('live-stats'); invalidatePrefix('nearby-entities'); if (active) loadStats().then((s) => setStats(s)).catch(() => {}); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, () => { invalidatePrefix('live-stats'); invalidatePrefix('nearby-entities'); if (active) loadStats().then((s) => setStats(s)).catch(() => {}); })
       .subscribe();
 
     return () => { active = false; supabase.removeChannel(channel); };
@@ -149,8 +154,8 @@ export function useNearbyEntities() {
 
     const channel = supabase
       .channel('nearby-entities')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, () => { invalidatePrefix('nearby-entities'); refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' }, () => { invalidatePrefix('nearby-entities'); refresh(); })
       .subscribe();
 
     return () => { active = false; supabase.removeChannel(channel); };
@@ -168,6 +173,7 @@ export interface MedicinePreview {
 }
 
 async function loadMedicines(limit = 4): Promise<MedicinePreview[]> {
+  return cachedFetch(`medicines-preview-${limit}`, async () => {
   try {
     const { data } = await supabase
       .from('medicines')
@@ -193,6 +199,7 @@ async function loadMedicines(limit = 4): Promise<MedicinePreview[]> {
   } catch {
     return FALLBACK_MEDICINES.slice(0, limit);
   }
+  }, 10000);
 }
 
 export function useMedicinePreviews(limit = 4) {
@@ -203,7 +210,7 @@ export function useMedicinePreviews(limit = 4) {
     refresh();
     const channel = supabase
       .channel('medicine-previews')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, () => { invalidatePrefix('medicines-preview-'); refresh(); })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, [limit]);
@@ -226,6 +233,7 @@ export interface DeptPreview {
 }
 
 async function loadFacilityPreview(): Promise<FacilityPreview | null> {
+  return cachedFetch('facility-preview', async () => {
   try {
     const { data: facil } = await supabase
       .from('facilities')
@@ -259,6 +267,7 @@ async function loadFacilityPreview(): Promise<FacilityPreview | null> {
   } catch {
     return FALLBACK_FACILITY;
   }
+  }, 10000);
 }
 
 export function useFacilityPreview() {
@@ -269,8 +278,8 @@ export function useFacilityPreview() {
     refresh();
     const channel = supabase
       .channel('facility-preview')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, () => { invalidatePrefix('facility-preview'); refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => { invalidatePrefix('facility-preview'); refresh(); })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, []);
@@ -287,6 +296,7 @@ export interface MapPreview {
 }
 
 async function loadMapPoints(limit = 8): Promise<MapPreview[]> {
+  return cachedFetch(`map-points-${limit}`, async () => {
   try {
     const [facRes, pharmRes] = await Promise.all([
       supabase.from('facilities').select('id,name,overall_status,type,lat,lng').is('deleted_at', null).eq('approval_status', 'approved').limit(limit),
@@ -303,6 +313,7 @@ async function loadMapPoints(limit = 8): Promise<MapPreview[]> {
   } catch {
     return FALLBACK_MAP.slice(0, limit);
   }
+  }, 10000);
 }
 
 export function useMapPoints(limit = 8) {
@@ -313,8 +324,8 @@ export function useMapPoints(limit = 8) {
     refresh();
     const channel = supabase
       .channel('map-points')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'facilities' }, () => { invalidatePrefix('map-points-'); refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pharmacies' }, () => { invalidatePrefix('map-points-'); refresh(); })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, [limit]);

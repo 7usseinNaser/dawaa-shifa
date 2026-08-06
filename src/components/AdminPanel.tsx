@@ -1749,7 +1749,7 @@ function PendingList({ pharmacies, facilities, medicines, departments, onApprove
                 const facility = facilities.find((f) => f.id === item.facility_id);
                 return facility ? <div className="text-[10px] text-brand-blue-light font-tajawal mt-0.5">{isRTL ? 'تابعة لمرفق:' : 'Belongs to facility:'} {facility.name}</div> : null;
               })()}
-              <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">{isRTL ? 'تاريخ الإنشاء' : 'Created'}: {new Date(item.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}</div>
+              <div className="text-[10px] text-[var(--text-muted)] font-tajawal mt-0.5">{isRTL ? 'تاريخ الإنشاء' : 'Created'}: {new Date(item.created_at || '').toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}</div>
               {item.rejection_reason && (
                 <div className="text-[10px] text-status-emergency font-tajawal mt-0.5">{isRTL ? 'سبب الرفض السابق: ' : 'Previous rejection: '}{item.rejection_reason}</div>
               )}

@@ -100,6 +100,7 @@ export interface Pharmacy {
   facility_id?: string | null;
   resubmitted?: boolean;
   resubmitted_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface Medicine {
@@ -145,6 +146,7 @@ export interface Facility {
   rejection_reason: string | null;
   resubmitted?: boolean;
   resubmitted_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface Department {
