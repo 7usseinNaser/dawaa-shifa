@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, ArrowLeft, CheckCircle, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { Activity, ArrowLeft, CircleCheck as CheckCircle, Lock, Loader as Loader2, CircleAlert as AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLang } from '@/lib/i18n';
 

@@ -1,4 +1,4 @@
-import { Fingerprint, Lock, Shield, ShieldCheck, UserCheck } from 'lucide-react';
+import { FingerprintPattern as Fingerprint, Lock, Shield, ShieldCheck, UserCheck } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 
 const items = [

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ScanLine, X, Camera, Loader2, CheckCircle, AlertTriangle, RefreshCw, Package } from 'lucide-react';
+import { ScanLine, X, Camera, Loader as Loader2, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, RefreshCw, Package } from 'lucide-react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 
 interface BarcodeScannerProps {

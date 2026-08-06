@@ -1,4 +1,4 @@
-import { Cloud, Code2, Database, Map, Smartphone, Zap } from 'lucide-react';
+import { Cloud, Code as Code2, Database, Map, Smartphone, Zap } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 
 const stack = [

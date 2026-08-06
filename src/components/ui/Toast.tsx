@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle, X } from 'lucide-react';
+import { CircleCheck as CheckCircle, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 export interface ToastData {

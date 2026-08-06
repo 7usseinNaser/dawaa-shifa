@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, Pill } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, Clock, Pill } from 'lucide-react';
 import { useReveal } from '@/hooks/useReveal';
 import { useLang } from '@/lib/i18n';
 
