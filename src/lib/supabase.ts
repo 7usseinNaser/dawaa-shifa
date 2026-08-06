@@ -369,6 +369,7 @@ export interface MedicineReservation {
   user_id: string;
   user_name: string;
   user_phone: string;
+  user_email: string | null;
   medicine_name: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'expired' | 'no_show';
   expires_at: string;

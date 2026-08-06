@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Copy, Flag, Heart, Hop as Home, Info, Loader as Loader2, LogOut, Moon, Package, Pencil, Pill, Plus, RefreshCw, RotateCcw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, Box, Check, ClipboardCopy, Clock, Copy, Flag, Heart, Hop as Home, Info, Loader as Loader2, LogOut, Mail, Moon, Package, Pencil, Phone, Pill, Plus, RefreshCw, RotateCcw, Search, Settings, Star, Store, Sun, Trash2, Upload, UserCheck, UserX, X, Circle as XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { supabase, type ActivityLogEntry, type Medicine, type MedicineReservation, type Pharmacy } from '@/lib/supabase';
@@ -43,6 +43,7 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reservations, setReservations] = useState<MedicineReservation[]>([]);
+  const [selectedReservation, setSelectedReservation] = useState<MedicineReservation | null>(null);
 
   // Setup form (no pharmacy yet)
   const [setupForm, setSetupForm] = useState({ name: '', area: '', address: '', phone: '' });
@@ -196,12 +197,30 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   async function loadReservations(pharmacyId: string) {
     const { data } = await supabase
       .from('medicine_reservations')
-      .select('id,medicine_id,pharmacy_id,user_id,user_name,user_phone,medicine_name,status,expires_at,confirmed_at,cancelled_at,created_at')
+      .select('id,medicine_id,pharmacy_id,user_id,user_name,user_phone,user_email,medicine_name,status,expires_at,confirmed_at,cancelled_at,created_at')
       .eq('pharmacy_id', pharmacyId)
       .or(`status.in.(pending,confirmed),and(status.in.(expired,cancelled,no_show),created_at.gte.${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()})`)
       .order('created_at', { ascending: false });
     if (data) setReservations(data as MedicineReservation[]);
   }
+
+  // Auto-mark expired reservations (pending + past expires_at)
+  useEffect(() => {
+    if (!pharmacy) return;
+    const interval = setInterval(async () => {
+      const now = new Date().toISOString();
+      const expired = reservations.filter((r) => r.status === 'pending' && new Date(r.expires_at).getTime() < Date.now());
+      if (expired.length > 0) {
+        for (const r of expired) {
+          await supabase.from('medicine_reservations').update({ status: 'expired', cancelled_at: now }).eq('id', r.id);
+          await supabase.from('medicines').update({ quantity: (medicines.find((m) => m.id === r.medicine_id)?.quantity ?? 0) + 1, last_updated: now }).eq('id', r.medicine_id);
+        }
+        await loadReservations(pharmacy.id);
+        await loadMedicines(pharmacy.id);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [pharmacy, reservations, medicines]);
 
   async function updateReservation(id: string, status: MedicineReservation['status'], restoreStock: boolean, medId?: string, medName?: string) {
     const updates: Record<string, unknown> = { status };
@@ -302,18 +321,33 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
   async function updatePharmacyTimestamp() {
     if (!pharmacy) return;
     setSaving(true);
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from('pharmacies')
-      .update({ last_updated_at: new Date().toISOString() })
+      .update({ last_updated_at: now })
       .eq('id', pharmacy.id);
-    setSaving(false);
     if (error) {
+      setSaving(false);
       console.error('[updatePharmacyTimestamp] Supabase error:', error.code, error.message, error.details, error.hint);
       showToast(isRTL ? `فشل التحديث: ${error.message}` : `Failed to update: ${error.message}`, 'error');
       return;
     }
-    setPharmacy({ ...pharmacy, last_updated_at: new Date().toISOString() });
-    showToast(isRTL ? 'تم تحديث وقت آخر تحديث — يعرف المستخدمون أن الأدوية محدّثة' : 'Last updated time refreshed — users can see medicines are current');
+    // Also update last_updated for all medicines belonging to this pharmacy
+    const { error: medError } = await supabase
+      .from('medicines')
+      .update({ last_updated: now })
+      .eq('pharmacy_id', pharmacy.id)
+      .is('deleted_at', null);
+    setSaving(false);
+    if (medError) {
+      console.error('[updatePharmacyTimestamp] medicines update error:', medError.code, medError.message);
+      showToast(isRTL ? `تحديثت الصيدلية لكن فشل تحديث الأدوية: ${medError.message}` : `Pharmacy updated but medicines failed: ${medError.message}`, 'error');
+      return;
+    }
+    setPharmacy({ ...pharmacy, last_updated_at: now });
+    setMedicines((prev) => prev.map((m) => ({ ...m, last_updated: now })));
+    setIncompleteMeds((prev) => prev.map((m) => ({ ...m, last_updated: now })));
+    showToast(isRTL ? 'تم تحديث الصيدلية وجميع الأدوية' : 'Pharmacy and all medicines updated');
     await logActivity('update_timestamp', pharmacy.name);
   }
 
@@ -1224,80 +1258,179 @@ export default function PharmacistDashboard({ theme, onToggleTheme }: { theme: '
                   className="space-y-5"
                 >
                   <h1 className="text-2xl font-bold text-gradient-green">{isRTL ? 'الحجوزات' : 'Reservations'}</h1>
-                  {reservations.length === 0 ? (
-                    <div className="glass-card p-8 text-center">
-                      <Clock className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
-                      <p className="text-sm text-[var(--text-muted)] font-tajawal">{isRTL ? 'لا توجد حجوزات نشطة حالياً' : 'No active reservations'}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {reservations.map((r) => {
-                        const remaining = Math.max(0, new Date(r.expires_at).getTime() - Date.now());
-                        const mm = String(Math.floor(remaining / 60000)).padStart(2, '0');
-                        const ss = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
-                        const isPending = r.status === 'pending';
-                        const isConfirmed = r.status === 'confirmed';
-                        return (
-                          <motion.div key={r.id} layout className="glass-card p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <Pill className="w-4 h-4 text-brand-green shrink-0" />
-                                  <span className="font-cairo font-bold text-sm">{r.medicine_name}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-tajawal">
-                                  <UserCheck className="w-3 h-3" />
-                                  {r.user_name} · {r.user_phone}
-                                </div>
-                                        {isPending && (
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-status-busy">
-                                    <Clock className="w-3 h-3" />
-                                    <span className="font-mono tabular-nums">{mm}:{ss}</span>
-                                  </div>
-                                )}
-                                {isConfirmed && (
-                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-open/20 text-status-open">{isRTL ? 'مؤكد' : 'Confirmed'}</span>
-                                )}
-                                {r.status === 'expired' && (
-                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--border-subtle)] text-[var(--text-muted)]">{isRTL ? 'منتهي' : 'Expired'}</span>
-                                )}
-                                {r.status === 'cancelled' && (
-                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-emergency/20 text-status-emergency">{isRTL ? 'ملغي' : 'Cancelled'}</span>
-                                )}
-                                {r.status === 'no_show' && (
-                                  <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400">{isRTL ? 'لم يحضر' : 'No-show'}</span>
-                                )}
-                              </div>
-                              <div className="flex flex-col gap-1.5 shrink-0">
-                                {isPending && (
-                                  <>
-                                    <button onClick={() => updateReservation(r.id, 'confirmed', false, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-open/20 text-status-open text-xs font-bold flex items-center gap-1.5 hover:bg-status-open/30 transition-colors">
-                                      <Check className="w-3.5 h-3.5" /> {isRTL ? 'قبول الطلب' : 'Accept'}
-                                    </button>
-                                    <button onClick={() => updateReservation(r.id, 'cancelled', true, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-emergency/20 text-status-emergency text-xs font-bold flex items-center gap-1.5 hover:bg-status-emergency/30 transition-colors">
-                                      <XCircle className="w-3.5 h-3.5" /> {isRTL ? 'رفض الطلب' : 'Reject'}
-                                    </button>
-                                  </>
-                                )}
-                                {isConfirmed && (
-                                  <>
-                                    <button onClick={() => updateReservation(r.id, 'confirmed', false, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-open/20 text-status-open text-xs font-bold flex items-center gap-1.5 hover:bg-status-open/30 transition-colors">
-                                      <UserCheck className="w-3.5 h-3.5" /> {isRTL ? 'تم الاستلام' : 'Picked up'}
-                                    </button>
-                                    <button onClick={() => updateReservation(r.id, 'no_show', true, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-500/30 transition-colors">
-                                      <UserX className="w-3.5 h-3.5" /> {isRTL ? 'لم يحضر' : 'No-show'}
-                                    </button>
-                                  </>
-                                )}
-                              </div>
+                  {(() => {
+                    const active = reservations.filter((r) => r.status === 'pending' || r.status === 'confirmed');
+                    const history = reservations.filter((r) => r.status === 'expired' || r.status === 'cancelled' || r.status === 'no_show');
+                    return (
+                      <>
+                        {/* Active reservations */}
+                        <div>
+                          <h2 className="text-sm font-cairo font-bold text-[var(--text-soft)] mb-3">{isRTL ? 'الحجوزات الحالية' : 'Active Reservations'} ({active.length})</h2>
+                          {active.length === 0 ? (
+                            <div className="glass-card p-8 text-center">
+                              <Clock className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
+                              <p className="text-sm text-[var(--text-muted)] font-tajawal">{isRTL ? 'لا توجد حجوزات نشطة حالياً' : 'No active reservations'}</p>
                             </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          ) : (
+                            <div className="space-y-3">
+                              {active.map((r) => {
+                                const remaining = Math.max(0, new Date(r.expires_at).getTime() - Date.now());
+                                const mm = String(Math.floor(remaining / 60000)).padStart(2, '0');
+                                const ss = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+                                const isPending = r.status === 'pending';
+                                const isConfirmed = r.status === 'confirmed';
+                                return (
+                                  <motion.div key={r.id} layout className="glass-card p-4 cursor-pointer hover:border-brand-green/30 transition-colors" onClick={() => setSelectedReservation(r)}>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Pill className="w-4 h-4 text-brand-green shrink-0" />
+                                          <span className="font-cairo font-bold text-sm">{r.medicine_name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-tajawal">
+                                          <UserCheck className="w-3 h-3" />
+                                          {r.user_name} · {r.user_phone}
+                                        </div>
+                                        {isPending && (
+                                          <div className="flex items-center gap-1.5 text-xs font-bold text-status-busy">
+                                            <Clock className="w-3 h-3" />
+                                            <span className="font-mono tabular-nums">{mm}:{ss}</span>
+                                          </div>
+                                        )}
+                                        {isConfirmed && (
+                                          <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-open/20 text-status-open">{isRTL ? 'مؤكد' : 'Confirmed'}</span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        {isPending && (
+                                          <>
+                                            <button onClick={() => updateReservation(r.id, 'confirmed', false, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-open/20 text-status-open text-xs font-bold flex items-center gap-1.5 hover:bg-status-open/30 transition-colors">
+                                              <Check className="w-3.5 h-3.5" /> {isRTL ? 'قبول الطلب' : 'Accept'}
+                                            </button>
+                                            <button onClick={() => updateReservation(r.id, 'cancelled', true, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-emergency/20 text-status-emergency text-xs font-bold flex items-center gap-1.5 hover:bg-status-emergency/30 transition-colors">
+                                              <XCircle className="w-3.5 h-3.5" /> {isRTL ? 'رفض الطلب' : 'Reject'}
+                                            </button>
+                                          </>
+                                        )}
+                                        {isConfirmed && (
+                                          <>
+                                            <button onClick={() => updateReservation(r.id, 'confirmed', false, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-status-open/20 text-status-open text-xs font-bold flex items-center gap-1.5 hover:bg-status-open/30 transition-colors">
+                                              <UserCheck className="w-3.5 h-3.5" /> {isRTL ? 'تم الاستلام' : 'Picked up'}
+                                            </button>
+                                            <button onClick={() => updateReservation(r.id, 'no_show', true, r.medicine_id, r.medicine_name)} className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-500/30 transition-colors">
+                                              <UserX className="w-3.5 h-3.5" /> {isRTL ? 'لم يحضر' : 'No-show'}
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 24h History */}
+                        {history.length > 0 && (
+                          <div className="mt-6">
+                            <h2 className="text-sm font-cairo font-bold text-[var(--text-soft)] mb-3">{isRTL ? 'سجل الحجوزات (آخر 24 ساعة)' : 'Reservation History (Last 24h)'} ({history.length})</h2>
+                            <div className="space-y-3">
+                              {history.map((r) => (
+                                <motion.div key={r.id} layout className="glass-card p-4 cursor-pointer hover:border-brand-green/30 transition-colors opacity-75" onClick={() => setSelectedReservation(r)}>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <Pill className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
+                                        <span className="font-cairo font-bold text-sm text-[var(--text-soft)]">{r.medicine_name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-tajawal">
+                                        <UserCheck className="w-3 h-3" />
+                                        {r.user_name} · {r.user_phone}
+                                      </div>
+                                      {r.status === 'expired' && (
+                                        <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-[var(--border-subtle)] text-[var(--text-muted)]">{isRTL ? 'منتهي' : 'Expired'}</span>
+                                      )}
+                                      {r.status === 'cancelled' && (
+                                        <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-status-emergency/20 text-status-emergency">{isRTL ? 'ملغي' : 'Cancelled'}</span>
+                                      )}
+                                      {r.status === 'no_show' && (
+                                        <span className="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400">{isRTL ? 'لم يحضر' : 'No-show'}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </motion.div>
               )}
+
+              {/* Reservation Detail Modal */}
+              <AnimatePresence>
+                {selectedReservation && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    onClick={() => setSelectedReservation(null)}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                      transition={{ duration: 0.25, ease: EASE }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="glass-card p-6 w-full max-w-md"
+                    >
+                      <div className="flex items-center justify-between mb-5">
+                        <h2 className="text-xl font-bold">{isRTL ? 'تفاصيل الحجز' : 'Reservation Details'}</h2>
+                        <button onClick={() => setSelectedReservation(null)} className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="glass-card p-3 flex items-center gap-2">
+                          <Pill className="w-5 h-5 text-brand-green shrink-0" />
+                          <div>
+                            <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{isRTL ? 'الدواء' : 'Medicine'}</p>
+                            <p className="font-cairo font-bold text-sm">{selectedReservation.medicine_name}</p>
+                          </div>
+                        </div>
+                        <div className="glass-card p-3 flex items-center gap-2">
+                          <UserCheck className="w-5 h-5 text-brand-blue-light shrink-0" />
+                          <div>
+                            <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{isRTL ? 'الاسم الكامل' : 'Full Name'}</p>
+                            <p className="font-cairo font-bold text-sm">{selectedReservation.user_name}</p>
+                          </div>
+                        </div>
+                        <div className="glass-card p-3 flex items-center gap-2">
+                          <Mail className="w-5 h-5 text-brand-blue-light shrink-0" />
+                          <div>
+                            <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{isRTL ? 'البريد الإلكتروني' : 'Email'}</p>
+                            <p className="font-cairo font-bold text-sm">{selectedReservation.user_email || (isRTL ? 'غير متوفر' : 'N/A')}</p>
+                          </div>
+                        </div>
+                        <div className="glass-card p-3 flex items-center gap-2">
+                          <Phone className="w-5 h-5 text-brand-green-light shrink-0" />
+                          <div>
+                            <p className="text-[10px] text-[var(--text-muted)] font-tajawal">{isRTL ? 'رقم الجوال' : 'Phone'}</p>
+                            <p className="font-cairo font-bold text-sm" dir="ltr">{selectedReservation.user_phone}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedReservation(null)} className="btn-primary w-full mt-5 text-sm">
+                        {isRTL ? 'إغلاق' : 'Close'}
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {tab === 'info' && (
                 <motion.div

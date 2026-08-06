@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Gift, MessageCircle, BookOpen, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, MessageCircle, BookOpen, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { DonationModal, type DonationType } from '@/components/DonationModal';
 import { donationVerses } from '@/data/donationVerses';
@@ -93,17 +93,6 @@ export default function LandingDonation() {
           >
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center shrink-0">
-                  <Gift className="w-5 h-5 text-brand-green-light" />
-                </div>
-                <div>
-                  <h3 className="font-cairo font-bold">{isRTL ? 'تبرع بالأدوية' : 'Medicine Donation'}</h3>
-                  <p className="text-xs font-tajawal text-[var(--text-muted)] mt-0.5">
-                    {isRTL ? 'أدوية sealed وغير مستعملة تصل للمرضى مباشرة' : 'Sealed, unused medicines delivered to patients directly'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-brand-blue/15 flex items-center justify-center shrink-0">
                   <Heart className="w-5 h-5 text-brand-blue-light" />
                 </div>
@@ -125,7 +114,7 @@ export default function LandingDonation() {
         </div>
       </div>
 
-      <DonationModal open={showModal} onClose={() => setShowModal(false)} defaultType={modalType} />
+      <DonationModal open={showModal} onClose={() => setShowModal(false)} defaultType={modalType} hideMedicineTab />
     </section>
   );
 }
