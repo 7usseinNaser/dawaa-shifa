@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, AlertCircle, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import type { UserRole } from '@/lib/supabase';
@@ -15,7 +15,7 @@ const slideVariants = {
 };
 
 export default function AuthPage() {
-  const { signIn, signUp, profile, profileLoading, profileError, resetPassword } = useAuth();
+  const { signIn, signUp, profile, resetPassword } = useAuth();
   const { t, lang } = useLang();
   const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
@@ -61,16 +61,6 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
     setPhoneError('');
-
-    const trimmedEmail = email.trim();
-    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmedEmail)) {
-      setError(isRTL ? 'البريد الإلكتروني غير صالح.' : 'Invalid email address.');
-      return;
-    }
-    if (password.length < 6) {
-      setError(isRTL ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
-      return;
-    }
     if (mode === 'register') {
       const cleaned = phone.trim().replace(/[\s-]/g, '');
       if (!/^(05\d{8}|\+9705\d{8})$/.test(cleaned)) {
@@ -80,19 +70,25 @@ export default function AuthPage() {
         return;
       }
     }
-
     setLoading(true);
-    let resultError: string | null = null;
     if (mode === 'register') {
-      const { error } = await signUp(trimmedEmail, password, role, name, phone.trim());
-      if (error) { resultError = error; setError(error); }
+      const { error } = await signUp(email, password, role, name, phone.trim());
+      if (error) setError(error);
     } else {
-      const { error } = await signIn(trimmedEmail, password);
-      if (error) { resultError = error; setError(error); }
+      const { error } = await signIn(email, password);
+      if (error) setError(error);
     }
     setLoading(false);
 
-    // Don't redirect here — the profile-driven useEffect handles it once the profile loads.
+    // After successful auth, check for redirect target in query string
+    if (!error && profile) {
+      const hashQuery = window.location.hash.split('?')[1];
+      const params = new URLSearchParams(hashQuery);
+      const redirect = params.get('redirect');
+      if (redirect) {
+        window.location.hash = '#/' + redirect.replace(/^\/+/, '');
+      }
+    }
   };
 
   const handleReset = async (e: React.FormEvent) => {
@@ -128,33 +124,16 @@ export default function AuthPage() {
     return () => clearTimeout(timer);
   }, [resetSent]);
 
-  // After successful auth, redirect to dashboard (or intended page if present)
+  // After successful auth, redirect to the intended page if present
   useEffect(() => {
-    if (profileLoading || !profile) return;
+    if (!profile) return;
     const hashQuery = window.location.hash.split('?')[1];
     const params = new URLSearchParams(hashQuery);
     const redirect = params.get('redirect');
     if (redirect) {
       window.location.hash = '#/' + redirect.replace(/^\/+/, '');
-    } else {
-      window.location.hash = '#/dashboard';
     }
-  }, [profile, profileLoading]);
-
-  if (profileError && !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-dark)]">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 rounded-full bg-status-emergency/20 flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-8 h-8 text-status-emergency" />
-          </div>
-          <h2 className="font-cairo font-bold text-xl mb-3">تعذّر تحميل الحساب</h2>
-          <p className="text-sm font-tajawal text-[var(--text-muted)] mb-4">{profileError}</p>
-          <button onClick={() => window.location.reload()} className="btn-primary w-full">إعادة المحاولة</button>
-        </motion.div>
-      </div>
-    );
-  }
+  }, [profile]);
 
   if (profile?.frozen) {
     return (
@@ -319,7 +298,7 @@ export default function AuthPage() {
                       <label className="block text-sm font-tajawal mb-1.5 text-[var(--text-soft)]">{t('auth.email')}</label>
                       <div className="relative">
                         <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                        <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="email@example.com" required className={`w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none transition-colors ${error && error.includes('بريد') ? 'border-red-500' : 'focus:border-brand-green'}`} />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" required className="w-full glass rounded-xl pr-11 pl-4 py-3 text-right font-tajawal focus:outline-none focus:border-brand-green transition-colors" />
                       </div>
                     </div>
 

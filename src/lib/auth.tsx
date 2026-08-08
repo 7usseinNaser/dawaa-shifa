@@ -7,8 +7,6 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  profileLoading: boolean;
-  profileError: string | null;
   isRecovery: boolean;
   clearRecovery: () => void;
   signUp: (email: string, password: string, role: UserRole, displayName: string, phone?: string) => Promise<{ error: string | null }>;
@@ -28,19 +26,15 @@ function translateAuthError(msg: string, lang: 'ar' | 'en' = 'ar'): string {
     return isRTL ? 'تعذّر الاتصال بالخادم. تحقّق من اتصالك بالإنترنت.' : 'Failed to connect to the server. Check your internet connection.';
   if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
     return isRTL ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Invalid email or password.';
-  if (m.includes('email not confirmed') || m.includes('email_not_confirmed'))
-    return isRTL ? 'يرجى تأكيد بريدك الإلكتروني أولاً.' : 'Please confirm your email first.';
   if (m.includes('user already registered'))
     return isRTL ? 'هذا الحساب مسجّل بالفعل. حاول تسجيل الدخول.' : 'This account is already registered. Try logging in.';
   if (m.includes('password should be') || m.includes('weak'))
     return isRTL ? 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.' : 'Password is too weak. Use at least 6 characters.';
+  if (m.includes('email'))
+    return isRTL ? 'البريد الإلكتروني غير صالح.' : 'Invalid email address.';
   if (m.includes('rate limit') || m.includes('too many'))
     return isRTL ? 'محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.' : 'Too many attempts. Please wait and try again.';
-  if (m.includes('over_request_rate_limit') || m.includes('over_email_send_rate_limit'))
-    return isRTL ? 'تم إرسال الكثير من الطلبات. انتظر دقيقة ثم حاول مجددًا.' : 'Too many requests sent. Wait a minute and try again.';
-  if (m.includes('signup disabled') || m.includes('signups not allowed'))
-    return isRTL ? 'التسجيل غير مفعّل حاليًا. تواصل مع الإدارة.' : 'Sign-ups are currently disabled. Contact support.';
-  return isRTL ? `تعذّر تسجيل الدخول: ${msg}` : `Login failed: ${msg}`;
+  return isRTL ? 'حدث خطأ غير متوقع. حاول مرة أخرى.' : 'An unexpected error occurred. Please try again.';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -48,8 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
   const [isRecovery, setIsRecovery] = useState(false);
 
   useEffect(() => {
@@ -79,44 +71,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearRecovery = () => setIsRecovery(false);
 
   useEffect(() => {
-    if (!user) {
-      setProfile(null);
-      setProfileLoading(false);
-      return;
-    }
-    setProfileLoading(true);
-    setProfileError(null);
-    let attempts = 0;
-    const loadProfile = async (): Promise<void> => {
-      attempts++;
+    if (!user) return;
+    (async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,display_name,email,phone,role,unique_id,verified,deleted_at,banned,frozen,freeze_reason,created_at,welcome_notification_sent')
+        .select('id,display_name,email,phone,role,unique_id,verified,deleted_at,banned,frozen,freeze_reason,created_at')
         .eq('id', user.id)
         .maybeSingle();
-      if (error) {
-        console.error('[auth] profile fetch error:', error.code, error.message, error.details);
-        if (attempts < 3) {
-          await new Promise((r) => setTimeout(r, 500 * attempts));
-          return loadProfile();
-        }
-        setProfileError('تعذّر تحميل بيانات الحساب. حاول مرة أخرى.');
-        setProfileLoading(false);
-        return;
-      }
-      if (data) {
+      if (!error && data) {
         const profileData = data as Profile;
+        // Enforce admin restriction on the client too: only the authorized email may be admin
         if (profileData.role === 'admin' && user.email !== AUTHORIZED_ADMIN_EMAIL) {
           profileData.role = 'citizen';
         }
         setProfile(profileData);
-      } else {
-        console.warn('[auth] no profile row for user', user.id, '— trigger may have failed');
-        setProfileError('لم يتم العثور على ملفك الشخصي. تواصل مع الدعم.');
       }
-      setProfileLoading(false);
-    };
-    loadProfile();
+    })();
   }, [user]);
 
   const signUp = async (email: string, password: string, role: UserRole, displayName: string, phone?: string) => {
@@ -126,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { role: safeRole, full_name: displayName, display_name: displayName, phone: phone || '' } },
+        options: { data: { role: safeRole, display_name: displayName, phone: phone || '' } },
       });
       if (error) return { error: translateAuthError(error.message, 'ar') };
       if (data.user) {
@@ -140,15 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        console.error('[auth] signIn error:', error.code, error.message);
+        const msg = error.message.toLowerCase();
+        if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+          return { error: 'البريد الإلكتروني غير مسجل أو كلمة المرور غير صحيحة. تحقق من بياناتك.' };
+        }
         return { error: translateAuthError(error.message, 'ar') };
-      }
-      if (data.user) {
-        setProfileLoading(true);
-        setUser(data.user);
-        setSession(data.session);
       }
       // Send welcome notification on first login
       (async () => {
@@ -215,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, profileLoading, profileError, isRecovery, clearRecovery, signUp, signIn, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, isRecovery, clearRecovery, signUp, signIn, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
