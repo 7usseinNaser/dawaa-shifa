@@ -65,7 +65,7 @@ function useHashRoute() {
 
 function AppContent() {
   const { theme, toggle } = useTheme();
-  const { user, profile, loading, isRecovery, clearRecovery } = useAuth();
+  const { user, profile, loading, profileLoading, isRecovery, clearRecovery } = useAuth();
   const hash = useHashRoute();
 
   const currentRoute = hash.split('?')[0];
@@ -107,6 +107,18 @@ function AppContent() {
       window.location.hash = '#/dashboard';
       return null;
     }
+    if (user && profileLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <LiquidBackground />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full relative z-10"
+          />
+        </div>
+      );
+    }
     return (
       <AnimatePresence mode="wait">
         <motion.div key="auth" variants={pageVariants} initial="initial" animate="enter" exit="exit">
@@ -137,12 +149,29 @@ function AppContent() {
   }
 
   if (isDashboardRoute) {
-    if (!user || !profile) {
+    if (!user) {
       window.location.hash = '#/auth';
       return null;
     }
+    if (user && !profile && profileLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <LiquidBackground />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full relative z-10"
+          />
+        </div>
+      );
+    }
+    if (user && !profile) {
+      window.location.hash = '#/auth';
+      return null;
+    }
+    const p = profile!;
     const AUTHORIZED_ADMIN = 'hussein7.7naser@gmail.com';
-    if (profile.role === 'admin' && user.email !== AUTHORIZED_ADMIN) {
+    if (p.role === 'admin' && user.email !== AUTHORIZED_ADMIN) {
       window.location.hash = '#/auth';
       return null;
     }
@@ -150,10 +179,10 @@ function AppContent() {
       <AnimatePresence mode="wait">
         <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="enter" exit="exit">
           <Suspense fallback={<LazyFallback />}>
-            {profile.role === 'citizen' && <CitizenDashboard theme={theme} onToggleTheme={toggle} />}
-            {profile.role === 'pharmacist' && <PharmacistDashboard theme={theme} onToggleTheme={toggle} />}
-            {profile.role === 'facility_owner' && <FacilityDashboard theme={theme} onToggleTheme={toggle} />}
-            {profile.role === 'admin' && <AdminPanel />}
+            {p.role === 'citizen' && <CitizenDashboard theme={theme} onToggleTheme={toggle} />}
+            {p.role === 'pharmacist' && <PharmacistDashboard theme={theme} onToggleTheme={toggle} />}
+            {p.role === 'facility_owner' && <FacilityDashboard theme={theme} onToggleTheme={toggle} />}
+            {p.role === 'admin' && <AdminPanel />}
           </Suspense>
         </motion.div>
       </AnimatePresence>
