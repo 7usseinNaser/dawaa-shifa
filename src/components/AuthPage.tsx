@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
+import { Activity, AlertCircle, ArrowLeft, ArrowRight, Building2, CircleCheck as CheckCircle, Lock, Mail, MessageCircle, Phone, Pill, Snowflake, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import type { UserRole } from '@/lib/supabase';
@@ -15,7 +15,7 @@ const slideVariants = {
 };
 
 export default function AuthPage() {
-  const { signIn, signUp, profile, resetPassword } = useAuth();
+  const { signIn, signUp, profile, profileLoading, profileError, resetPassword } = useAuth();
   const { t, lang } = useLang();
   const isRTL = lang === 'ar';
   const [mode, setMode] = useState<'register' | 'login'>('register');
@@ -92,9 +92,7 @@ export default function AuthPage() {
     }
     setLoading(false);
 
-    if (!resultError) {
-      window.location.hash = '#/dashboard';
-    }
+    // Don't redirect here — the profile-driven useEffect handles it once the profile loads.
   };
 
   const handleReset = async (e: React.FormEvent) => {
@@ -132,7 +130,7 @@ export default function AuthPage() {
 
   // After successful auth, redirect to dashboard (or intended page if present)
   useEffect(() => {
-    if (!profile) return;
+    if (profileLoading || !profile) return;
     const hashQuery = window.location.hash.split('?')[1];
     const params = new URLSearchParams(hashQuery);
     const redirect = params.get('redirect');
@@ -141,7 +139,22 @@ export default function AuthPage() {
     } else {
       window.location.hash = '#/dashboard';
     }
-  }, [profile]);
+  }, [profile, profileLoading]);
+
+  if (profileError && !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-dark)]">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 rounded-full bg-status-emergency/20 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-status-emergency" />
+          </div>
+          <h2 className="font-cairo font-bold text-xl mb-3">تعذّر تحميل الحساب</h2>
+          <p className="text-sm font-tajawal text-[var(--text-muted)] mb-4">{profileError}</p>
+          <button onClick={() => window.location.reload()} className="btn-primary w-full">إعادة المحاولة</button>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (profile?.frozen) {
     return (

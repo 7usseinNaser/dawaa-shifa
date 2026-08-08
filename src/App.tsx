@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { AlertCircle } from 'lucide-react';
 import AccessibilityPanel from '@/components/AccessibilityPanel';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import AuthPage from '@/components/AuthPage';
@@ -65,7 +66,7 @@ function useHashRoute() {
 
 function AppContent() {
   const { theme, toggle } = useTheme();
-  const { user, profile, loading, profileLoading, isRecovery, clearRecovery } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, isRecovery, clearRecovery } = useAuth();
   const hash = useHashRoute();
 
   const currentRoute = hash.split('?')[0];
@@ -119,6 +120,15 @@ function AppContent() {
         </div>
       );
     }
+    if (user && profileError && !profile) {
+      return (
+        <AnimatePresence mode="wait">
+          <motion.div key="auth" variants={pageVariants} initial="initial" animate="enter" exit="exit">
+            <AuthPage />
+          </motion.div>
+        </AnimatePresence>
+      );
+    }
     return (
       <AnimatePresence mode="wait">
         <motion.div key="auth" variants={pageVariants} initial="initial" animate="enter" exit="exit">
@@ -162,6 +172,21 @@ function AppContent() {
             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             className="w-10 h-10 border-2 border-brand-green border-t-transparent rounded-full relative z-10"
           />
+        </div>
+      );
+    }
+    if (user && !profile && profileError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <LiquidBackground />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-8 max-w-md w-full text-center relative z-10">
+            <div className="w-16 h-16 rounded-full bg-status-emergency/20 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-status-emergency" />
+            </div>
+            <h2 className="font-cairo font-bold text-xl mb-3">تعذّر تحميل الحساب</h2>
+            <p className="text-sm font-tajawal text-[var(--text-muted)] mb-4">{profileError}</p>
+            <button onClick={() => window.location.reload()} className="btn-primary w-full">إعادة المحاولة</button>
+          </motion.div>
         </div>
       );
     }
